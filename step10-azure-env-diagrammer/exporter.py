@@ -262,3 +262,77 @@ def md_to_pdf(md_text: str, output_path: Path, title: str = "") -> Path | None:
     except Exception:
         pass
     return None
+
+
+# ============================================================
+# レポート差分比較
+# ============================================================
+
+def find_previous_report(output_dir: Path, report_type: str, current_name: str) -> Path | None:
+    """output_dir 内で同じ report_type の直前レポートを探す。"""
+    pattern = f"{report_type}-report-*.md"
+    candidates = sorted(output_dir.glob(pattern), reverse=True)
+    for c in candidates:
+        if c.name != current_name and c.is_file():
+            return c
+    return None
+
+
+def generate_diff_report(prev_path: Path, curr_path: Path) -> str:
+    """2つの Markdown レポートの差分を Markdown 形式で返す。
+
+    - セクション（##）単位で追加/削除/変更を検出
+    - 行単位の unified diff を付ける
+    """
+    import difflib
+
+    prev_lines = prev_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    curr_lines = curr_path.read_text(encoding="utf-8").splitlines(keepends=True)
+
+    diff = list(difflib.unified_diff(
+        prev_lines, curr_lines,
+        fromfile=prev_path.name,
+        tofile=curr_path.name,
+        lineterm="",
+    ))
+
+    if not diff:
+        return "# 差分レポート\n\n前回と変更はありません。\n"
+
+    # セクション変化サマリ
+    prev_sections = _extract_sections(prev_lines)
+    curr_sections = _extract_sections(curr_lines)
+
+    added = set(curr_sections) - set(prev_sections)
+    removed = set(prev_sections) - set(curr_sections)
+
+    parts: list[str] = []
+    parts.append(f"# 差分レポート\n")
+    parts.append(f"- 前回: `{prev_path.name}`\n")
+    parts.append(f"- 今回: `{curr_path.name}`\n")
+
+    if added:
+        parts.append(f"\n## 追加されたセクション\n")
+        for s in sorted(added):
+            parts.append(f"- {s}\n")
+
+    if removed:
+        parts.append(f"\n## 削除されたセクション\n")
+        for s in sorted(removed):
+            parts.append(f"- {s}\n")
+
+    parts.append(f"\n## 詳細 Diff\n\n```diff\n")
+    parts.extend(diff)
+    parts.append("\n```\n")
+
+    return "".join(parts)
+
+
+def _extract_sections(lines: list[str]) -> list[str]:
+    """Markdown の ## 見出しを抽出。"""
+    sections: list[str] = []
+    for line in lines:
+        stripped = line.strip() if isinstance(line, str) else ""
+        if stripped.startswith("## "):
+            sections.append(stripped[3:].strip())
+    return sections

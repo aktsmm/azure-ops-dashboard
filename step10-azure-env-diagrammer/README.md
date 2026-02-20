@@ -19,8 +19,10 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 - **Security Report** — セキュアスコア、推奨事項、Defender状態、リスク分析
 - **Cost Report** — サービス別/RG別コスト、最適化推奨、Advisor連携
 - GitHub Copilot SDK（AI）によるレポート自動生成
+- **モデル動的選択** — 利用可能モデルをCopilot SDKから自動取得、UIで選択可能（既定: 最新Sonnet）
 - テンプレートカスタマイズ（セクション ON/OFF + カスタム指示）
-- Word (.docx) / PDF エクスポート対応
+- Word (.docx) / PDF / **SVG (.drawio.svg)** エクスポート対応
+- **差分レポート** — 前回と今回のレポートを自動比較（diff.md 自動生成）
 
 ### GUI 機能
 
@@ -110,6 +112,7 @@ GUIウィンドウが起動するので:
 | ファイル           | 説明                                                           |
 | ------------------ | -------------------------------------------------------------- |
 | `main.py`          | GUI アプリ本体（tkinter）                                      |
+| `gui_helpers.py`   | GUI 共通定数・ユーティリティ（main.py から分離）               |
 | `collector.py`     | Azure データ収集（az graph query / Security / Cost / Advisor） |
 | `drawio_writer.py` | .drawio XML 生成                                               |
 | `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                       |
@@ -117,6 +120,7 @@ GUIウィンドウが起動するので:
 | `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）      |
 | `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                  |
 | `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                |
+| `tests.py`         | ユニットテスト（collector / drawio_writer / exporter / gui_helpers） |
 | `templates/`       | レポートテンプレート JSON + 保存済み指示                       |
 
 ### テンプレート
@@ -134,7 +138,9 @@ GUIウィンドウが起動するので:
 保存先フォルダに以下を生成:
 
 - `*.drawio`（Draw.io 構成図）
+- `*.drawio.svg`（SVG エクスポート、オプション — Draw.io CLI 必要）
 - `*.md`（Markdown レポート）
+- `*-diff.md`（差分レポート — 前回レポートとの比較）
 - `*.docx`（Word レポート、オプション）
 - `*.pdf`（PDF レポート、オプション — Word/LibreOffice 必要）
 - `env.json`（nodes/edges と azureId→cellId マップ）
@@ -145,6 +151,15 @@ GUIウィンドウが起動するので:
 - 設計（SSOT）: `DESIGN.md`
 - 技術調査（SSOT）: `TECH-SURVEY.md`
 - セッションログ: `output_sessions/`
+
+## テスト
+
+```powershell
+# step10-azure-env-diagrammer フォルダ内で実行
+uv run python -m unittest tests -v
+```
+
+Azure CLI / Copilot SDK 接続なしでテスト可能（20件）。
 
 ## 実行ファイル化（Windows .exe）
 

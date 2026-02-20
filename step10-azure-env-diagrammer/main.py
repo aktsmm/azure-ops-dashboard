@@ -14,12 +14,10 @@ Draw.io（diagrams.net）で開ける .drawio 図を生成するGUI。
 from __future__ import annotations
 
 import json
-import os
-import shutil
+import re
 import subprocess
 import threading
 import time
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -47,114 +45,16 @@ from app_paths import (
     ensure_user_dirs, load_all_settings, load_setting, save_all_settings,
     save_setting, saved_instructions_path, settings_path, user_templates_dir,
 )
+from gui_helpers import (
+    WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
+    WINDOW_BG, TEXT_FG, INPUT_BG, ACCENT_COLOR,
+    SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
+    FONT_FAMILY, FONT_SIZE,
+    write_text, write_json, open_native,
+    cached_drawio_path, cached_vscode_path,
+    export_drawio_svg,
+)
 from i18n import t, set_language, get_language, on_language_changed, load_saved_language
-
-
-# ============================================================
-# 定数
-# ============================================================
-
-WINDOW_TITLE = "Azure Ops Dashboard"
-WINDOW_WIDTH = 720
-WINDOW_HEIGHT = 640
-WINDOW_BG = "#1e1e1e"
-TEXT_FG = "#d4d4d4"
-INPUT_BG = "#2d2d2d"
-ACCENT_COLOR = "#0078d4"
-SUCCESS_COLOR = "#4ec9b0"
-WARNING_COLOR = "#dcdcaa"
-ERROR_COLOR = "#f44747"
-FONT_FAMILY = "Consolas" if sys.platform == "win32" else "Menlo" if sys.platform == "darwin" else "Monospace"
-FONT_SIZE = 11
-
-
-# ============================================================
-# ファイル書き出し
-# ============================================================
-
-def _write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def _write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _open_native(path: str | Path) -> None:
-    """OS ごとの既定アプリでファイル/フォルダを開く。"""
-    p = str(path)
-    if sys.platform == "win32":
-        os.startfile(p)
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", p])
-    else:
-        subprocess.Popen(["xdg-open", p])
-
-
-def _detect_drawio_path() -> str | None:
-    """Draw.io デスクトップアプリのパスを探す。"""
-    # shutil.which で PATH 上を検索
-    for name in ("draw.io", "drawio"):
-        p = shutil.which(name)
-        if p:
-            return p
-
-    if sys.platform == "win32":
-        # Windows の典型インストール先
-        candidates = [
-            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "draw.io" / "draw.io.exe",
-            Path(os.environ.get("PROGRAMFILES", "")) / "draw.io" / "draw.io.exe",
-            Path(os.environ.get("PROGRAMFILES(X86)", "")) / "draw.io" / "draw.io.exe",
-        ]
-    elif sys.platform == "darwin":
-        # macOS: .app バンドル
-        candidates = [
-            Path("/Applications/draw.io.app/Contents/MacOS/draw.io"),
-            Path.home() / "Applications" / "draw.io.app" / "Contents" / "MacOS" / "draw.io",
-        ]
-    else:
-        # Linux snap / flatpak / AppImage
-        candidates = [
-            Path("/snap/drawio/current/opt/draw.io/drawio"),
-            Path("/opt/draw.io/drawio"),
-        ]
-
-    for c in candidates:
-        if c.exists():
-            return str(c)
-    return None
-
-
-def _detect_vscode_path() -> str | None:
-    """VS Code のパスを探す。"""
-    for name in ("code", "code-insiders", "code.cmd"):
-        p = shutil.which(name)
-        if p:
-            return p
-    return None
-
-
-# ---------- パス検出キャッシュ ----------
-_drawio_path_cache: str | None = ...
-_vscode_path_cache: str | None = ...
-
-
-def _cached_drawio_path() -> str | None:
-    """_detect_drawio_path() の結果をキャッシュして返す。"""
-    global _drawio_path_cache
-    if _drawio_path_cache is ...:
-        _drawio_path_cache = _detect_drawio_path()
-    return _drawio_path_cache
-
-
-def _cached_vscode_path() -> str | None:
-    """_detect_vscode_path() の結果をキャッシュして返す。"""
-    global _vscode_path_cache
-    if _vscode_path_cache is ...:
-        _vscode_path_cache = _detect_vscode_path()
-    return _vscode_path_cache
 
 
 # ============================================================
@@ -381,7 +281,7 @@ class App:
                            font=(FONT_FAMILY, FONT_SIZE - 1)
                            ).pack(side=tk.LEFT, padx=(0, 10))
         # Draw.io 検出状態表示
-        drawio_path = _cached_drawio_path()
+        drawio_path = cached_drawio_path()
         hint_drawio = t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found")
         self._drawio_hint_label = tk.Label(form, text=hint_drawio, bg=WINDOW_BG,
                  fg=SUCCESS_COLOR if drawio_path else "#808080",
@@ -487,6 +387,9 @@ class App:
                        activebackground="#252526", activeforeground=TEXT_FG,
                        font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
 
+        # --- SVG エクスポート（drawio ビュー向け、Open App 行の近く） ---
+        self._export_svg_var = tk.BooleanVar(value=False)
+
         # テンプレートキャッシュ
         self._templates_cache: list[dict] = []
         self._current_template: dict | None = None
@@ -576,6 +479,14 @@ class App:
             activebackground=WINDOW_BG, activeforeground=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 2))
         self._auto_open_main_cb.pack(side=tk.LEFT, padx=(12, 0))
+
+        # SVG エクスポート チェック（diagram ビュー用、ボタン行に配置）
+        self._svg_cb = tk.Checkbutton(
+            btn_frame, text="SVG", variable=self._export_svg_var,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 2))
+        self._svg_cb.pack(side=tk.LEFT, padx=(6, 0))
 
         # --- レビューパネル（初期非表示 / 2行構成） ---
         self._review_frame = tk.Frame(self._root, bg="#303030", relief=tk.RIDGE, borderwidth=1)
@@ -688,6 +599,7 @@ class App:
         data["export_md"] = "1" if self._export_md_var.get() else "0"
         data["export_docx"] = "1" if self._export_docx_var.get() else "0"
         data["export_pdf"] = "1" if self._export_pdf_var.get() else "0"
+        data["export_svg"] = "1" if self._export_svg_var.get() else "0"
         data["last_template"] = self._template_var.get()
         data["model"] = self._model_var.get()
         save_all_settings(data)
@@ -730,6 +642,9 @@ class App:
         saved_pdf = load_setting("export_pdf", "")
         if saved_pdf in ("0", "1"):
             self._export_pdf_var.set(saved_pdf == "1")
+        saved_svg = load_setting("export_svg", "")
+        if saved_svg in ("0", "1"):
+            self._export_svg_var.set(saved_svg == "1")
 
         # Model（一覧ロード後に適用するため、ここでは値だけ復元）
         saved_model = load_setting("model", "")
@@ -739,14 +654,18 @@ class App:
     def _bg_load_models(self) -> None:
         """Copilot SDK から利用可能モデル一覧を取得してUIに反映する。"""
         try:
-            from ai_reviewer import list_available_model_ids_sync, choose_default_model_id
+            from ai_reviewer import list_available_model_ids_sync, choose_default_model_id, MODEL
 
             self._log(t("log.loading_models"), "info")
-            model_ids = list_available_model_ids_sync(on_status=lambda s: self._log(s, "info"))
+            model_ids = list_available_model_ids_sync(
+                on_status=lambda s: self._log(s, "info"),
+                timeout=15,
+            )
             model_ids = [m for m in model_ids if isinstance(m, str) and m.strip()]
             if not model_ids:
-                return
-            # 表示順はそのまま（SDK側順）
+                # 取得失敗時はフォールバック定数を使用
+                self._log(t("log.model_fallback"), "warning")
+                model_ids = [MODEL]
             self._models_cache = model_ids
 
             def _apply() -> None:
@@ -777,6 +696,38 @@ class App:
         self._root.attributes('-topmost', True)
         self._root.after(300, lambda: self._root.attributes('-topmost', False))
         self._root.focus_force()
+
+    # ------------------------------------------------------------------ #
+    # ファイル名ヘルパー
+    # ------------------------------------------------------------------ #
+
+    def _sub_display_name(self, sub_id: str | None) -> str | None:
+        """サブスクID → 短い表示名（キャッシュから）。"""
+        if not sub_id:
+            return None
+        for s in self._subs_cache:
+            if s.get("id") == sub_id:
+                name = s.get("name", sub_id)
+                # ファイル名安全化: 英数字/ハイフン/アンダースコアのみ
+                import re as _re
+                return _re.sub(r"[^\w\-]", "_", name)[:30]
+        return sub_id[:8]
+
+    @staticmethod
+    def _sanitize_for_filename(s: str) -> str:
+        import re as _re
+        return _re.sub(r"[^\w\-]", "_", s)[:30]
+
+    def _make_filename(self, prefix: str, sub_id: str | None, rg: str | None, ext: str) -> str:
+        """Sub/RG 情報を含んだファイル名を生成する。"""
+        parts = [prefix]
+        sub_name = self._sub_display_name(sub_id)
+        if sub_name:
+            parts.append(sub_name)
+        if rg:
+            parts.append(self._sanitize_for_filename(rg))
+        parts.append(now_stamp())
+        return "-".join(parts) + ext
 
     # ------------------------------------------------------------------ #
     # View 切り替え
@@ -1076,7 +1027,7 @@ class App:
     def _on_open_output_dir(self) -> None:
         d = self._output_dir_var.get()
         if d and Path(d).exists():
-            _open_native(d)
+            open_native(d)
 
     # ------------------------------------------------------------------ #
     # ログ / ステータス（スレッドセーフ）
@@ -1437,7 +1388,7 @@ class App:
 
             # Step 2: 保存先決定（Output Dir設定済みなら自動、未設定ならダイアログ）
             initial_dir = self._output_dir_var.get().strip()
-            default_name = f"env-{now_stamp()}.drawio"
+            default_name = self._make_filename("env", sub, rg, ".drawio")
 
             if initial_dir and Path(initial_dir).is_dir():
                 # 自動保存
@@ -1488,7 +1439,7 @@ class App:
             # Step 5: Save
             self._set_step("Step 5/5: Save")
             self._set_status(t("status.saving"))
-            _write_text(out_path, xml)
+            write_text(out_path, xml)
             self._log(f"  → {out_path}", "success")
 
             out_dir = out_path.parent
@@ -1508,10 +1459,18 @@ class App:
                 ],
                 "azureIdToCellId": azure_to_cell_id,
             }
-            _write_json(out_dir / "env.json", env_payload)
+            write_json(out_dir / "env.json", env_payload)
             self._log(f"  → {out_dir / 'env.json'}", "success")
 
-            _write_json(out_dir / "collect.log.json", {"tool": "az graph query", "meta": meta})
+            write_json(out_dir / "collect.log.json", {"tool": "az graph query", "meta": meta})
+
+            # SVG エクスポート
+            if self._export_svg_var.get():
+                svg_result = export_drawio_svg(out_path)
+                if svg_result:
+                    self._log(f"  → {svg_result}", "success")
+                else:
+                    self._log(t("log.svg_export_skip"), "warning")
 
             # Done + Preview
             self._set_step("Done")
@@ -1689,34 +1648,34 @@ class App:
         if choice == "auto":
             if is_drawio:
                 # Draw.io があればそれ、なければ VS Code、それもなければ OS既定
-                dp = _cached_drawio_path()
+                dp = cached_drawio_path()
                 if dp:
                     subprocess.Popen([dp, str(path)])
                     return
-                vp = _cached_vscode_path()
+                vp = cached_vscode_path()
                 if vp:
                     subprocess.Popen([vp, str(path)])
                     return
-            _open_native(path)
+            open_native(path)
 
         elif choice == "drawio":
-            dp = _cached_drawio_path()
+            dp = cached_drawio_path()
             if dp:
                 subprocess.Popen([dp, str(path)])
             else:
                 self._log(t("log.drawio_not_found"), "warning")
-                _open_native(path)
+                open_native(path)
 
         elif choice == "vscode":
-            vp = _cached_vscode_path()
+            vp = cached_vscode_path()
             if vp:
                 subprocess.Popen([vp, str(path)])
             else:
                 self._log(t("log.vscode_not_found"), "warning")
-                _open_native(path)
+                open_native(path)
 
         else:  # "os"
-            _open_native(path)
+            open_native(path)
 
     # ------------------------------------------------------------------ #
     # レポート生成ワーカー (security-report / cost-report)
@@ -1839,7 +1798,7 @@ class App:
             # Step 3: 保存（Output Dir設定済みなら自動、未設定ならダイアログ）
             self._set_step("Step 3/3: Save")
             report_type = "security" if view == "security-report" else "cost"
-            default_name = f"{report_type}-report-{now_stamp()}.md"
+            default_name = self._make_filename(f"{report_type}-report", sub, rg, ".md")
             initial_dir = self._output_dir_var.get().strip()
 
             if initial_dir and Path(initial_dir).is_dir():
@@ -1871,9 +1830,21 @@ class App:
                     self._set_status(t("status.cancelled"))
                     return
                 out_path = Path(out_path_holder[0])
-            _write_text(out_path, report_result)
+            write_text(out_path, report_result)
             self._last_out_path = out_path
             self._log(f"  → {out_path}", "success")
+
+            # 差分レポート（前回が存在すれば自動生成）
+            try:
+                from exporter import find_previous_report, generate_diff_report
+                prev = find_previous_report(out_path.parent, report_type, out_path.name)
+                if prev:
+                    diff_md = generate_diff_report(prev, out_path)
+                    diff_path = out_path.with_name(out_path.stem + "-diff.md")
+                    write_text(diff_path, diff_md)
+                    self._log(t("log.diff_generated", path=str(diff_path.name)), "success")
+            except Exception:
+                pass  # 差分生成は best-effort
 
             # 追加出力形式
             if self._export_docx_var.get():
@@ -1939,7 +1910,7 @@ class App:
         self._openwith_label.configure(text=t("label.open_with"))
 
         # Draw.io 検出ヒント
-        drawio_path = _cached_drawio_path()
+        drawio_path = cached_drawio_path()
         self._drawio_hint_label.configure(
             text=t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found"))
 

@@ -722,10 +722,12 @@ def _run_report(
 
 def list_available_model_ids_sync(
     on_status: Optional[Callable[[str], None]] = None,
+    timeout: float = 15,
 ) -> list[str]:
     """利用可能モデルID一覧を同期的に取得する。
 
     GUI のバックグラウンドスレッドから呼べるように同期化。
+    *timeout* 秒で接続/取得できなければ空リストを返す。
     """
 
     async def _inner() -> list[str]:
@@ -733,7 +735,9 @@ def list_available_model_ids_sync(
         return await _list_model_ids_async(client)
 
     try:
-        return list(_run_async(_inner()))
+        loop = _get_bg_loop()
+        future = asyncio.run_coroutine_threadsafe(_inner(), loop)
+        return list(future.result(timeout=timeout))
     except Exception:
         return []
 
