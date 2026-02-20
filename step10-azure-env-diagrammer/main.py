@@ -43,7 +43,7 @@ from collector import (
 )
 from drawio_writer import build_drawio_xml, now_stamp
 
-from app_paths import ensure_user_dirs, saved_instructions_path, user_templates_dir
+from app_paths import ensure_user_dirs, saved_instructions_path, settings_path, user_templates_dir
 from i18n import t, set_language, get_language, on_language_changed, load_saved_language
 
 
@@ -133,6 +133,59 @@ def _detect_vscode_path() -> str | None:
     return None
 
 
+# ---------- パス検出キャッシュ ----------
+_drawio_path_cache: str | None = ...
+_vscode_path_cache: str | None = ...
+
+
+def _cached_drawio_path() -> str | None:
+    """_detect_drawio_path() の結果をキャッシュして返す。"""
+    global _drawio_path_cache
+    if _drawio_path_cache is ...:
+        _drawio_path_cache = _detect_drawio_path()
+    return _drawio_path_cache
+
+
+def _cached_vscode_path() -> str | None:
+    """_detect_vscode_path() の結果をキャッシュして返す。"""
+    global _vscode_path_cache
+    if _vscode_path_cache is ...:
+        _vscode_path_cache = _detect_vscode_path()
+    return _vscode_path_cache
+
+
+# ============================================================
+# 設定の永続化（output_dir 等）
+# ============================================================
+
+def _load_setting(key: str, default: str = "") -> str:
+    """settings.json から値を読み込む。"""
+    try:
+        p = settings_path()
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return str(data.get(key, default))
+    except Exception:
+        pass
+    return default
+
+
+def _save_setting(key: str, value: str) -> None:
+    """settings.json に値を書き込む。"""
+    try:
+        ensure_user_dirs()
+        p = settings_path()
+        data: dict = {}
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        data[key] = value
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 
 # ============================================================
@@ -185,6 +238,11 @@ class App:
         self._setup_styles()
         self._setup_widgets()
         self._setup_keybindings()
+
+        # output_dir を設定から復元
+        saved_dir = _load_setting("output_dir", "")
+        if saved_dir and Path(saved_dir).is_dir():
+            self._output_dir_var.set(saved_dir)
 
         # 起動時に事前チェック + Sub候補ロード（非同期）
         threading.Thread(target=self._bg_preflight, daemon=True).start()
@@ -334,7 +392,7 @@ class App:
                            font=(FONT_FAMILY, FONT_SIZE - 1)
                            ).pack(side=tk.LEFT, padx=(0, 10))
         # Draw.io 検出状態表示
-        drawio_path = _detect_drawio_path()
+        drawio_path = _cached_drawio_path()
         hint_drawio = t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found")
         self._drawio_hint_label = tk.Label(form, text=hint_drawio, bg=WINDOW_BG,
                  fg=SUCCESS_COLOR if drawio_path else "#808080",
@@ -685,7 +743,7 @@ class App:
         from ai_reviewer import list_templates
         templates = list_templates(report_type)
         self._templates_cache = templates
-        names = [t.get("template_name", "Unknown") for t in templates]
+        names = [tmpl.get("template_name", "Unknown") for tmpl in templates]
         self._template_combo.configure(values=names if names else ["(No templates)"])
         if names:
             self._template_var.set(names[0])
@@ -1542,18 +1600,18 @@ class App:
         if choice == "auto":
             if is_drawio:
                 # Draw.io があればそれ、なければ VS Code、それもなければ OS既定
-                dp = _detect_drawio_path()
+                dp = _cached_drawio_path()
                 if dp:
                     subprocess.Popen([dp, str(path)])
                     return
-                vp = _detect_vscode_path()
+                vp = _cached_vscode_path()
                 if vp:
                     subprocess.Popen([vp, str(path)])
                     return
             _open_native(path)
 
         elif choice == "drawio":
-            dp = _detect_drawio_path()
+            dp = _cached_drawio_path()
             if dp:
                 subprocess.Popen([dp, str(path)])
             else:
@@ -1561,7 +1619,7 @@ class App:
                 _open_native(path)
 
         elif choice == "vscode":
-            vp = _detect_vscode_path()
+            vp = _cached_vscode_path()
             if vp:
                 subprocess.Popen([vp, str(path)])
             else:
@@ -1758,7 +1816,7 @@ class App:
 
         except Exception as e:
             self._log(f"ERROR: {e}", "error")
-            self._set_status(f"Error: {e}")
+            self._set_status(t("status.error"))
         finally:
             self._set_working(False)
 
@@ -1789,7 +1847,7 @@ class App:
         self._openwith_label.configure(text=t("label.open_with"))
 
         # Draw.io 検出ヒント
-        drawio_path = _detect_drawio_path()
+        drawio_path = _cached_drawio_path()
         self._drawio_hint_label.configure(
             text=t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found"))
 
@@ -1820,6 +1878,20 @@ class App:
     # ------------------------------------------------------------------ #
 
     def run(self) -> None:
+        # App 終了時に CopilotClient を graceful shutdown する
+        def _on_close() -> None:
+            # output_dir を永続化
+            _save_setting("output_dir", self._output_dir_var.get())
+            # CopilotClient のキャッシュを停止
+            try:
+                import asyncio
+                from ai_reviewer import shutdown_cached_client
+                asyncio.run(shutdown_cached_client())
+            except Exception:
+                pass
+            self._root.destroy()
+
+        self._root.protocol("WM_DELETE_WINDOW", _on_close)
         self._root.mainloop()
 
 

@@ -516,53 +516,22 @@ def run_security_report(
     on_status: Optional[Callable[[str], None]] = None,
 ) -> str | None:
     """セキュリティレポートを生成。"""
-    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
-    log = on_status or (lambda s: None)
-
-    # テンプレートがあればシステムプロンプトに反映
-    if template:
-        tmpl_instruction = build_template_instruction(template, custom_instruction)
-        system_prompt = SYSTEM_PROMPT_SECURITY_BASE + "\n\n" + tmpl_instruction
-    else:
-        system_prompt = SYSTEM_PROMPT_SECURITY_BASE
-        if custom_instruction.strip():
-            system_prompt += f"\n\n### ユーザーからの追加指示:\n{custom_instruction.strip()}"
-
-    # Microsoft Docs 参照を取得（失敗時はスキップ）
     resource_types = _extract_resource_types(resource_text)
-    queries = security_search_queries(resource_types)
-    docs_block = enrich_with_docs(
-        queries, report_type="security",
-        resource_types=resource_types, on_status=log,
+    data_sections: list[tuple[str, str, str, dict]] = [
+        ("Security Data", "セキュリティデータ", "Resource List", security_data),
+    ]
+    return _run_report(
+        base_system_prompt=SYSTEM_PROMPT_SECURITY_BASE,
+        report_type="security",
+        data_sections=data_sections,
+        resource_text=resource_text,
+        resource_types=resource_types,
+        search_queries_fn=security_search_queries,
+        template=template,
+        custom_instruction=custom_instruction,
+        on_delta=on_delta,
+        on_status=on_status,
     )
-    if not docs_block:
-        log("Microsoft Docs: generating report without references" if get_language() == "en" else "Microsoft Docs 参照なしでレポートを生成します")
-
-    if get_language() == "en":
-        prompt = (
-            "Generate a security report for the following Azure environment.\n\n"
-            "**Important**: Read the data below carefully and provide environment-specific findings.\n"
-            "Reference specific resource names and types; avoid generic advice.\n"
-            "Use microsoft_docs_search tool to find relevant docs and cite URLs.\n\n"
-            "## Security Data\n"
-            f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
-            "## Resource List\n"
-            f"```\n{resource_text}\n```"
-            f"{docs_block}"
-        )
-    else:
-        prompt = (
-            "以下の Azure 環境のセキュリティレポートを生成してください。\n\n"
-            "**重要**: 以下のデータをよく読み、この環境固有の具体的な指摘を書いてください。\n"
-            "リソース名やタイプを具体的に挙げてコメントし、「一般論」は避けてください。\n"
-            "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
-            "## セキュリティデータ\n"
-            f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
-            "## リソース一覧\n"
-            f"```\n{resource_text}\n```"
-            f"{docs_block}"
-        )
-    return _run_async(reviewer.generate(prompt, system_prompt))
 
 
 def run_cost_report(
@@ -575,51 +544,95 @@ def run_cost_report(
     resource_types: list[str] | None = None,
 ) -> str | None:
     """コストレポートを生成。"""
+    data_sections: list[tuple[str, str, str, dict]] = [
+        ("Cost Data", "コストデータ", "Cost Data", cost_data),
+        ("Advisor Recommendations", "Advisor 推奨事項", "Advisor Recommendations", advisor_data),
+    ]
+    return _run_report(
+        base_system_prompt=SYSTEM_PROMPT_COST_BASE,
+        report_type="cost",
+        data_sections=data_sections,
+        resource_text=None,
+        resource_types=resource_types or [],
+        search_queries_fn=cost_search_queries,
+        template=template,
+        custom_instruction=custom_instruction,
+        on_delta=on_delta,
+        on_status=on_status,
+    )
+
+
+# ============================================================
+# 共通レポート生成ヘルパ
+# ============================================================
+
+def _run_report(
+    *,
+    base_system_prompt: str,
+    report_type: str,
+    data_sections: list[tuple[str, str, str, dict]],
+    resource_text: str | None,
+    resource_types: list[str],
+    search_queries_fn: Callable,
+    template: dict | None,
+    custom_instruction: str,
+    on_delta: Optional[Callable[[str], None]],
+    on_status: Optional[Callable[[str], None]],
+) -> str | None:
+    """security / cost レポート の共通ロジック。"""
     reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
     log = on_status or (lambda s: None)
 
-    # テンプレートがあればシステムプロンプトに反映
+    # テンプレート → システムプロンプト
     if template:
         tmpl_instruction = build_template_instruction(template, custom_instruction)
-        system_prompt = SYSTEM_PROMPT_COST_BASE + "\n\n" + tmpl_instruction
+        system_prompt = base_system_prompt + "\n\n" + tmpl_instruction
     else:
-        system_prompt = SYSTEM_PROMPT_COST_BASE
+        system_prompt = base_system_prompt
         if custom_instruction.strip():
             system_prompt += f"\n\n### ユーザーからの追加指示:\n{custom_instruction.strip()}"
 
-    # Microsoft Docs 参照を取得（失敗時はスキップ）
-    queries = cost_search_queries(resource_types)
+    # Microsoft Docs 参照
+    queries = search_queries_fn(resource_types)
     docs_block = enrich_with_docs(
-        queries, report_type="cost",
+        queries, report_type=report_type,
         resource_types=resource_types, on_status=log,
     )
     if not docs_block:
-        log("Microsoft Docs: generating report without references" if get_language() == "en" else "Microsoft Docs 参照なしでレポートを生成します")
+        log("Microsoft Docs: generating report without references"
+            if get_language() == "en"
+            else "Microsoft Docs 参照なしでレポートを生成します")
 
-    if get_language() == "en":
-        prompt = (
-            "Generate a cost report for the following Azure environment.\n\n"
-            "**Important**: Read the data below carefully and provide environment-specific cost findings.\n"
-            "Reference specific resource names and amounts; avoid generic advice.\n"
-            "Use microsoft_docs_search tool to find relevant docs and cite URLs.\n\n"
-            "## Cost Data\n"
-            f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
-            "## Advisor Recommendations\n"
-            f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
-            f"{docs_block}"
+    # プロンプト組み立て
+    en = get_language() == "en"
+    parts: list[str] = []
+    if en:
+        parts.append(
+            f"Generate a {report_type} report for the following Azure environment.\n\n"
+            "**Important**: Read the data below carefully and provide environment-specific findings.\n"
+            "Reference specific resource names and types; avoid generic advice.\n"
+            "Use microsoft_docs_search tool to find relevant docs and cite URLs.\n"
         )
     else:
-        prompt = (
-            "以下の Azure 環境のコストレポートを生成してください。\n\n"
-            "**重要**: 以下のデータをよく読み、この環境固有の具体的なコスト指摘を書いてください。\n"
-            "リソース名と具体的な金額を挙げてコメントし、「一般論」は避けてください。\n"
-            "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
-            "## コストデータ\n"
-            f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
-            "## Advisor 推奨事項\n"
-            f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
-            f"{docs_block}"
+        parts.append(
+            f"以下の Azure 環境の{report_type}レポートを生成してください。\n\n"
+            "**重要**: 以下のデータをよく読み、この環境固有の具体的な指摘を書いてください。\n"
+            "リソース名やタイプを具体的に挙げてコメントし、「一般論」は避けてください。\n"
+            "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n"
         )
+
+    for en_title, ja_title, _alt, data in data_sections:
+        title = en_title if en else ja_title
+        parts.append(f"\n## {title}\n```json\n{json.dumps(data, indent=2, ensure_ascii=False)}\n```\n")
+
+    if resource_text:
+        rt_title = "Resource List" if en else "リソース一覧"
+        parts.append(f"\n## {rt_title}\n```\n{resource_text}\n```")
+
+    if docs_block:
+        parts.append(docs_block)
+
+    prompt = "".join(parts)
     return _run_async(reviewer.generate(prompt, system_prompt))
 
 

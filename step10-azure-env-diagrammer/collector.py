@@ -85,8 +85,7 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
     # Windows: shell=True だと timeout kill が効かないことがあるので
     # CREATE_NEW_PROCESS_GROUP を使いつつ shell=False で実行
     if sys.platform == "win32":
-        import subprocess as _sp
-        kwargs["creationflags"] = _sp.CREATE_NEW_PROCESS_GROUP
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     try:
         completed = subprocess.run(args, **kwargs)
     except subprocess.TimeoutExpired:
