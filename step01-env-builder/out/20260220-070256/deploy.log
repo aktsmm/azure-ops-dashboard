@@ -1,0 +1,16 @@
+========================================================================================
+cmd: az account show --query id -o tsv
+exit: 127   duration_ms: 0
+--- stdout ---
+
+--- stderr ---
+az CLI not found: [WinError 2] 指定されたファイルが見つかりません。
+
+========================================================================================
+cmd: az group show --name brief -o json
+exit: 127   duration_ms: 0
+--- stdout ---
+
+--- stderr ---
+az CLI not found: [WinError 2] 指定されたファイルが見つかりません。
+

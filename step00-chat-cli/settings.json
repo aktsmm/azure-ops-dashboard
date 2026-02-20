@@ -1,0 +1,6 @@
+{
+  "_comment": "Step 0: SDK Chat CLI ユーザー設定。変更したい項目のみ記述。",
+  "hotkey_key": "alt",
+  "hotkey_interval": 0.35,
+  "model": "gpt-4.1"
+}

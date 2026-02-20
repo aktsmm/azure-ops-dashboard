@@ -1,0 +1,18 @@
+========================================================================================
+cmd: az account show --query id -o tsv
+exit: 1   duration_ms: 16
+--- stdout ---
+
+--- stderr ---
+'\"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.CMD\"' �́A�����R�}���h�܂��͊O���R�}���h�A
+����\�ȃv���O�����܂��̓o�b�` �t�@�C���Ƃ��ĔF������Ă��܂���B
+
+========================================================================================
+cmd: az group show --name brief -o json
+exit: 1   duration_ms: 16
+--- stdout ---
+
+--- stderr ---
+'\"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.CMD\"' �́A�����R�}���h�܂��͊O���R�}���h�A
+����\�ȃv���O�����܂��̓o�b�` �t�@�C���Ƃ��ĔF������Ă��܂���B
+

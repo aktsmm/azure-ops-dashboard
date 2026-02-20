@@ -1,0 +1,75 @@
+{
+  "template_name": "Executive",
+  "report_type": "cost",
+  "description": "経営層向け — サマリと削減提案のみ",
+  "sections": {
+    "monthly_summary": {
+      "label": "月別サマリ",
+      "enabled": true,
+      "description": "今月の総コストと上位サービス"
+    },
+    "cost_by_service": {
+      "label": "サービス別コスト",
+      "enabled": true,
+      "description": "サービス別の内訳と円グラフ"
+    },
+    "cost_by_rg": {
+      "label": "RG別コスト",
+      "enabled": false,
+      "description": "リソースグループ別のコスト分析"
+    },
+    "top_resources": {
+      "label": "コスト上位リソース",
+      "enabled": false,
+      "description": "コストTop10リソースの詳細"
+    },
+    "cost_anomaly": {
+      "label": "コスト異常検知",
+      "enabled": true,
+      "description": "想定外に高いサービスやリソース"
+    },
+    "tag_analysis": {
+      "label": "タグ別分析",
+      "enabled": false,
+      "description": "部門/環境/プロジェクトタグ別のコスト"
+    },
+    "optimization": {
+      "label": "最適化推奨",
+      "enabled": true,
+      "description": "削減可能なリソースの指摘"
+    },
+    "idle_resources": {
+      "label": "未使用リソース検知",
+      "enabled": false,
+      "description": "低稼働・未使用リソースの検出"
+    },
+    "advisor_recommendations": {
+      "label": "Advisor推奨事項",
+      "enabled": false,
+      "description": "コスト関連のAdvisor推奨"
+    },
+    "budget_status": {
+      "label": "予算消化状況",
+      "enabled": false,
+      "description": "月次予算の消化率"
+    },
+    "previous_comparison": {
+      "label": "前回比較",
+      "enabled": false,
+      "description": "前回レポートとのコスト比較"
+    },
+    "portal_links": {
+      "label": "関連リンク",
+      "enabled": false,
+      "description": "Cost Management / Advisor のURL"
+    }
+  },
+  "options": {
+    "show_resource_ids": false,
+    "show_mermaid_charts": false,
+    "max_detail_items": 5,
+    "include_remediation": false,
+    "redact_subscription": true,
+    "currency_symbol": "¥"
+  }
+}

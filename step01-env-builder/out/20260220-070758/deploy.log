@@ -1,0 +1,62 @@
+========================================================================================
+cmd: az account show --query id -o tsv
+exit: 0   duration_ms: 2108
+--- stdout ---
+832c4080-181c-476b-9db0-b3ce9596d40a
+--- stderr ---
+
+
+========================================================================================
+cmd: az group show --name brief -o json
+exit: 0   duration_ms: 3452
+--- stdout ---
+{
+  "id": "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/brief",
+  "location": "japaneast",
+  "managedBy": null,
+  "name": "brief",
+  "properties": {
+    "provisioningState": "Succeeded"
+  },
+  "tags": null,
+  "type": "Microsoft.Resources/resourceGroups"
+}
+--- stderr ---
+
+
+========================================================================================
+cmd: az deployment group what-if --name envb-20260220-070758 --resource-group brief --template-file main.bicep --parameters @main.parameters.json -o json
+exit: 0   duration_ms: 26046
+--- stdout ---
+Note: The result may contain false positive predictions (noise).
+You can help us improve the accuracy of the result by opening an issue here: https://aka.ms/WhatIfIssues
+
+Resource and property changes are indicated with these symbols:
+  + Create
+  * Ignore
+
+The deployment will update the following scope:
+
+Scope: /subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/brief
+
+  + Microsoft.Storage/storageAccounts/strptg6vqqy3pcm [2023-01-01]
+
+      apiVersion:                          "2023-01-01"
+      id:                                  "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/brief/providers/Microsoft.Storage/storageAccounts/strptg6vqqy3pcm"
+      kind:                                "StorageV2"
+      location:                            "japaneast"
+      name:                                "strptg6vqqy3pcm"
+      properties.allowBlobPublicAccess:    false
+      properties.minimumTlsVersion:        "TLS1_2"
+      properties.supportsHttpsTrafficOnly: true
+      sku.name:                            "Standard_LRS"
+      type:                                "Microsoft.Storage/storageAccounts"
+
+  * Microsoft.DataProtection/BackupVaults/brief-bv
+  * Microsoft.RecoveryServices/vaults/brief-vault
+  * microsoft.insights/actiongroups/action
+
+Resource changes: 1 to create, 3 to ignore.
+--- stderr ---
+WARNING: A new Bicep release is available: v0.40.2. Upgrade now by running "az bicep upgrade".
+

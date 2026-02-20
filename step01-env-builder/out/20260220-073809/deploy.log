@@ -1,0 +1,106 @@
+========================================================================================
+cmd: az account show --query id -o tsv
+exit: 0   duration_ms: 1952
+--- stdout ---
+832c4080-181c-476b-9db0-b3ce9596d40a
+--- stderr ---
+
+
+========================================================================================
+cmd: az group show --name envb-20260220-073632 -o json
+exit: 0   duration_ms: 2983
+--- stdout ---
+{
+  "id": "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632",
+  "location": "japaneast",
+  "managedBy": null,
+  "name": "envb-20260220-073632",
+  "properties": {
+    "provisioningState": "Succeeded"
+  },
+  "tags": null,
+  "type": "Microsoft.Resources/resourceGroups"
+}
+--- stderr ---
+
+
+========================================================================================
+cmd: az deployment group create --name envb-20260220-073809 --resource-group envb-20260220-073632 --template-file main.bicep --parameters @main.parameters.json -o json
+exit: 0   duration_ms: 40593
+--- stdout ---
+{
+  "id": "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632/providers/Microsoft.Resources/deployments/envb-20260220-073809",
+  "location": null,
+  "name": "envb-20260220-073809",
+  "properties": {
+    "correlationId": "607badf9-a013-4dd1-9567-35b869469c4b",
+    "debugSetting": null,
+    "dependencies": [],
+    "diagnostics": null,
+    "duration": "PT25.050367S",
+    "error": null,
+    "extensions": [],
+    "mode": "Incremental",
+    "onErrorDeployment": null,
+    "outputResources": [
+      {
+        "apiVersion": null,
+        "extension": null,
+        "id": "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632/providers/Microsoft.Storage/storageAccounts/stsybpne7ivbj46",
+        "identifiers": null,
+        "resourceGroup": "envb-20260220-073632",
+        "resourceType": "Microsoft.Storage/storageAccounts"
+      }
+    ],
+    "outputs": {
+      "storageAccountName": {
+        "type": "String",
+        "value": "stsybpne7ivbj46"
+      }
+    },
+    "parameters": {
+      "location": {
+        "type": "String",
+        "value": "japaneast"
+      }
+    },
+    "parametersLink": null,
+    "providers": [
+      {
+        "id": null,
+        "namespace": "Microsoft.Storage",
+        "providerAuthorizationConsentState": null,
+        "registrationPolicy": null,
+        "registrationState": null,
+        "resourceTypes": [
+          {
+            "aliases": null,
+            "apiProfiles": null,
+            "apiVersions": null,
+            "capabilities": null,
+            "defaultApiVersion": null,
+            "locationMappings": null,
+            "locations": [
+              "japaneast"
+            ],
+            "properties": null,
+            "resourceType": "storageAccounts",
+            "zoneMappings": null
+          }
+        ]
+      }
+    ],
+    "provisioningState": "Succeeded",
+    "templateHash": "15144317325476628550",
+    "templateLink": null,
+    "timestamp": "2026-02-19T22:38:47.370874+00:00",
+    "validatedResources": null,
+    "validationLevel": null
+  },
+  "resourceGroup": "envb-20260220-073632",
+  "tags": null,
+  "type": "Microsoft.Resources/deployments"
+}
+--- stderr ---
+WARNING: A new Bicep release is available: v0.40.2. Upgrade now by running "az bicep upgrade".
+

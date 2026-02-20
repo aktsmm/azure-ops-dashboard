@@ -1,0 +1,57 @@
+========================================================================================
+cmd: az account show --query id -o tsv
+exit: 0   duration_ms: 1672
+--- stdout ---
+832c4080-181c-476b-9db0-b3ce9596d40a
+--- stderr ---
+
+
+========================================================================================
+cmd: az group show --name envb-20260220-073632 -o json
+exit: 0   duration_ms: 3593
+--- stdout ---
+{
+  "id": "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632",
+  "location": "japaneast",
+  "managedBy": null,
+  "name": "envb-20260220-073632",
+  "properties": {
+    "provisioningState": "Succeeded"
+  },
+  "tags": null,
+  "type": "Microsoft.Resources/resourceGroups"
+}
+--- stderr ---
+
+
+========================================================================================
+cmd: az deployment group what-if --name envb-20260220-073646 --resource-group envb-20260220-073632 --template-file main.bicep --parameters @main.parameters.json -o json
+exit: 0   duration_ms: 24139
+--- stdout ---
+Note: The result may contain false positive predictions (noise).
+You can help us improve the accuracy of the result by opening an issue here: https://aka.ms/WhatIfIssues
+
+Resource and property changes are indicated with this symbol:
+  + Create
+
+The deployment will update the following scope:
+
+Scope: /subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632
+
+  + Microsoft.Storage/storageAccounts/stsybpne7ivbj46 [2023-01-01]
+
+      apiVersion:                          "2023-01-01"
+      id:                                  "/subscriptions/832c4080-181c-476b-9db0-b3ce9596d40a/resourceGroups/envb-20260220-073632/providers/Microsoft.Storage/storageAccounts/stsybpne7ivbj46"
+      kind:                                "StorageV2"
+      location:                            "japaneast"
+      name:                                "stsybpne7ivbj46"
+      properties.allowBlobPublicAccess:    false
+      properties.minimumTlsVersion:        "TLS1_2"
+      properties.supportsHttpsTrafficOnly: true
+      sku.name:                            "Standard_LRS"
+      type:                                "Microsoft.Storage/storageAccounts"
+
+Resource changes: 1 to create.
+--- stderr ---
+WARNING: A new Bicep release is available: v0.40.2. Upgrade now by running "az bicep upgrade".
+

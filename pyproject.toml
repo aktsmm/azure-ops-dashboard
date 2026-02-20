@@ -1,0 +1,28 @@
+[project]
+name = "sdk-enterprise-challenge"
+version = "0.1.0"
+description = "FY26 GitHub Copilot SDK Enterprise Pattern Challenge"
+requires-python = ">=3.11"
+
+dependencies = [
+    "github-copilot-sdk>=0.1.25",
+    "pystray>=0.19",
+    "Pillow>=10.0",
+    "keyboard>=0.13",
+    "python-docx>=1.2.0",
+    "markdown>=3.10.2",
+]
+
+[project.optional-dependencies]
+speech = [
+    "azure-cognitiveservices-speech>=1.38.0",
+    "pyautogui>=0.9.54",
+    "pynput>=1.7.6",
+]
+voice-agent = [
+    "github-copilot-sdk>=0.1.25",
+    "azure-cognitiveservices-speech>=1.38.0",
+    "pyautogui>=0.9.54",
+    "pynput>=1.7.6",
+    "pystray>=0.19.5",
+]
