@@ -1,0 +1,47 @@
+[
+  {
+    "label": "経営層向け要約",
+    "instruction": "経営会議向けに要約し、技術用語を避けてわかりやすく。箇条書きで3-5点にまとめる。",
+    "label_en": "Executive Summary"
+  },
+  {
+    "label": "英語併記",
+    "instruction": "各セクションのタイトルと要約を日英併記で出力してください。",
+    "label_en": "Bilingual (EN/JA)"
+  },
+  {
+    "label": "アクションアイテム重視",
+    "instruction": "各セクション末尾に「次のアクション」を明記し、担当者・期限の欄を含めてください。",
+    "label_en": "Action Items Focus"
+  },
+  {
+    "label": "コンプライアンス準拠",
+    "instruction": "ISO 27001 / SOC 2 の観点でコメントを追加してください。",
+    "label_en": "Compliance (ISO/SOC)"
+  },
+  {
+    "label": "簡潔（500字以内）",
+    "instruction": "全体を500字以内に収めて、最重要ポイントだけまとめてください。",
+    "label_en": "Brief (500 chars)"
+  },
+  {
+    "label": "CAF 深掘り",
+    "instruction": "Cloud Adoption Framework の各フェーズ（戦略・計画・準備・採用・管理・統制）に対応付けてコメントしてください。microsoft_docs_search で CAF の最新ドキュメントを検索し、URL を引用に含めること。",
+    "label_en": "CAF Deep Dive"
+  },
+  {
+    "label": "WAF 5 Pillars 評価",
+    "instruction": "Well-Architected Framework の5つの柱（信頼性・セキュリティ・コスト最適化・オペレーショナルエクセレンス・パフォーマンス効率）それぞれについてこの環境を評価してください。microsoft_docs_search で各 Pillar の最新チェックリストを検索し、参照URLを付けること。",
+    "label_en": "WAF 5 Pillars Review"
+  },
+  {
+    "label": "リソース別の改善提案",
+    "instruction": "環境内のリソースを1つずつ確認し、リソース名を挙げて改善提案を書いてください。汎用的なコメントは不要です。",
+    "label_en": "Per-Resource Suggestions"
+  },
+  {
+    "label": "Docs 引用を強化",
+    "instruction": "すべての推奨事項に対して microsoft_docs_search で関連ドキュメントを検索し、Learn の URL を脚注として付けてください。引用のないコメントは出力しないでください。",
+    "label_en": "Docs Citation Enhanced"
+  }
+]
