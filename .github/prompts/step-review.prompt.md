@@ -1,7 +1,7 @@
 ---
 agent: "agent"
 description: "コード改善レビュー → 確認 → 全自動修正を一気通貫で実行するエージェント"
-tools: ["agent", "edit/editFiles", "runInTerminal", "todo"]
+tools: ["agent", "edit/editFiles", "execute/runInTerminal", "todo"]
 ---
 
 <!-- pattern: Evaluator-Optimizer (review → gate → autonomous fix loop) -->
