@@ -252,11 +252,14 @@ def md_to_pdf(md_text: str, output_path: Path, title: str = "") -> Path | None:
     # Mac/Linux (+ Windows fallback): LibreOffice
     try:
         import subprocess
+        kwargs: dict[str, Any] = {"capture_output": True, "timeout": 60}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         subprocess.run([
             "soffice", "--headless", "--convert-to", "pdf",
             "--outdir", str(output_path.parent),
             str(docx_path),
-        ], capture_output=True, timeout=60)
+        ], **kwargs)
         if output_path.exists():
             return output_path
     except Exception:

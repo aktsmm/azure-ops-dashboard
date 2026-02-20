@@ -80,11 +80,17 @@ def _make_error_handler(
 
         if _retry_count[key] <= max_retry:
             wait = RETRY_BACKOFF ** _retry_count[key]
-            on_status(f"AI エラー（リトライ {_retry_count[key]}/{max_retry}, {wait:.0f}s 待機）: {err}")
+            if get_language() == "en":
+                on_status(f"AI error (retry {_retry_count[key]}/{max_retry}, waiting {wait:.0f}s): {err}")
+            else:
+                on_status(f"AI エラー（リトライ {_retry_count[key]}/{max_retry}, {wait:.0f}s 待機）: {err}")
             await asyncio.sleep(wait)
             return {"errorHandling": "retry"}
         else:
-            on_status(f"AI エラー（中止）: {err}")
+            if get_language() == "en":
+                on_status(f"AI error (aborted): {err}")
+            else:
+                on_status(f"AI エラー（中止）: {err}")
             return {"errorHandling": "abort"}
 
     return _on_error_occurred
@@ -139,9 +145,16 @@ def build_template_instruction(template: dict[str, Any], custom_instruction: str
     sections = template.get("sections", {})
     options = template.get("options", {})
 
-    enabled = [f"- {v['label']}: {v.get('description', '')}"
-               for k, v in sections.items() if v.get("enabled")]
-    disabled = [f"- {v['label']}" for k, v in sections.items() if not v.get("enabled")]
+    lang = get_language()
+
+    def _label(v: dict[str, Any]) -> str:
+        if lang == "en":
+            return str(v.get("label_en") or v.get("label") or "")
+        return str(v.get("label") or v.get("label_en") or "")
+
+    enabled = [f"- {_label(v)}: {v.get('description', '')}"
+               for _k, v in sections.items() if v.get("enabled")]
+    disabled = [f"- {_label(v)}" for _k, v in sections.items() if not v.get("enabled")]
 
     lines = []
     lines.append("## レポート構成指示")

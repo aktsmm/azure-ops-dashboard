@@ -13,11 +13,13 @@ Draw.io（diagrams.net）で開ける .drawio 図を生成するGUI。
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import subprocess
 import threading
 import time
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -726,14 +728,12 @@ class App:
             if s.get("id") == sub_id:
                 name = s.get("name", sub_id)
                 # ファイル名安全化: 英数字/ハイフン/アンダースコアのみ
-                import re as _re
-                return _re.sub(r"[^\w\-]", "_", name)[:30]
+                return re.sub(r"[^\w\-]", "_", name)[:30]
         return sub_id[:8]
 
     @staticmethod
     def _sanitize_for_filename(s: str) -> str:
-        import re as _re
-        return _re.sub(r"[^\w\-]", "_", s)[:30]
+        return re.sub(r"[^\w\-]", "_", s)[:30]
 
     def _make_filename(self, prefix: str, sub_id: str | None, rg: str | None, ext: str) -> str:
         """Sub/RG 情報を含んだファイル名を生成する。"""
@@ -875,12 +875,12 @@ class App:
         """テンプレート選択時にチェックボックスを更新。"""
         name = self._template_var.get()
         lang = get_language()
-        for t in self._templates_cache:
-            if t.get("template_name") == name:
-                self._current_template = t
-                desc = t.get(f"description_{lang}", t.get("description", ""))
+        for tmpl in self._templates_cache:
+            if tmpl.get("template_name") == name:
+                self._current_template = tmpl
+                desc = tmpl.get(f"description_{lang}", tmpl.get("description", ""))
                 self._template_desc_var.set(desc)
-                self._rebuild_section_checks(t)
+                self._rebuild_section_checks(tmpl)
                 return
 
     def _clear_section_checks(self) -> None:
@@ -916,13 +916,12 @@ class App:
         """現在のテンプレートにチェックボックスの変更を反映した辞書を返す。"""
         if not self._current_template:
             return None
-        import copy
-        t = copy.deepcopy(self._current_template)
-        sections = t.get("sections", {})
+        tmpl = copy.deepcopy(self._current_template)
+        sections = tmpl.get("sections", {})
         for key, var in self._section_vars.items():
             if key in sections:
                 sections[key]["enabled"] = var.get()
-        return t
+        return tmpl
 
     def _get_custom_instruction(self) -> str:
         """チェック済みの保存済み指示 + 自由入力テキストを結合して返す。"""
@@ -1231,7 +1230,6 @@ class App:
             self._log(t("log.az_login_running"), "info")
             self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
             try:
-                import subprocess, sys
                 kwargs: dict = {
                     "capture_output": True, "text": True,
                     "timeout": 120, "encoding": "utf-8", "errors": "replace",

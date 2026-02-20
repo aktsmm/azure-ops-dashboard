@@ -88,9 +88,13 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
     try:
         completed = subprocess.run(args, **kwargs)
     except subprocess.TimeoutExpired:
+        en = get_language() == "en"
         raise RuntimeError(
-            f"コマンドが {timeout_s} 秒でタイムアウトしました。\n"
-            f"→ RG を指定して範囲を絞るか、resource-graph 拡張を確認してください。"
+            (f"Command timed out after {timeout_s} seconds.\n"
+             f"→ Specify a Resource Group to narrow the scope, or verify the resource-graph extension."
+             if en else
+             f"コマンドが {timeout_s} 秒でタイムアウトしました。\n"
+             f"→ RG を指定して範囲を絞るか、resource-graph 拡張を確認してください。")
         )
     return completed.returncode, completed.stdout, completed.stderr
 
