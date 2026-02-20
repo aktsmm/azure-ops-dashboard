@@ -333,6 +333,12 @@ class App:
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._save_tmpl_btn.pack(side=tk.RIGHT)
 
+        self._import_tmpl_btn = tk.Button(tmpl_row, text=t("btn.import_template"),
+                  command=self._on_import_template,
+                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  relief=tk.FLAT, padx=6, cursor="hand2")
+        self._import_tmpl_btn.pack(side=tk.RIGHT, padx=(0, 4))
+
         # --- 折りたたみ本体（スクロール対応） ---
         self._report_body_outer = tk.Frame(self._report_panel, bg="#252526")
         # 初期は折りたたみなので pack しない
@@ -1074,25 +1080,71 @@ class App:
         if not tmpl:
             return
 
+        # テンプレート名を入力ダイアログで聞く
+        default_name = tmpl.get("template_name", "Custom")
+        name = simpledialog.askstring(
+            t("dlg.save_template"),
+            t("dlg.template_name_prompt"),
+            initialvalue=default_name,
+            parent=self._root,
+        )
+        if not name or not name.strip():
+            return
+        name = name.strip()
+
         # frozen (PyInstaller) の同梱 templates は読み取り専用になり得るため、ユーザー領域を既定にする
         ensure_user_dirs()
+        report_type = tmpl.get("report_type", "custom")
+        safe_name = re.sub(r"[^\w\-]", "_", name).lower()
         p = filedialog.asksaveasfilename(
             title=t("dlg.save_template"),
             defaultextension=".json",
             filetypes=[("JSON", "*.json")],
             initialdir=str(user_templates_dir()) if user_templates_dir().is_dir() else str(Path.home() / "Documents"),
-            initialfile=f"{tmpl.get('report_type', 'custom')}-custom.json",
+            initialfile=f"{report_type}-{safe_name}.json",
         )
         if p:
             from ai_reviewer import save_template
-            tmpl["template_name"] = Path(p).stem.split("-", 1)[-1].capitalize()
+            tmpl["template_name"] = name
             # _pathは保存対象から除外
             tmpl.pop("_path", None)
             save_template(p, tmpl)
             self._log(t("instr.template_saved", path=p), "success")
             # リロード
-            report_type = tmpl.get("report_type", "security")
             self._load_templates_for_type(report_type)
+
+    def _on_import_template(self) -> None:
+        """外部のテンプレート JSON をユーザー領域にインポート。"""
+        src = filedialog.askopenfilename(
+            title=t("dlg.import_template"),
+            filetypes=[("JSON", "*.json")],
+            initialdir=str(Path.home() / "Documents"),
+        )
+        if not src:
+            return
+        src_path = Path(src)
+        try:
+            data = json.loads(src_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            self._log(f"Import error: {e}", "error")
+            return
+        if not isinstance(data, dict) or "report_type" not in data:
+            self._log("Invalid template JSON (missing 'report_type')", "error")
+            return
+
+        ensure_user_dirs()
+        dest = user_templates_dir() / src_path.name
+        # 同名ファイルが既にあれば末尾に番号を付与
+        counter = 1
+        while dest.exists():
+            dest = user_templates_dir() / f"{src_path.stem}_{counter}.json"
+            counter += 1
+        import shutil
+        shutil.copy2(src, dest)
+        self._log(t("instr.template_imported", path=str(dest)), "success")
+        # リロード
+        report_type = data.get("report_type", "security")
+        self._load_templates_for_type(report_type)
 
     # ------------------------------------------------------------------ #
     # 出力フォルダ

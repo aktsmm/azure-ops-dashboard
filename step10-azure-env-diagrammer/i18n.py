@@ -65,6 +65,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "btn.proceed":              {"ja": "  ✔ Proceed — 生成する  ",    "en": "  ✔ Proceed — Generate  "},
     "btn.cancel_review":        {"ja": "  ✖ Cancel  ",                 "en": "  ✖ Cancel  "},
     "btn.save_template":        {"ja": "💾 Save as…",                  "en": "💾 Save as…"},
+    "btn.import_template":      {"ja": "📥 Import",                    "en": "📥 Import"},
     "btn.save_instruction":     {"ja": "💾 記憶",                      "en": "💾 Save"},
     "btn.delete_instruction":   {"ja": "🗑 削除",                      "en": "🗑 Delete"},
     "btn.auto_open":            {"ja": "生成後に自動で開く",           "en": "Auto-open after generation"},
@@ -186,6 +187,9 @@ _STRINGS: dict[str, dict[str, str]] = {
     "dlg.save_drawio":          {"ja": "Save .drawio",                  "en": "Save .drawio"},
     "dlg.save_report":          {"ja": "Save {type} report",            "en": "Save {type} report"},
     "dlg.save_template":        {"ja": "Save Template",                 "en": "Save Template"},
+    "dlg.template_name_prompt": {"ja": "テンプレート名を入力:",           "en": "Enter template name:"},
+    "dlg.import_template":      {"ja": "テンプレートJSONを選択",         "en": "Select template JSON"},
+    "instr.template_imported":  {"ja": "テンプレートインポート: {path}", "en": "Template imported: {path}"},
     "dlg.select_output_dir":    {"ja": "出力フォルダを選択",           "en": "Select output folder"},
 
     # --- AI プロンプト言語切替指示（system prompt に追加） ---
