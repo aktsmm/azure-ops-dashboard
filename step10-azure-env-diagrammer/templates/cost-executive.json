@@ -6,62 +6,74 @@
     "monthly_summary": {
       "label": "月別サマリ",
       "enabled": true,
-      "description": "今月の総コストと上位サービス"
+      "description": "今月の総コストと上位サービス",
+      "label_en": "Monthly Summary"
     },
     "cost_by_service": {
       "label": "サービス別コスト",
       "enabled": true,
-      "description": "サービス別の内訳と円グラフ"
+      "description": "サービス別の内訳と円グラフ",
+      "label_en": "Cost by Service"
     },
     "cost_by_rg": {
       "label": "RG別コスト",
       "enabled": false,
-      "description": "リソースグループ別のコスト分析"
+      "description": "リソースグループ別のコスト分析",
+      "label_en": "Cost by Resource Group"
     },
     "top_resources": {
       "label": "コスト上位リソース",
       "enabled": false,
-      "description": "コストTop10リソースの詳細"
+      "description": "コストTop10リソースの詳細",
+      "label_en": "Top Cost Resources"
     },
     "cost_anomaly": {
       "label": "コスト異常検知",
       "enabled": true,
-      "description": "想定外に高いサービスやリソース"
+      "description": "想定外に高いサービスやリソース",
+      "label_en": "Cost Anomaly Detection"
     },
     "tag_analysis": {
       "label": "タグ別分析",
       "enabled": false,
-      "description": "部門/環境/プロジェクトタグ別のコスト"
+      "description": "部門/環境/プロジェクトタグ別のコスト",
+      "label_en": "Tag-based Analysis"
     },
     "optimization": {
       "label": "最適化推奨",
       "enabled": true,
-      "description": "削減可能なリソースの指摘"
+      "description": "削減可能なリソースの指摘",
+      "label_en": "Optimization"
     },
     "idle_resources": {
       "label": "未使用リソース検知",
       "enabled": false,
-      "description": "低稼働・未使用リソースの検出"
+      "description": "低稼働・未使用リソースの検出",
+      "label_en": "Idle Resource Detection"
     },
     "advisor_recommendations": {
       "label": "Advisor推奨事項",
       "enabled": false,
-      "description": "コスト関連のAdvisor推奨"
+      "description": "コスト関連のAdvisor推奨",
+      "label_en": "Advisor Recommendations"
     },
     "budget_status": {
       "label": "予算消化状況",
       "enabled": false,
-      "description": "月次予算の消化率"
+      "description": "月次予算の消化率",
+      "label_en": "Budget Status"
     },
     "previous_comparison": {
       "label": "前回比較",
       "enabled": false,
-      "description": "前回レポートとのコスト比較"
+      "description": "前回レポートとのコスト比較",
+      "label_en": "Previous Comparison"
     },
     "portal_links": {
       "label": "関連リンク",
       "enabled": false,
-      "description": "Cost Management / Advisor のURL"
+      "description": "Cost Management / Advisor のURL",
+      "label_en": "Related Links"
     }
   },
   "options": {
@@ -71,5 +83,6 @@
     "include_remediation": false,
     "redact_subscription": true,
     "currency_symbol": "¥"
-  }
+  },
+  "description_en": "Executive - Summary and savings proposals only"
 }

@@ -52,7 +52,7 @@ from gui_helpers import (
     FONT_FAMILY, FONT_SIZE,
     write_text, write_json, open_native,
     cached_drawio_path, cached_vscode_path,
-    export_drawio_svg,
+    export_drawio_svg, _subprocess_no_window,
 )
 from i18n import t, set_language, get_language, on_language_changed, load_saved_language
 
@@ -294,9 +294,22 @@ class App:
         self._report_panel = tk.Frame(self._root, bg="#252526", relief=tk.GROOVE, borderwidth=1)
         # pack は _on_view_changed で
 
-        # --- Template 選択行 ---
-        tmpl_row = tk.Frame(self._report_panel, bg="#252526")
-        tmpl_row.pack(fill=tk.X, padx=10, pady=(6, 2))
+        # --- ヘッダー行（常に表示 / クリックで本体を開閉） ---
+        self._report_header = tk.Frame(self._report_panel, bg="#252526")
+        self._report_header.pack(fill=tk.X, padx=0, pady=0)
+
+        self._report_collapsed = False  # 初期は展開
+
+        self._toggle_btn = tk.Label(
+            self._report_header, text="▼", bg="#252526", fg=ACCENT_COLOR,
+            font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), cursor="hand2",
+        )
+        self._toggle_btn.pack(side=tk.LEFT, padx=(10, 2), pady=(4, 2))
+        self._toggle_btn.bind("<Button-1>", lambda _: self._toggle_report_body())
+
+        # --- Template 選択行（ヘッダー内） ---
+        tmpl_row = tk.Frame(self._report_header, bg="#252526")
+        tmpl_row.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=(4, 2))
 
         tk.Label(tmpl_row, text=t("label.template"), bg="#252526", fg=ACCENT_COLOR,
                  font=(FONT_FAMILY, FONT_SIZE - 1, "bold")).pack(side=tk.LEFT)
@@ -318,14 +331,18 @@ class App:
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._save_tmpl_btn.pack(side=tk.RIGHT)
 
+        # --- 折りたたみ本体 ---
+        self._report_body = tk.Frame(self._report_panel, bg="#252526")
+        self._report_body.pack(fill=tk.X)
+
         # --- セクションチェックボックス（2列グリッド） ---
-        self._sections_frame = tk.Frame(self._report_panel, bg="#252526")
+        self._sections_frame = tk.Frame(self._report_body, bg="#252526")
         self._sections_frame.pack(fill=tk.X, padx=10, pady=(2, 2))
         self._section_vars: dict[str, tk.BooleanVar] = {}
         self._section_widgets: list[tk.Checkbutton] = []
 
         # --- カスタム指示欄（保存済み指示チェック + 自由入力） ---
-        instr_frame = tk.Frame(self._report_panel, bg="#252526")
+        instr_frame = tk.Frame(self._report_body, bg="#252526")
         instr_frame.pack(fill=tk.X, padx=10, pady=(2, 2))
 
         self._instr_label = tk.Label(instr_frame, text=t("label.extra_instructions"), bg="#252526", fg=TEXT_FG,
@@ -365,7 +382,7 @@ class App:
         self._del_instr_btn.pack()
 
         # --- 出力形式 + 自動オープン ---
-        export_row = tk.Frame(self._report_panel, bg="#252526")
+        export_row = tk.Frame(self._report_body, bg="#252526")
         export_row.pack(fill=tk.X, padx=10, pady=(2, 6))
 
         self._export_label = tk.Label(export_row, text=t("label.export_format"), bg="#252526", fg=TEXT_FG,
@@ -730,6 +747,21 @@ class App:
         return "-".join(parts) + ext
 
     # ------------------------------------------------------------------ #
+    # レポートパネル折りたたみ
+    # ------------------------------------------------------------------ #
+
+    def _toggle_report_body(self) -> None:
+        """レポート設定パネルの本体を展開/折りたたみ切り替え。"""
+        if self._report_collapsed:
+            self._report_body.pack(fill=tk.X)
+            self._toggle_btn.configure(text="▼")
+            self._report_collapsed = False
+        else:
+            self._report_body.pack_forget()
+            self._toggle_btn.configure(text="▶")
+            self._report_collapsed = True
+
+    # ------------------------------------------------------------------ #
     # View 切り替え
     # ------------------------------------------------------------------ #
 
@@ -818,8 +850,9 @@ class App:
             return
 
         row, col = 0, 0
+        lang = get_language()
         for item in data:
-            label = item.get("label", "")
+            label = item.get(f"label_{lang}", item.get("label", ""))
             instruction = item.get("instruction", "")
             if not label:
                 continue
@@ -841,10 +874,12 @@ class App:
     def _on_template_selected(self, _event: tk.Event | None = None) -> None:
         """テンプレート選択時にチェックボックスを更新。"""
         name = self._template_var.get()
+        lang = get_language()
         for t in self._templates_cache:
             if t.get("template_name") == name:
                 self._current_template = t
-                self._template_desc_var.set(t.get("description", ""))
+                desc = t.get(f"description_{lang}", t.get("description", ""))
+                self._template_desc_var.set(desc)
                 self._rebuild_section_checks(t)
                 return
 
@@ -858,11 +893,12 @@ class App:
         """テンプレートのsectionsからチェックボックスを再構築。"""
         self._clear_section_checks()
         sections = template.get("sections", {})
+        lang = get_language()
         row, col = 0, 0
         for key, sec in sections.items():
             var = tk.BooleanVar(value=sec.get("enabled", True))
             self._section_vars[key] = var
-            label = sec.get("label", key)
+            label = sec.get(f"label_{lang}", sec.get("label", key))
             cb = tk.Checkbutton(self._sections_frame, text=label,
                                 variable=var, bg="#252526", fg=TEXT_FG,
                                 selectcolor=INPUT_BG, activebackground="#252526",
@@ -1201,6 +1237,7 @@ class App:
                     "timeout": 120, "encoding": "utf-8", "errors": "replace",
                 }
                 if sys.platform == "win32":
+                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                     kwargs["shell"] = True
                     cmd: str | list[str] = "az login"
                 else:
@@ -1650,18 +1687,18 @@ class App:
                 # Draw.io があればそれ、なければ VS Code、それもなければ OS既定
                 dp = cached_drawio_path()
                 if dp:
-                    subprocess.Popen([dp, str(path)])
+                    subprocess.Popen([dp, str(path)], **_subprocess_no_window())
                     return
                 vp = cached_vscode_path()
                 if vp:
-                    subprocess.Popen([vp, str(path)])
+                    subprocess.Popen([vp, str(path)], **_subprocess_no_window())
                     return
             open_native(path)
 
         elif choice == "drawio":
             dp = cached_drawio_path()
             if dp:
-                subprocess.Popen([dp, str(path)])
+                subprocess.Popen([dp, str(path)], **_subprocess_no_window())
             else:
                 self._log(t("log.drawio_not_found"), "warning")
                 open_native(path)
@@ -1669,7 +1706,7 @@ class App:
         elif choice == "vscode":
             vp = cached_vscode_path()
             if vp:
-                subprocess.Popen([vp, str(path)])
+                subprocess.Popen([vp, str(path)], **_subprocess_no_window())
             else:
                 self._log(t("log.vscode_not_found"), "warning")
                 open_native(path)
@@ -1891,6 +1928,11 @@ class App:
         lang = self._lang_var.get()
         set_language(lang)
         self._refresh_ui_texts()
+        # テンプレートパネルのセクション名・指示ラベルを再描画
+        view = self._view_var.get().strip()
+        if view in ("security-report", "cost-report"):
+            report_type = "security" if view == "security-report" else "cost"
+            self._load_templates_for_type(report_type)
 
     def _refresh_ui_texts(self) -> None:
         """全ウィジェットのテキストを現在の言語で再設定。"""

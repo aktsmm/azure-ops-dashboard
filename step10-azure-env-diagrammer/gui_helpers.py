@@ -125,6 +125,14 @@ def cached_vscode_path() -> str | None:
     return _vscode_path_cache
 
 
+# Windows でサブプロセスのコンソール窓を非表示にするヘルパー
+def _subprocess_no_window() -> dict:
+    """Windows 環境で CMD 窓を出さない subprocess 用 kwargs を返す。"""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 def export_drawio_svg(drawio_path: Path, drawio_exe: str | None = None) -> Path | None:
     """Draw.io CLI で .drawio → .drawio.svg に変換する。"""
     exe = drawio_exe or cached_drawio_path()
@@ -136,6 +144,7 @@ def export_drawio_svg(drawio_path: Path, drawio_exe: str | None = None) -> Path 
             [exe, "--export", "--format", "svg",
              "--output", str(svg_path), str(drawio_path)],
             capture_output=True, text=True, timeout=60,
+            **_subprocess_no_window(),
         )
         if result.returncode == 0 and svg_path.exists():
             return svg_path

@@ -6,62 +6,74 @@
     "executive_summary": {
       "label": "構成概要",
       "enabled": true,
-      "description": "システム構成の推測と2-3行の概要説明"
+      "description": "システム構成の推測と2-3行の概要説明",
+      "label_en": "Executive Summary"
     },
     "secure_score": {
       "label": "セキュアスコア",
       "enabled": true,
-      "description": "現在のスコアと評価（優良/要改善/要緊急対応）"
+      "description": "現在のスコアと評価（優良/要改善/要緊急対応）",
+      "label_en": "Secure Score"
     },
     "recommendations_high": {
       "label": "推奨事項 (High)",
       "enabled": true,
-      "description": "重要度Highの推奨事項の詳細と修復手順"
+      "description": "重要度Highの推奨事項の詳細と修復手順",
+      "label_en": "Recommendations (High)"
     },
     "recommendations_medium": {
       "label": "推奨事項 (Medium)",
       "enabled": true,
-      "description": "重要度Mediumの推奨事項一覧"
+      "description": "重要度Mediumの推奨事項一覧",
+      "label_en": "Recommendations (Medium)"
     },
     "recommendations_low": {
       "label": "推奨事項 (Low)",
       "enabled": true,
-      "description": "重要度Lowの推奨事項一覧"
+      "description": "重要度Lowの推奨事項一覧",
+      "label_en": "Recommendations (Low)"
     },
     "security_alerts": {
       "label": "セキュリティアラート",
       "enabled": true,
-      "description": "アクティブなアラートの状況"
+      "description": "アクティブなアラートの状況",
+      "label_en": "Security Alerts"
     },
     "compliance": {
       "label": "コンプライアンス状況",
       "enabled": false,
-      "description": "規制コンプライアンスの準拠率（金融/医療向け）"
+      "description": "規制コンプライアンスの準拠率（金融/医療向け）",
+      "label_en": "Compliance Status"
     },
     "defender_status": {
       "label": "Defender プラン状態",
       "enabled": true,
-      "description": "有効/無効のプラン一覧と推奨される有効化"
+      "description": "有効/無効のプラン一覧と推奨される有効化",
+      "label_en": "Defender Plan Status"
     },
     "resource_risks": {
       "label": "リソース構成リスク",
       "enabled": true,
-      "description": "NSG未設定、Public IP露出、Key Vault未使用等"
+      "description": "NSG未設定、Public IP露出、Key Vault未使用等",
+      "label_en": "Resource Config Risks"
     },
     "action_plan": {
       "label": "推奨アクション",
       "enabled": true,
-      "description": "優先度付きアクションプラン（最大5つ）"
+      "description": "優先度付きアクションプラン（最大5つ）",
+      "label_en": "Recommended Actions"
     },
     "previous_comparison": {
       "label": "前回比較",
       "enabled": false,
-      "description": "前回レポートとの差分（定期運用向け）"
+      "description": "前回レポートとの差分（定期運用向け）",
+      "label_en": "Previous Comparison"
     },
     "portal_links": {
       "label": "関連リンク",
       "enabled": true,
-      "description": "Azure Portal の関連ページURL"
+      "description": "Azure Portal の関連ページURL",
+      "label_en": "Related Links"
     }
   },
   "options": {
@@ -70,5 +82,6 @@
     "max_detail_items": 10,
     "include_remediation": true,
     "redact_subscription": false
-  }
+  },
+  "description_en": "Standard report with all sections enabled"
 }

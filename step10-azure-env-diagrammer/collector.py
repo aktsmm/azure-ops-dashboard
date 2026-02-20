@@ -82,10 +82,9 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
         "encoding": "utf-8",
         "errors": "replace",
     }
-    # Windows: shell=True だと timeout kill が効かないことがあるので
-    # CREATE_NEW_PROCESS_GROUP を使いつつ shell=False で実行
+    # Windows: コンソール窓を非表示にする
     if sys.platform == "win32":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
         completed = subprocess.run(args, **kwargs)
     except subprocess.TimeoutExpired:
