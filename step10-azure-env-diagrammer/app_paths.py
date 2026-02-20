@@ -53,3 +53,31 @@ def saved_instructions_path() -> Path:
 def template_search_dirs() -> list[Path]:
     """テンプレート探索ディレクトリ（ユーザー優先）を返す。"""
     return [user_templates_dir(), bundled_templates_dir()]
+
+
+def copilot_cli_path() -> str | None:
+    """Copilot SDK 同梱 CLI バイナリのパスを返す。
+
+    PyInstaller frozen の場合:
+      _MEIPASS/copilot/bin/copilot.exe  (--add-data で同梱)
+    通常実行:
+      site-packages/copilot/bin/copilot.exe  (SDK が自身で解決するので None)
+
+    Returns:
+        CLI バイナリのパス。通常実行時は None（SDK のデフォルトに任せる）。
+    """
+    meipass = getattr(sys, "_MEIPASS", None)
+    if not meipass:
+        return None  # 通常実行 — SDK が自身で解決
+
+    # frozen exe: _MEIPASS 配下に同梱した copilot CLI を探す
+    if sys.platform == "win32":
+        binary_name = "copilot.exe"
+    else:
+        binary_name = "copilot"
+
+    candidate = Path(meipass) / "copilot" / "bin" / binary_name
+    if candidate.exists():
+        return str(candidate)
+
+    return None

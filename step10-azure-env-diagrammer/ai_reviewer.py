@@ -15,7 +15,12 @@ from typing import Any, Callable, Optional
 
 from copilot import CopilotClient
 
-from app_paths import bundled_templates_dir, ensure_user_dirs, template_search_dirs
+from app_paths import (
+    bundled_templates_dir,
+    copilot_cli_path,
+    ensure_user_dirs,
+    template_search_dirs,
+)
 from docs_enricher import (
     cost_search_queries,
     enrich_with_docs,
@@ -257,9 +262,15 @@ class AIReviewer:
         try:
             # 1. SDK 接続（auto_restart で CLI クラッシュから回復）
             self._on_status("Copilot SDK に接続中...")
-            client = CopilotClient({
+            client_opts: dict[str, Any] = {
                 "auto_restart": True,
-            })
+            }
+            # PyInstaller frozen: 同梱 CLI パスを明示指定
+            cli = copilot_cli_path()
+            if cli:
+                client_opts["cli_path"] = cli
+                self._on_status(f"CLI path: {cli}")
+            client = CopilotClient(client_opts)
             await client.start()
             self._on_status("Copilot SDK 接続 OK")
 
