@@ -537,6 +537,16 @@ class App:
         )
         self._login_btn.pack(side=tk.LEFT, padx=(6, 0))
 
+        self._sp_login_btn = tk.Button(
+            btn_frame, text=t("btn.sp_login"),
+            command=self._on_sp_login,
+            bg="#3C3C3C", fg=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+            relief=tk.FLAT, padx=12, pady=6,
+            cursor="hand2",
+        )
+        self._sp_login_btn.pack(side=tk.LEFT, padx=(6, 0))
+
         # --- auto_open（メインフォーム、図/レポート両方で有効） ---
         self._auto_open_var = tk.BooleanVar(value=True)
         self._auto_open_main_cb = tk.Checkbutton(
@@ -1357,6 +1367,116 @@ class App:
 
         threading.Thread(target=_do_login, daemon=True).start()
 
+    def _on_sp_login(self) -> None:
+        """Service Principal で az login を実行する（Secret は保存しない）。"""
+
+        dlg = tk.Toplevel(self._root)
+        dlg.title(t("dlg.sp_login"))
+        dlg.configure(bg=WINDOW_BG)
+        dlg.resizable(False, False)
+        dlg.transient(self._root)
+        dlg.grab_set()
+
+        client_var = tk.StringVar(value=load_setting("sp_client_id", ""))
+        tenant_var = tk.StringVar(value=load_setting("sp_tenant_id", ""))
+        secret_var = tk.StringVar(value="")
+
+        form = tk.Frame(dlg, bg=WINDOW_BG)
+        form.pack(padx=16, pady=12)
+        form.columnconfigure(1, weight=1)
+
+        tk.Label(form, text=t("label.client_id"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE)).grid(row=0, column=0, sticky="e", padx=(0, 8), pady=6)
+        tk.Entry(form, textvariable=client_var, bg=INPUT_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), insertbackground=TEXT_FG,
+                 relief=tk.FLAT, borderwidth=0, width=44).grid(row=0, column=1, sticky="ew", ipady=3)
+
+        tk.Label(form, text=t("label.tenant_id"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE)).grid(row=1, column=0, sticky="e", padx=(0, 8), pady=6)
+        tk.Entry(form, textvariable=tenant_var, bg=INPUT_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), insertbackground=TEXT_FG,
+                 relief=tk.FLAT, borderwidth=0).grid(row=1, column=1, sticky="ew", ipady=3)
+
+        tk.Label(form, text=t("label.client_secret"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE)).grid(row=2, column=0, sticky="e", padx=(0, 8), pady=6)
+        tk.Entry(form, textvariable=secret_var, bg=INPUT_BG, fg=TEXT_FG,
+                 show="*", font=(FONT_FAMILY, FONT_SIZE), insertbackground=TEXT_FG,
+                 relief=tk.FLAT, borderwidth=0).grid(row=2, column=1, sticky="ew", ipady=3)
+
+        btns = tk.Frame(dlg, bg=WINDOW_BG)
+        btns.pack(fill=tk.X, padx=16, pady=(0, 12))
+
+        def _close() -> None:
+            try:
+                dlg.grab_release()
+            except Exception:
+                pass
+            dlg.destroy()
+
+        def _login() -> None:
+            client_id = client_var.get().strip()
+            tenant_id = tenant_var.get().strip()
+            secret = secret_var.get().strip()
+            if not client_id or not tenant_id or not secret:
+                self._log(t("log.sp_login_missing"), "warning")
+                return
+
+            # Secret は永続化しない。Client/Tenant のみ保存。
+            save_setting("sp_client_id", client_id)
+            save_setting("sp_tenant_id", tenant_id)
+
+            _close()
+
+            def _do_login() -> None:
+                self._log(t("log.sp_login_running"), "info")
+                self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
+                self._root.after(0, lambda: self._sp_login_btn.configure(state=tk.DISABLED))
+                try:
+                    kwargs: dict = {
+                        "capture_output": True, "text": True,
+                        "timeout": 120, "encoding": "utf-8", "errors": "replace",
+                    }
+                    if sys.platform == "win32":
+                        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                        kwargs["shell"] = True
+                        cmd: str | list[str] = (
+                            f"az login --service-principal -u {client_id} -p {secret} --tenant {tenant_id}"
+                        )
+                    else:
+                        cmd = [
+                            "az", "login", "--service-principal",
+                            "-u", client_id, "-p", secret, "--tenant", tenant_id,
+                        ]
+                    result = subprocess.run(cmd, **kwargs)
+                    if result.returncode == 0:
+                        self._log(t("log.sp_login_success"), "success")
+                        # Sub/RG をクリアして再ロード
+                        self._root.after(0, lambda: self._sub_var.set(""))
+                        self._root.after(0, lambda: self._rg_var.set(""))
+                        self._root.after(0, lambda: self._sub_combo.configure(values=[]))
+                        self._root.after(0, lambda: self._rg_combo.configure(values=[]))
+                        self._bg_preflight()
+                    else:
+                        err = (result.stderr or "").strip()[:200]
+                        self._log(t("log.sp_login_failed", err=err), "error")
+                except Exception as e:
+                    self._log(t("log.sp_login_failed", err=str(e)), "error")
+                finally:
+                    self._root.after(0, lambda: self._login_btn.configure(state=tk.NORMAL))
+                    self._root.after(0, lambda: self._sp_login_btn.configure(state=tk.NORMAL))
+
+            threading.Thread(target=_do_login, daemon=True).start()
+
+        tk.Button(btns, text=t("btn.login"), command=_login,
+                  bg=ACCENT_COLOR, fg="white", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                  relief=tk.FLAT, padx=16, pady=6, cursor="hand2").pack(side=tk.LEFT)
+        tk.Button(btns, text=t("btn.cancel_small"), command=_close,
+                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
+                  relief=tk.FLAT, padx=16, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=(8, 0))
+
+        dlg.bind("<Escape>", lambda _e: _close())
+        dlg.bind("<Return>", lambda _e: _login())
+
     def _extract_sub_id(self) -> str | None:
         """Combobox の表示値からサブスクID部分を取り出す。"""
         raw = self._sub_var.get().strip()
@@ -1990,6 +2110,29 @@ class App:
             self._last_out_path = out_path
             self._log(f"  → {out_path}", "success")
 
+            # レポート入力（収集データ/テンプレ/指示）を隣に保存（再生成・監査用）
+            try:
+                input_payload: dict[str, Any] = {
+                    "generatedAt": datetime.now().isoformat(timespec="seconds"),
+                    "view": view,
+                    "report_type": report_type,
+                    "subscription": sub,
+                    "subscription_display": sub_display,
+                    "template": template,
+                    "custom_instruction": custom_instruction,
+                    "resource_types": resource_types,
+                    "resource_text": resource_text,
+                }
+                if view == "security-report":
+                    input_payload["security_data"] = security_data
+                elif view == "cost-report":
+                    input_payload["cost_data"] = cost_data
+                    input_payload["advisor_data"] = advisor_data
+
+                write_json(out_path.with_name(out_path.stem + "-input.json"), input_payload)
+            except Exception:
+                pass
+
             # 差分レポート（前回が存在すれば自動生成）
             try:
                 from exporter import find_previous_report, generate_diff_report
@@ -2081,6 +2224,7 @@ class App:
         self._copy_btn.configure(text=t("btn.copy_log"))
         self._clear_log_btn.configure(text=t("btn.clear_log"))
         self._login_btn.configure(text=t("btn.az_login"))
+        self._sp_login_btn.configure(text=t("btn.sp_login"))
         self._proceed_btn.configure(text=t("btn.proceed"))
         self._cancel_btn.configure(text=t("btn.cancel_review"))
         self._abort_btn.configure(text=t("btn.cancel"))

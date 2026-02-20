@@ -46,7 +46,8 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 
 - Python 3.11+（※ソース実行時。exe 配布で使う場合は Python 不要）
 - Azure CLI（`az`）が利用可能
-- `az login` 済み
+- `az login` 済み（ブラウザ対話）
+- または Service Principal でログイン済み（Reader 権限で運用したい場合）
 - ARG拡張: `az extension add --name resource-graph`
 
 ### 前提（exe 配布で使う場合）
@@ -55,9 +56,27 @@ exe にしても **外部依存（Azure CLI など）は同梱されません**�
 
 - Windows 10/11（x64）
 - Azure CLI がインストール済みで `az` が PATH から実行できること
-- `az login` 済みであること
+- `az login` 済みであること（または Service Principal ログイン）
 - ARG 拡張が入っていること: `az extension add --name resource-graph`
 - 対象 Subscription / RG に対して最低でも Reader 相当の権限があること
+
+#### Service Principal（例）
+
+Reader 権限のみ付与した Service Principal で実行したい場合は、以下のようにログインできます。
+
+```powershell
+az login --service-principal -u <APP_ID> -p <CLIENT_SECRET> --tenant <TENANT_ID>
+```
+
+GUI からは `🔐 SP login` ボタンでも実行できます（Secret は保存しません）。
+
+#### 収集コマンド（スクリプト）
+
+収集処理を明示的な Azure CLI コマンドとして実行・監査したい場合は、以下のスクリプトを利用できます。
+
+```powershell
+pwsh .\scripts\collect-azure-env.ps1 -SubscriptionId <SUB_ID> -ResourceGroup <RG> -Limit 300 -OutDir <OUTPUT_DIR>
+```
 - AI 機能（レビュー/レポート）を使う場合:
   - Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
   - もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
