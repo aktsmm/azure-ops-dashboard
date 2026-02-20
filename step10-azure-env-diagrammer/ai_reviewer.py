@@ -289,6 +289,7 @@ class AIReviewer:
             # 3. ストリーミングイベント収集（session.idle パターン）
             collected: list[str] = []
             done = asyncio.Event()
+            reasoning_notified = False
 
             def _handler(event: Any) -> None:
                 etype = event.type.value if hasattr(event.type, "value") else str(event.type)
@@ -300,10 +301,11 @@ class AIReviewer:
                         self._on_delta(delta)
 
                 elif etype == "assistant.reasoning_delta":
-                    # 推論過程のストリーミング（対応モデルのみ）
-                    delta = getattr(event.data, "delta_content", "")
-                    if delta:
-                        self._on_status(f"[推論中] {delta[:80]}")
+                    # 推論過程（chain-of-thought）をそのまま表示しない
+                    nonlocal reasoning_notified
+                    if not reasoning_notified:
+                        reasoning_notified = True
+                        self._on_status("AI 思考中...")
 
                 elif etype == "assistant.message":
                     # 最終メッセージ（streaming の有無に関わらず送信される）

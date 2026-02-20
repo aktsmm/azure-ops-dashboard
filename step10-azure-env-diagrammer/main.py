@@ -106,16 +106,6 @@ def _detect_vscode_path() -> str | None:
     return None
 
 
-def _resource_base_dir() -> Path:
-    """PyInstaller(onefile/onedir) と通常実行で共通のリソース基点を返す。"""
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        return Path(meipass)
-    return Path(__file__).parent
-
-
-def _templates_dir() -> Path:
-    return _resource_base_dir() / "templates"
 
 
 # ============================================================
@@ -1421,6 +1411,7 @@ class App:
 
             # リソーステキスト作成
             summary = type_summary(nodes)
+            resource_types = list(summary.keys())  # Docs 検索用
             summary_lines = []
             for rtype, count in sorted(summary.items()):
                 short = rtype.split("/")[-1] if "/" in rtype else rtype
@@ -1491,6 +1482,7 @@ class App:
                         custom_instruction=custom_instruction,
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
+                        resource_types=resource_types,
                     )
                 except Exception as e:
                     self._log(f"AI レポートエラー: {e}", "error")
@@ -1580,7 +1572,6 @@ class App:
             self._set_status(f"Error: {e}")
         finally:
             self._set_working(False)
-            self._stop_timer()
 
     # ------------------------------------------------------------------ #
     # 起動
