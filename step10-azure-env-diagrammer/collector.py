@@ -411,6 +411,30 @@ def collect_network(
 
 
 # ============================================================
+# Collector registry / dispatcher
+# ============================================================
+
+def collect_diagram_view(
+    *,
+    view: str,
+    subscription: str | None,
+    resource_group: str | None,
+    limit: int,
+) -> tuple[list[Node], list[Edge], dict[str, Any]]:
+    """diagram 系 view の収集を統一的に呼び出す。
+
+    将来的に view を増やす際、main.py の分岐を最小化するためのディスパッチ。
+    """
+    v = (view or "").strip().lower()
+    if v == "network":
+        return collect_network(subscription=subscription, resource_group=resource_group, limit=limit)
+
+    # default: inventory
+    nodes, meta = collect_inventory(subscription=subscription, resource_group=resource_group, limit=limit)
+    return nodes, [], meta
+
+
+# ============================================================
 # 収集: セキュリティデータ
 # ============================================================
 

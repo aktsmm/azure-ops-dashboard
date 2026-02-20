@@ -36,6 +36,7 @@ from collector import (
     collect_inventory,
     collect_network,
     collect_security,
+    collect_diagram_view,
     list_resource_groups,
     list_subscriptions,
     preflight_check,
@@ -1549,12 +1550,15 @@ class App:
             self._set_status(t("status.running_query"))
             self._log(t("log.query_running", view=view), "info")
 
-            collected_edges: list[Edge] = []
+            nodes, collected_edges, meta = collect_diagram_view(
+                view=view,
+                subscription=sub,
+                resource_group=rg,
+                limit=limit,
+            )
             if view == "network":
-                nodes, collected_edges, meta = collect_network(subscription=sub, resource_group=rg, limit=limit)
                 self._log(t("log.net_resources_found", nodes=len(nodes), edges=len(collected_edges)), "success")
             else:
-                nodes, meta = collect_inventory(subscription=sub, resource_group=rg, limit=limit)
                 self._log(t("log.resources_found", count=len(nodes)), "success")
 
             if self._cancel_event.is_set():
