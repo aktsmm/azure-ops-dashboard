@@ -14,7 +14,7 @@ uv pip install --python $python pyinstaller
 # templates/ を exe に同梱（Windows は ; 区切り）
 $addData = 'templates;templates'
 
-$args = @(
+$buildArgs = @(
   'pyinstaller',
   'main.py',
   '--name', 'AzureOpsDashboard',
@@ -25,12 +25,12 @@ $args = @(
 )
 
 if ($Mode -eq 'onefile') {
-  $args += '--onefile'
+  $buildArgs += '--onefile'
 } else {
-  $args += '--onedir'
+  $buildArgs += '--onedir'
 }
 
-uv run @args
+uv run @buildArgs
 
 Write-Host ''
 Write-Host 'Build output:'
