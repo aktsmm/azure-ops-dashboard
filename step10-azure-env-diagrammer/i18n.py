@@ -225,13 +225,9 @@ def on_language_changed(callback: Any) -> None:
 def load_saved_language() -> None:
     """起動時に settings.json から言語設定を復元する。"""
     try:
-        from app_paths import settings_path
-        p = settings_path()
-        if p.exists():
-            import json
-            data = json.loads(p.read_text(encoding="utf-8"))
-            lang = data.get(_PERSIST_KEY, "ja")
-            set_language(lang, persist=False)
+        from app_paths import load_setting
+        lang = load_setting(_PERSIST_KEY, "ja")
+        set_language(lang, persist=False)
     except Exception:
         pass
 
@@ -239,19 +235,8 @@ def load_saved_language() -> None:
 def _save_language(lang: str) -> None:
     """settings.json に言語設定を保存する。"""
     try:
-        import json
-        from app_paths import ensure_user_dirs, settings_path
-        ensure_user_dirs()
-        p = settings_path()
-        data: dict[str, Any] = {}
-        if p.exists():
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                pass
-        data[_PERSIST_KEY] = lang
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        from app_paths import save_setting
+        save_setting(_PERSIST_KEY, lang)
     except Exception:
         pass
 

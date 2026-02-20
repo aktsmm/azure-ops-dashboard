@@ -140,7 +140,8 @@ def md_to_docx(md_text: str, output_path: Path, title: str = "") -> Path:
             text = _strip_md(stripped.lstrip("> "))
             p = doc.add_paragraph(text)
             p.paragraph_format.left_indent = Inches(0.5)
-            p.runs[0].font.italic = True if p.runs else None
+            if p.runs:
+                p.runs[0].font.italic = True
             i += 1
             continue
 

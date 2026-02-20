@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -77,7 +78,9 @@ def _make_error_handler(
         _retry_count[key] = _retry_count.get(key, 0) + 1
 
         if _retry_count[key] <= max_retry:
-            on_status(f"AI エラー（リトライ {_retry_count[key]}/{max_retry}）: {err}")
+            wait = RETRY_BACKOFF ** _retry_count[key]
+            on_status(f"AI エラー（リトライ {_retry_count[key]}/{max_retry}, {wait:.0f}s 待機）: {err}")
+            await asyncio.sleep(wait)
             return {"errorHandling": "retry"}
         else:
             on_status(f"AI エラー（中止）: {err}")
@@ -312,13 +315,15 @@ async def _get_or_create_client(
     """CopilotClient をキャッシュして返す。
 
     連続レポート生成時に毎回接続→停止のオーバーヘッドを排除する。
+    _bg_lock で _cached_client へのアクセスを保護する。
     """
     global _cached_client, _cached_client_started
     log = on_status or (lambda s: None)
 
-    if _cached_client and _cached_client_started:
-        log("Copilot SDK: キャッシュ済みクライアントを再利用")
-        return _cached_client
+    with _bg_lock:
+        if _cached_client and _cached_client_started:
+            log("Copilot SDK: キャッシュ済みクライアントを再利用")
+            return _cached_client
 
     log("Copilot SDK に接続中...")
     client_opts: dict[str, Any] = {
@@ -329,11 +334,15 @@ async def _get_or_create_client(
         client_opts["cli_path"] = cli
         log(f"CLI path: {cli}")
 
-    _cached_client = CopilotClient(client_opts)
-    await _cached_client.start()
-    _cached_client_started = True
+    new_client = CopilotClient(client_opts)
+    await new_client.start()
+
+    with _bg_lock:
+        _cached_client = new_client
+        _cached_client_started = True
+
     log("Copilot SDK 接続 OK")
-    return _cached_client
+    return new_client
 
 
 async def shutdown_cached_client() -> None:
@@ -347,6 +356,23 @@ async def shutdown_cached_client() -> None:
         finally:
             _cached_client = None
             _cached_client_started = False
+
+
+def shutdown_sync() -> None:
+    """同期版シャットダウン（tkinter の on_close から呼ぶ用）。"""
+    global _bg_loop, _bg_thread
+    # 1. CopilotClient を停止
+    loop = _bg_loop
+    if loop and not loop.is_closed():
+        try:
+            future = asyncio.run_coroutine_threadsafe(shutdown_cached_client(), loop)
+            future.result(timeout=5)
+        except Exception:
+            pass
+        # 2. イベントループを停止
+        loop.call_soon_threadsafe(loop.stop)
+    _bg_loop = None
+    _bg_thread = None
 
 
 # ============================================================
@@ -475,10 +501,16 @@ class AIReviewer:
         except Exception as e:
             self._on_status(f"AI レビューエラー: {e}")
             # エラー時はキャッシュを無効化（次回再作成）
-            global _cached_client, _cached_client_started
-            _cached_client = None
-            _cached_client_started = False
+            _invalidate_cached_client()
             return None
+
+
+def _invalidate_cached_client() -> None:
+    """キャッシュ済みクライアントをスレッドセーフに無効化する。"""
+    global _cached_client, _cached_client_started
+    with _bg_lock:
+        _cached_client = None
+        _cached_client_started = False
 
 
 # ============================================================
@@ -517,8 +549,8 @@ def run_security_report(
 ) -> str | None:
     """セキュリティレポートを生成。"""
     resource_types = _extract_resource_types(resource_text)
-    data_sections: list[tuple[str, str, str, dict]] = [
-        ("Security Data", "セキュリティデータ", "Resource List", security_data),
+    data_sections: list[tuple[str, str, dict]] = [
+        ("Security Data", "セキュリティデータ", security_data),
     ]
     return _run_report(
         base_system_prompt=SYSTEM_PROMPT_SECURITY_BASE,
@@ -544,9 +576,9 @@ def run_cost_report(
     resource_types: list[str] | None = None,
 ) -> str | None:
     """コストレポートを生成。"""
-    data_sections: list[tuple[str, str, str, dict]] = [
-        ("Cost Data", "コストデータ", "Cost Data", cost_data),
-        ("Advisor Recommendations", "Advisor 推奨事項", "Advisor Recommendations", advisor_data),
+    data_sections: list[tuple[str, str, dict]] = [
+        ("Cost Data", "コストデータ", cost_data),
+        ("Advisor Recommendations", "Advisor 推奨事項", advisor_data),
     ]
     return _run_report(
         base_system_prompt=SYSTEM_PROMPT_COST_BASE,
@@ -570,7 +602,7 @@ def _run_report(
     *,
     base_system_prompt: str,
     report_type: str,
-    data_sections: list[tuple[str, str, str, dict]],
+    data_sections: list[tuple[str, str, dict]],
     resource_text: str | None,
     resource_types: list[str],
     search_queries_fn: Callable,
@@ -621,7 +653,7 @@ def _run_report(
             "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n"
         )
 
-    for en_title, ja_title, _alt, data in data_sections:
+    for en_title, ja_title, data in data_sections:
         title = en_title if en else ja_title
         parts.append(f"\n## {title}\n```json\n{json.dumps(data, indent=2, ensure_ascii=False)}\n```\n")
 
@@ -636,17 +668,40 @@ def _run_report(
     return _run_async(reviewer.generate(prompt, system_prompt))
 
 
-def _run_async(coro: Any) -> Any:
-    """コルーチンを同期的に実行する。バックグラウンドスレッドから呼ぶ前提。"""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
+# ============================================================
+# 永続イベントループ（CopilotClient のライフサイクルに合わせる）
+# ============================================================
 
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result(timeout=SEND_TIMEOUT + 30)
-    else:
-        return asyncio.run(coro)
+_bg_loop: asyncio.AbstractEventLoop | None = None
+_bg_thread: threading.Thread | None = None
+_bg_lock = threading.Lock()
+
+
+def _get_bg_loop() -> asyncio.AbstractEventLoop:
+    """CopilotClient 専用の永続イベントループを返す。
+
+    asyncio.run() は毎回ループを閉じてしまい、キャッシュ済み
+    CopilotClient が 'Event loop is closed' でクラッシュするため、
+    専用スレッドで run_forever する永続ループを利用する。
+    """
+    global _bg_loop, _bg_thread
+    with _bg_lock:
+        if _bg_loop is not None and not _bg_loop.is_closed():
+            return _bg_loop
+        _bg_loop = asyncio.new_event_loop()
+        _bg_thread = threading.Thread(
+            target=_bg_loop.run_forever, daemon=True, name="copilot-event-loop"
+        )
+        _bg_thread.start()
+        return _bg_loop
+
+
+def _run_async(coro: Any) -> Any:
+    """コルーチンを永続イベントループ上で同期的に実行する。
+
+    バックグラウンドスレッド（tkinter ワーカー）から呼ぶ前提。
+    CopilotClient は同一ループ上に留まるためキャッシュが安全に使える。
+    """
+    loop = _get_bg_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=SEND_TIMEOUT + 30)

@@ -9,6 +9,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import sys
 import textwrap
 from collections import Counter
 from dataclasses import dataclass
@@ -74,7 +75,6 @@ def _get_az_exe() -> str:
 
 
 def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
-    import sys
     kwargs: dict[str, Any] = {
         "capture_output": True,
         "text": True,

@@ -2,13 +2,16 @@
 
 - 通常実行と PyInstaller(frozen) 実行で、リソース/ユーザーデータの場所を共通化する。
 - templates は「同梱(既定)」+「ユーザー上書き」を想定する。
+- settings.json の読み書きを一元管理する。
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 
 APP_NAME = "AzureOpsDashboard"
@@ -86,3 +89,51 @@ def copilot_cli_path() -> str | None:
         return str(candidate)
 
     return None
+
+
+# ============================================================
+# settings.json 読み書き（一元管理）
+# ============================================================
+
+def load_setting(key: str, default: str = "") -> str:
+    """settings.json から値を読み込む。"""
+    try:
+        p = settings_path()
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return str(data.get(key, default))
+    except Exception:
+        pass
+    return default
+
+
+def save_setting(key: str, value: str) -> None:
+    """settings.json に値を書き込む（単一キー）。"""
+    try:
+        settings = load_all_settings()
+        settings[key] = value
+        save_all_settings(settings)
+    except Exception:
+        pass
+
+
+def load_all_settings() -> dict[str, Any]:
+    """settings.json を丸ごと読み込む。"""
+    try:
+        p = settings_path()
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def save_all_settings(data: dict[str, Any]) -> None:
+    """settings.json を丸ごと書き込む（一括保存）。"""
+    try:
+        ensure_user_dirs()
+        p = settings_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass

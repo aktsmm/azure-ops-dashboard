@@ -43,7 +43,10 @@ from collector import (
 )
 from drawio_writer import build_drawio_xml, now_stamp
 
-from app_paths import ensure_user_dirs, saved_instructions_path, settings_path, user_templates_dir
+from app_paths import (
+    ensure_user_dirs, load_all_settings, load_setting, save_all_settings,
+    save_setting, saved_instructions_path, settings_path, user_templates_dir,
+)
 from i18n import t, set_language, get_language, on_language_changed, load_saved_language
 
 
@@ -155,40 +158,6 @@ def _cached_vscode_path() -> str | None:
 
 
 # ============================================================
-# 設定の永続化（output_dir 等）
-# ============================================================
-
-def _load_setting(key: str, default: str = "") -> str:
-    """settings.json から値を読み込む。"""
-    try:
-        p = settings_path()
-        if p.exists():
-            data = json.loads(p.read_text(encoding="utf-8"))
-            return str(data.get(key, default))
-    except Exception:
-        pass
-    return default
-
-
-def _save_setting(key: str, value: str) -> None:
-    """settings.json に値を書き込む。"""
-    try:
-        ensure_user_dirs()
-        p = settings_path()
-        data: dict = {}
-        if p.exists():
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                pass
-        data[key] = value
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    except Exception:
-        pass
-
-
-# ============================================================
 # GUI
 # ============================================================
 
@@ -220,12 +189,11 @@ class App:
 
         # 状態
         self._working = False
-        self._cancel_requested = False
+        self._cancel_event = threading.Event()
         self._preflight_ok = False  # preflight完了まではCollect不可
         self._activity_started_at: float | None = None
         self._elapsed_timer_id: str | None = None
         self._last_out_path: Path | None = None
-        self._history: list[dict[str, str]] = []  # 最近5件
         self._subs_cache: list[dict[str, str]] = []
         self._rgs_cache: list[str] = []
 
@@ -239,13 +207,14 @@ class App:
         self._setup_widgets()
         self._setup_keybindings()
 
-        # output_dir を設定から復元
-        saved_dir = _load_setting("output_dir", "")
-        if saved_dir and Path(saved_dir).is_dir():
-            self._output_dir_var.set(saved_dir)
+        # 保存済み設定を復元
+        self._restore_all_settings()
 
         # 起動時に事前チェック + Sub候補ロード（非同期）
         threading.Thread(target=self._bg_preflight, daemon=True).start()
+
+        # ウィンドウを前面に表示（起動直後に背面に隠れる問題の対策）
+        self._root.after(100, self._bring_to_front)
 
     # ------------------------------------------------------------------ #
     # ttk スタイル
@@ -685,6 +654,79 @@ class App:
         self._root.bind("<Control-l>", lambda _: self._on_copy_log())
 
     # ------------------------------------------------------------------ #
+    # 設定の保存・復元
+    # ------------------------------------------------------------------ #
+
+    def _save_all_settings(self) -> None:
+        """全フォーム設定を settings.json に一括保存する。"""
+        data = load_all_settings()
+        data["output_dir"] = self._output_dir_var.get()
+        data["view"] = self._view_var.get()
+        data["limit"] = self._limit_var.get()
+        data["open_with"] = self._open_app_var.get()
+        data["auto_open"] = "1" if self._auto_open_var.get() else "0"
+        data["export_md"] = "1" if self._export_md_var.get() else "0"
+        data["export_docx"] = "1" if self._export_docx_var.get() else "0"
+        data["export_pdf"] = "1" if self._export_pdf_var.get() else "0"
+        data["last_template"] = self._template_var.get()
+        save_all_settings(data)
+
+    def _restore_all_settings(self) -> None:
+        """settings.json から全フォーム設定を復元する。"""
+        # Output Dir
+        saved_dir = load_setting("output_dir", "")
+        if saved_dir and Path(saved_dir).is_dir():
+            self._output_dir_var.set(saved_dir)
+
+        # View
+        saved_view = load_setting("view", "")
+        if saved_view and saved_view in ("inventory", "network", "security-report", "cost-report"):
+            self._view_var.set(saved_view)
+            self._on_view_changed()
+
+        # Max Nodes
+        saved_limit = load_setting("limit", "")
+        if saved_limit:
+            self._limit_var.set(saved_limit)
+
+        # Open with
+        saved_open_with = load_setting("open_with", "")
+        if saved_open_with in ("auto", "drawio", "vscode", "os"):
+            self._open_app_var.set(saved_open_with)
+
+        # Auto open
+        saved_auto = load_setting("auto_open", "")
+        if saved_auto in ("0", "1"):
+            self._auto_open_var.set(saved_auto == "1")
+
+        # Export formats
+        saved_md = load_setting("export_md", "")
+        if saved_md in ("0", "1"):
+            self._export_md_var.set(saved_md == "1")
+        saved_docx = load_setting("export_docx", "")
+        if saved_docx in ("0", "1"):
+            self._export_docx_var.set(saved_docx == "1")
+        saved_pdf = load_setting("export_pdf", "")
+        if saved_pdf in ("0", "1"):
+            self._export_pdf_var.set(saved_pdf == "1")
+
+    def _restore_last_template(self) -> None:
+        """テンプレート一覧ロード後に前回選択を復元する。"""
+        saved_tmpl = load_setting("last_template", "")
+        if saved_tmpl:
+            values = list(self._template_combo["values"])
+            if saved_tmpl in values:
+                self._template_var.set(saved_tmpl)
+                self._on_template_selected()
+
+    def _bring_to_front(self) -> None:
+        """ウィンドウを前面に表示する。"""
+        self._root.lift()
+        self._root.attributes('-topmost', True)
+        self._root.after(300, lambda: self._root.attributes('-topmost', False))
+        self._root.focus_force()
+
+    # ------------------------------------------------------------------ #
     # View 切り替え
     # ------------------------------------------------------------------ #
 
@@ -753,6 +795,8 @@ class App:
             self._clear_section_checks()
         # 保存済み指示もロード
         self._load_saved_instructions()
+        # 前回のテンプレート選択を復元
+        self._restore_last_template()
 
     def _load_saved_instructions(self) -> None:
         """保存済み指示をチェックボックスとしてロード。"""
@@ -1072,7 +1116,7 @@ class App:
 
     def _on_abort(self) -> None:
         """収集中にCancelボタンを押した場合。"""
-        self._cancel_requested = True
+        self._cancel_event.set()
         self._review_event.set()  # レビュー待ちも解除
         self._log(t("log.cancel_requested"), "warning")
         self._set_status(t("status.cancelling"))
@@ -1203,7 +1247,7 @@ class App:
         except ValueError:
             limit = 300
 
-        self._cancel_requested = False
+        self._cancel_event.clear()
         self._set_working(True)
         self._hide_review()
 
@@ -1256,7 +1300,7 @@ class App:
                 nodes, meta = collect_inventory(subscription=sub, resource_group=rg, limit=limit)
                 self._log(t("log.resources_found", count=len(nodes)), "success")
 
-            if self._cancel_requested:
+            if self._cancel_event.is_set():
                 self._log(t("log.cancelled"), "warning")
                 return
 
@@ -1313,7 +1357,7 @@ class App:
             self._log("", "info")  # 改行
             self._log("─" * 40, "accent")
 
-            if self._cancel_requested:
+            if self._cancel_event.is_set():
                 self._log(t("log.cancelled"), "warning")
                 return
 
@@ -1331,7 +1375,7 @@ class App:
             self._review_event.clear()
             self._review_event.wait()
 
-            if not self._review_proceed or self._cancel_requested:
+            if not self._review_proceed or self._cancel_event.is_set():
                 self._log(t("log.cancelled"), "warning")
                 self._set_status(t("status.cancelled"))
                 return
@@ -1424,14 +1468,6 @@ class App:
             self._last_out_path = out_path
             self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
 
-            # 履歴追加
-            self._history.insert(0, {
-                "path": str(out_path),
-                "time": datetime.now().strftime("%H:%M:%S"),
-                "count": str(len(nodes)),
-            })
-            self._history = self._history[:5]
-
             # Canvas プレビュー
             self._draw_preview(nodes, edges, azure_to_cell_id)
 
@@ -1464,7 +1500,7 @@ class App:
 
     def _on_cancel(self) -> None:
         self._review_proceed = False
-        self._cancel_requested = True
+        self._cancel_event.set()
         self._review_event.set()
         self._hide_review()
 
@@ -1667,7 +1703,7 @@ class App:
                 summary_lines.append(f"  - {node.name} ({node.type})")
             resource_text = "\n".join(summary_lines)
 
-            if self._cancel_requested:
+            if self._cancel_event.is_set():
                 return
 
             # Step 2: 追加データ収集 + AIレポート生成
@@ -1737,7 +1773,7 @@ class App:
             self._log("", "info")
             self._log("─" * 40, "accent")
 
-            if self._cancel_requested:
+            if self._cancel_event.is_set():
                 return
 
             if not report_result:
@@ -1878,15 +1914,14 @@ class App:
     # ------------------------------------------------------------------ #
 
     def run(self) -> None:
-        # App 終了時に CopilotClient を graceful shutdown する
+        # App 終了時に設定保存 + CopilotClient を graceful shutdown する
         def _on_close() -> None:
-            # output_dir を永続化
-            _save_setting("output_dir", self._output_dir_var.get())
-            # CopilotClient のキャッシュを停止
+            # 全設定を永続化
+            self._save_all_settings()
+            # CopilotClient + イベントループをシャットダウン
             try:
-                import asyncio
-                from ai_reviewer import shutdown_cached_client
-                asyncio.run(shutdown_cached_client())
+                from ai_reviewer import shutdown_sync
+                shutdown_sync()
             except Exception:
                 pass
             self._root.destroy()
