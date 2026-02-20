@@ -367,8 +367,16 @@ class App:
         def _on_mousewheel(event: tk.Event) -> None:
             self._report_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+        def _bind_mousewheel_recursive(widget: tk.Widget) -> None:
+            """widget とその全子孫に MouseWheel バインドを適用。"""
+            widget.bind("<MouseWheel>", _on_mousewheel)
+            for child in widget.winfo_children():
+                _bind_mousewheel_recursive(child)
+
         self._report_canvas.bind("<MouseWheel>", _on_mousewheel)
         self._report_body.bind("<MouseWheel>", _on_mousewheel)
+        # 初期子ウィジェットにもバインド（動的追加分は _rebuild_section_checks で対応）
+        self._bind_report_mousewheel = _bind_mousewheel_recursive
 
         # --- セクションチェックボックス（2列グリッド） ---
         self._sections_frame = tk.Frame(self._report_body, bg="#252526")
@@ -865,6 +873,9 @@ class App:
         self._load_saved_instructions()
         # 前回のテンプレート選択を復元
         self._restore_last_template()
+        # レポートパネル内の全ウィジェットにマウスホイールバインド
+        if hasattr(self, "_bind_report_mousewheel"):
+            self._bind_report_mousewheel(self._report_body)
 
     def _load_saved_instructions(self) -> None:
         """保存済み指示をチェックボックスとしてロード。"""
@@ -903,6 +914,9 @@ class App:
             if col >= 3:
                 col = 0
                 row += 1
+        # 動的生成した指示チェックボックスにマウスホイールバインド
+        if hasattr(self, "_bind_report_mousewheel"):
+            self._bind_report_mousewheel(self._saved_instr_frame)
 
     def _on_template_selected(self, _event: tk.Event | None = None) -> None:
         """テンプレート選択時にチェックボックスを更新。"""
