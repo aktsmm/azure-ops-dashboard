@@ -73,7 +73,7 @@ sdk-enterprise-challenge/
 │   ├── AGENTS.md
 │   ├── mcp.json
 │   └── skills/               # Agent-Skills 自動同期先
-├── step10-azure-env-diagrammer/ # Step 10: Azure環境→Draw.io図 生成CLI
+├── azure-ops-dashboard/      # Azure 環境→図・レポート生成 (AzureOpsDashboard)
 └── presentations/            # デモデック
 ```
 

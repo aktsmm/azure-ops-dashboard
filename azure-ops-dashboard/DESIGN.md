@@ -38,7 +38,7 @@
 ## ファイル構成（予定）
 
 ```
-step10-azure-env-diagrammer/
+azure-ops-dashboard/
 ├── main.py           # エントリポイント + App クラス
 ├── collector.py      # az graph query ラッパ（inventory / network）
 ├── drawio_writer.py  # .drawio XML 生成

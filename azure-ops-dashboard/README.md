@@ -109,11 +109,11 @@ exe を作り直さずに反映したい場合は、以下に JSON を配置し�
 ## 使い方
 
 ```powershell
-# step10-azure-env-diagrammer フォルダ内で実行
+# azure-ops-dashboard フォルダ内で実行
 uv run python .\main.py
 
 # リポジトリルートから実行する場合
-uv run python .\step10-azure-env-diagrammer\main.py
+uv run python .\azure-ops-dashboard\main.py
 ```
 
 GUIウィンドウが起動するので:
@@ -174,7 +174,7 @@ GUIウィンドウが起動するので:
 ## テスト
 
 ```powershell
-# step10-azure-env-diagrammer フォルダ内で実行
+# azure-ops-dashboard フォルダ内で実行
 uv run python -m unittest tests -v
 ```
 
@@ -192,4 +192,4 @@ pwsh .\build_exe.ps1 -Mode onedir
 pwsh .\build_exe.ps1 -Mode onefile
 ```
 
-- 生成物は `step10-azure-env-diagrammer/dist/` 配下に出ます。
+- 生成物は `dist/` 配下に出ます（実行したフォルダの直下）。
