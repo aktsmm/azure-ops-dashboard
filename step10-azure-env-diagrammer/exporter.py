@@ -213,48 +213,51 @@ def _add_table(doc: Document, rows: list[list[str]]) -> None:
 def md_to_pdf(md_text: str, output_path: Path, title: str = "") -> Path | None:
     """Markdown → PDF 変換。Word経由でPDF化を試みる。
 
-    Windows + Microsoft Word インストール済みの場合のみ動作。
+    Windows + Microsoft Word: comtypes 経由
+    Mac/Linux: LibreOffice (soffice) 経由
     """
     import sys
-    if sys.platform != "win32":
-        return None
 
     # まず docx を作成
     docx_path = output_path.with_suffix(".docx")
     md_to_docx(md_text, docx_path, title)
 
-    try:
-        import comtypes.client
-        word = None
-        doc = None
+    # Windows: comtypes + Microsoft Word
+    if sys.platform == "win32":
         try:
-            word = comtypes.client.CreateObject("Word.Application")
-            word.Visible = False
-            doc = word.Documents.Open(str(docx_path.resolve()))
-            doc.SaveAs(str(output_path.resolve()), FileFormat=17)  # 17 = wdFormatPDF
-            return output_path
-        finally:
+            import comtypes.client
+            word = None
+            doc = None
             try:
-                if doc is not None:
-                    doc.Close(False)
-            except Exception:
-                pass
-            try:
-                if word is not None:
-                    word.Quit()
-            except Exception:
-                pass
-    except Exception:
-        # comtypes がなければ LibreOffice を試す
-        try:
-            import subprocess
-            subprocess.run([
-                "soffice", "--headless", "--convert-to", "pdf",
-                "--outdir", str(output_path.parent),
-                str(docx_path),
-            ], capture_output=True, timeout=60)
-            if output_path.exists():
+                word = comtypes.client.CreateObject("Word.Application")
+                word.Visible = False
+                doc = word.Documents.Open(str(docx_path.resolve()))
+                doc.SaveAs(str(output_path.resolve()), FileFormat=17)  # 17 = wdFormatPDF
                 return output_path
+            finally:
+                try:
+                    if doc is not None:
+                        doc.Close(False)
+                except Exception:
+                    pass
+                try:
+                    if word is not None:
+                        word.Quit()
+                except Exception:
+                    pass
         except Exception:
-            pass
+            pass  # comtypes 不可 → LibreOffice フォールバックへ
+
+    # Mac/Linux (+ Windows fallback): LibreOffice
+    try:
+        import subprocess
+        subprocess.run([
+            "soffice", "--headless", "--convert-to", "pdf",
+            "--outdir", str(output_path.parent),
+            str(docx_path),
+        ], capture_output=True, timeout=60)
+        if output_path.exists():
+            return output_path
+    except Exception:
+        pass
     return None

@@ -60,7 +60,7 @@ ACCENT_COLOR = "#0078d4"
 SUCCESS_COLOR = "#4ec9b0"
 WARNING_COLOR = "#dcdcaa"
 ERROR_COLOR = "#f44747"
-FONT_FAMILY = "Consolas"
+FONT_FAMILY = "Consolas" if sys.platform == "win32" else "Menlo" if sys.platform == "darwin" else "Monospace"
 FONT_SIZE = 11
 
 
@@ -78,6 +78,17 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _open_native(path: str | Path) -> None:
+    """OS ごとの既定アプリでファイル/フォルダを開く。"""
+    p = str(path)
+    if sys.platform == "win32":
+        os.startfile(p)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", p])
+    else:
+        subprocess.Popen(["xdg-open", p])
+
+
 def _detect_drawio_path() -> str | None:
     """Draw.io デスクトップアプリのパスを探す。"""
     # shutil.which で PATH 上を検索
@@ -85,12 +96,27 @@ def _detect_drawio_path() -> str | None:
         p = shutil.which(name)
         if p:
             return p
-    # Windows の典型インストール先
-    candidates = [
-        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "draw.io" / "draw.io.exe",
-        Path(os.environ.get("PROGRAMFILES", "")) / "draw.io" / "draw.io.exe",
-        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "draw.io" / "draw.io.exe",
-    ]
+
+    if sys.platform == "win32":
+        # Windows の典型インストール先
+        candidates = [
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "draw.io" / "draw.io.exe",
+            Path(os.environ.get("PROGRAMFILES", "")) / "draw.io" / "draw.io.exe",
+            Path(os.environ.get("PROGRAMFILES(X86)", "")) / "draw.io" / "draw.io.exe",
+        ]
+    elif sys.platform == "darwin":
+        # macOS: .app バンドル
+        candidates = [
+            Path("/Applications/draw.io.app/Contents/MacOS/draw.io"),
+            Path.home() / "Applications" / "draw.io.app" / "Contents" / "MacOS" / "draw.io",
+        ]
+    else:
+        # Linux snap / flatpak / AppImage
+        candidates = [
+            Path("/snap/drawio/current/opt/draw.io/drawio"),
+            Path("/opt/draw.io/drawio"),
+        ]
+
     for c in candidates:
         if c.exists():
             return str(c)
@@ -743,11 +769,19 @@ class App:
             return
         label = label.strip()
 
-        # JSONに追記
-        instr_path = saved_instructions_path()
+        # JSONに追記（ユーザー領域に保存）
         ensure_user_dirs()
+        instr_path = user_templates_dir() / "saved-instructions.json"
         try:
-            data = json.loads(instr_path.read_text(encoding="utf-8")) if instr_path.exists() else []
+            if instr_path.exists():
+                data = json.loads(instr_path.read_text(encoding="utf-8"))
+            else:
+                # 初回: bundled のプリセットをコピーして追記
+                bundled = saved_instructions_path()
+                if bundled.exists():
+                    data = json.loads(bundled.read_text(encoding="utf-8"))
+                else:
+                    data = []
         except (json.JSONDecodeError, OSError):
             data = []
 
@@ -761,14 +795,25 @@ class App:
 
     def _on_delete_instruction(self) -> None:
         """チェック済みの保存済み指示を削除する。"""
-        instr_path = saved_instructions_path()
-        if not instr_path.exists():
-            return
+        # ユーザー領域のファイルを操作（bundled は変更しない）
+        ensure_user_dirs()
+        instr_path = user_templates_dir() / "saved-instructions.json"
 
-        try:
-            data = json.loads(instr_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return
+        # ユーザー領域にまだファイルがなければ bundled からコピー
+        if not instr_path.exists():
+            bundled = saved_instructions_path()
+            if bundled.exists():
+                try:
+                    data = json.loads(bundled.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    return
+            else:
+                return
+        else:
+            try:
+                data = json.loads(instr_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return
 
         # チェック済みの指示テキストを収集
         to_delete: set[str] = set()
@@ -834,7 +879,7 @@ class App:
     def _on_open_output_dir(self) -> None:
         d = self._output_dir_var.get()
         if d and Path(d).exists():
-            os.startfile(d)
+            _open_native(d)
 
     # ------------------------------------------------------------------ #
     # ログ / ステータス（スレッドセーフ）
@@ -997,7 +1042,10 @@ class App:
                 }
                 if sys.platform == "win32":
                     kwargs["shell"] = True
-                result = subprocess.run("az login", **kwargs)
+                    cmd: str | list[str] = "az login"
+                else:
+                    cmd = ["az", "login"]
+                result = subprocess.run(cmd, **kwargs)
                 if result.returncode == 0:
                     self._log("az login 成功！環境を再チェックします...", "success")
                     # Sub/RG をクリア
@@ -1438,9 +1486,9 @@ class App:
                     return
                 vp = _detect_vscode_path()
                 if vp:
-                    subprocess.Popen([vp, str(path)], shell=True)
+                    subprocess.Popen([vp, str(path)])
                     return
-            os.startfile(str(path))
+            _open_native(path)
 
         elif choice == "drawio":
             dp = _detect_drawio_path()
@@ -1448,18 +1496,18 @@ class App:
                 subprocess.Popen([dp, str(path)])
             else:
                 self._log("Draw.io が見つかりません。OS既定で開きます", "warning")
-                os.startfile(str(path))
+                _open_native(path)
 
         elif choice == "vscode":
             vp = _detect_vscode_path()
             if vp:
-                subprocess.Popen([vp, str(path)], shell=True)
+                subprocess.Popen([vp, str(path)])
             else:
                 self._log("VS Code が見つかりません。OS既定で開きます", "warning")
-                os.startfile(str(path))
+                _open_native(path)
 
         else:  # "os"
-            os.startfile(str(path))
+            _open_native(path)
 
     # ------------------------------------------------------------------ #
     # レポート生成ワーカー (security-report / cost-report)
