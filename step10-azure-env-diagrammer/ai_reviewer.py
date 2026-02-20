@@ -26,6 +26,7 @@ from docs_enricher import (
     enrich_with_docs,
     security_search_queries,
 )
+from i18n import t as _t, get_language
 
 
 def _approve_all(request: object) -> dict:
@@ -320,10 +321,16 @@ class AIReviewer:
 
     async def review(self, resource_text: str) -> str | None:
         """リソースサマリをレビューし、結果テキストを返す。"""
-        prompt = (
-            "以下のAzureリソース一覧をレビューしてください:\n\n"
-            f"```\n{resource_text}\n```"
-        )
+        if get_language() == "en":
+            prompt = (
+                "Please review the following Azure resource list:\n\n"
+                f"```\n{resource_text}\n```"
+            )
+        else:
+            prompt = (
+                "以下のAzureリソース一覧をレビューしてください:\n\n"
+                f"```\n{resource_text}\n```"
+            )
         return await self.generate(prompt, SYSTEM_PROMPT_REVIEW)
 
     async def generate(self, prompt: str, system_prompt: str) -> str | None:
@@ -335,6 +342,10 @@ class AIReviewer:
           - reasoning_delta 対応
           - on_pre_tool_use で読み取り専用ツールのみ許可
         """
+        # 言語指示を system prompt 末尾に追加
+        lang_instruction = _t("ai.output_language")
+        system_prompt = system_prompt.rstrip() + "\n\n" + lang_instruction + "\n"
+
         client: CopilotClient | None = None
         try:
             # 1. SDK 接続（auto_restart で CLI クラッシュから回復）
@@ -488,19 +499,32 @@ def run_security_report(
         resource_types=resource_types, on_status=log,
     )
     if not docs_block:
-        log("Microsoft Docs 参照なしでレポートを生成します")
+        log("Microsoft Docs: generating report without references" if get_language() == "en" else "Microsoft Docs 参照なしでレポートを生成します")
 
-    prompt = (
-        "以下の Azure 環境のセキュリティレポートを生成してください。\n\n"
-        "**重要**: 以下のデータをよく読み、この環境固有の具体的な指摘を書いてください。\n"
-        "リソース名やタイプを具体的に挙げてコメントし、「一般論」は避けてください。\n"
-        "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
-        "## セキュリティデータ\n"
-        f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
-        "## リソース一覧\n"
-        f"```\n{resource_text}\n```"
-        f"{docs_block}"
-    )
+    if get_language() == "en":
+        prompt = (
+            "Generate a security report for the following Azure environment.\n\n"
+            "**Important**: Read the data below carefully and provide environment-specific findings.\n"
+            "Reference specific resource names and types; avoid generic advice.\n"
+            "Use microsoft_docs_search tool to find relevant docs and cite URLs.\n\n"
+            "## Security Data\n"
+            f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
+            "## Resource List\n"
+            f"```\n{resource_text}\n```"
+            f"{docs_block}"
+        )
+    else:
+        prompt = (
+            "以下の Azure 環境のセキュリティレポートを生成してください。\n\n"
+            "**重要**: 以下のデータをよく読み、この環境固有の具体的な指摘を書いてください。\n"
+            "リソース名やタイプを具体的に挙げてコメントし、「一般論」は避けてください。\n"
+            "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
+            "## セキュリティデータ\n"
+            f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
+            "## リソース一覧\n"
+            f"```\n{resource_text}\n```"
+            f"{docs_block}"
+        )
     return _run_async(reviewer.generate(prompt, system_prompt))
 
 
@@ -533,19 +557,32 @@ def run_cost_report(
         resource_types=resource_types, on_status=log,
     )
     if not docs_block:
-        log("Microsoft Docs 参照なしでレポートを生成します")
+        log("Microsoft Docs: generating report without references" if get_language() == "en" else "Microsoft Docs 参照なしでレポートを生成します")
 
-    prompt = (
-        "以下の Azure 環境のコストレポートを生成してください。\n\n"
-        "**重要**: 以下のデータをよく読み、この環境固有の具体的なコスト指摘を書いてください。\n"
-        "リソース名と具体的な金額を挙げてコメントし、「一般論」は避けてください。\n"
-        "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
-        "## コストデータ\n"
-        f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
-        "## Advisor 推奨事項\n"
-        f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
-        f"{docs_block}"
-    )
+    if get_language() == "en":
+        prompt = (
+            "Generate a cost report for the following Azure environment.\n\n"
+            "**Important**: Read the data below carefully and provide environment-specific cost findings.\n"
+            "Reference specific resource names and amounts; avoid generic advice.\n"
+            "Use microsoft_docs_search tool to find relevant docs and cite URLs.\n\n"
+            "## Cost Data\n"
+            f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
+            "## Advisor Recommendations\n"
+            f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
+            f"{docs_block}"
+        )
+    else:
+        prompt = (
+            "以下の Azure 環境のコストレポートを生成してください。\n\n"
+            "**重要**: 以下のデータをよく読み、この環境固有の具体的なコスト指摘を書いてください。\n"
+            "リソース名と具体的な金額を挙げてコメントし、「一般論」は避けてください。\n"
+            "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
+            "## コストデータ\n"
+            f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
+            "## Advisor 推奨事項\n"
+            f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
+            f"{docs_block}"
+        )
     return _run_async(reviewer.generate(prompt, system_prompt))
 
 

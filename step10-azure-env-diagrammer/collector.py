@@ -14,6 +14,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from i18n import get_language
+
 
 # ============================================================
 # データモデル
@@ -98,15 +100,17 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
 def _classify_az_error(stderr: str) -> RuntimeError:
     """stderr からエラーを分類して適切な例外を返す。"""
     lower = stderr.lower()
+    en = get_language() == "en"
     if "please run 'az login'" in lower or "az login" in lower:
-        return AzNotLoggedInError(
-            "Azure にログインしていません。\n→ `az login` を実行してください。"
-        )
+        msg = ("Not logged in to Azure.\n→ Run `az login`."
+               if en else
+               "Azure にログインしていません。\n→ `az login` を実行してください。")
+        return AzNotLoggedInError(msg)
     if "not an installed extension" in lower or "resource-graph" in lower:
-        return AzExtensionMissingError(
-            "resource-graph 拡張がインストールされていません。\n"
-            "→ `az extension add --name resource-graph` を実行してください。"
-        )
+        msg = ("resource-graph extension not installed.\n→ Run `az extension add --name resource-graph`."
+               if en else
+               "resource-graph 拡張がインストールされていません。\n→ `az extension add --name resource-graph` を実行してください。")
+        return AzExtensionMissingError(msg)
     return RuntimeError(f"az graph query failed:\n{stderr}")
 
 
@@ -128,7 +132,11 @@ def preflight_check() -> list[str]:
     # 2. ログイン確認
     code, _out, err = _run_command([_get_az_exe(), "account", "show", "--output", "json"], timeout_s=30)
     if code != 0:
-        warnings.append("Azure にログインしていません。\n→ `az login` を実行してください。")
+        en = get_language() == "en"
+        msg = ("Not logged in to Azure.\n→ Run `az login`."
+               if en else
+               "Azure にログインしていません。\n→ `az login` を実行してください。")
+        warnings.append(msg)
         return warnings
 
     # 3. resource-graph 拡張確認
@@ -138,10 +146,11 @@ def preflight_check() -> list[str]:
             extensions = json.loads(out)
             names = [e.get("name", "") for e in extensions] if isinstance(extensions, list) else []
             if "resource-graph" not in names:
-                warnings.append(
-                    "resource-graph 拡張がインストールされていません。\n"
-                    "→ `az extension add --name resource-graph` を実行してください。"
-                )
+                en = get_language() == "en"
+                msg = ("resource-graph extension not installed.\n→ Run `az extension add --name resource-graph`."
+                       if en else
+                       "resource-graph 拡張がインストールされていません。\n→ `az extension add --name resource-graph` を実行してください。")
+                warnings.append(msg)
         except json.JSONDecodeError:
             pass
 

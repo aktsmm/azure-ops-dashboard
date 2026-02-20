@@ -44,6 +44,7 @@ from collector import (
 from drawio_writer import build_drawio_xml, now_stamp
 
 from app_paths import ensure_user_dirs, saved_instructions_path, user_templates_dir
+from i18n import t, set_language, get_language, on_language_changed
 
 
 # ============================================================
@@ -204,82 +205,102 @@ class App:
     def _setup_widgets(self) -> None:
 
         # --- タイトル ---
-        tk.Label(
-            self._root, text="Azure Ops Dashboard",
+        self._title_label = tk.Label(
+            self._root, text=t("app.title"),
             bg=WINDOW_BG, fg=ACCENT_COLOR,
             font=(FONT_FAMILY, 16, "bold"),
-        ).pack(pady=(12, 2))
+        )
+        self._title_label.pack(pady=(12, 2))
 
-        tk.Label(
+        self._subtitle_label = tk.Label(
             self._root,
-            text="Azure環境を読み取って Draw.io 図 / レポートを生成",
+            text=t("app.subtitle"),
             bg=WINDOW_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
-        ).pack(pady=(0, 8))
+        )
+        self._subtitle_label.pack(pady=(0, 8))
 
         # --- 入力フォーム ---
         form = tk.Frame(self._root, bg=WINDOW_BG)
         form.pack(fill=tk.X, padx=16)
         form.columnconfigure(1, weight=1)
 
-        # --- Row 0: View（最初に選ぶ） ---
+        # --- Row 0: Language ---
+        self._lang_label = tk.Label(form, text=t("label.language"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), anchor="e")
+        self._lang_label.grid(row=0, column=0, sticky="e", padx=(0, 6), pady=3)
+        lang_frame = tk.Frame(form, bg=WINDOW_BG)
+        lang_frame.grid(row=0, column=1, sticky="w", pady=3)
+        self._lang_var = tk.StringVar(value=get_language())
+        for val, label in [("ja", "日本語"), ("en", "English")]:
+            tk.Radiobutton(lang_frame, text=label, variable=self._lang_var, value=val,
+                           bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+                           activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+                           font=(FONT_FAMILY, FONT_SIZE - 1),
+                           command=self._on_language_changed,
+                           ).pack(side=tk.LEFT, padx=(0, 10))
+
+        # --- Row 1: View ---
         self._view_var = tk.StringVar(value="inventory")
-        tk.Label(form, text="View:", bg=WINDOW_BG, fg=ACCENT_COLOR,
-                 font=(FONT_FAMILY, FONT_SIZE, "bold"), anchor="e").grid(row=0, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._view_label = tk.Label(form, text=t("label.view"), bg=WINDOW_BG, fg=ACCENT_COLOR,
+                 font=(FONT_FAMILY, FONT_SIZE, "bold"), anchor="e")
+        self._view_label.grid(row=1, column=0, sticky="e", padx=(0, 6), pady=3)
         self._view_combo = ttk.Combobox(form, textvariable=self._view_var, state="readonly",
                                          values=["inventory", "network", "security-report", "cost-report"],
                                          font=(FONT_FAMILY, FONT_SIZE))
-        self._view_combo.grid(row=0, column=1, sticky="ew", pady=3, ipady=2)
+        self._view_combo.grid(row=1, column=1, sticky="ew", pady=3, ipady=2)
         self._view_combo.bind("<<ComboboxSelected>>", self._on_view_changed)
 
         # View 説明ラベル
-        self._view_desc_var = tk.StringVar(value=".drawio 図生成")
+        self._view_desc_var = tk.StringVar(value=t("view.inventory"))
         tk.Label(form, textvariable=self._view_desc_var, bg=WINDOW_BG, fg="#808080",
-                 font=(FONT_FAMILY, FONT_SIZE - 2)).grid(row=0, column=2, padx=(4, 0))
+                 font=(FONT_FAMILY, FONT_SIZE - 2)).grid(row=1, column=2, padx=(4, 0))
 
-        # --- Row 1: Subscription ---
+        # --- Row 2: Subscription ---
         self._sub_var = tk.StringVar()
-        tk.Label(form, text="Subscription:", bg=WINDOW_BG, fg=TEXT_FG,
-                 font=(FONT_FAMILY, FONT_SIZE), anchor="e").grid(row=1, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._sub_label = tk.Label(form, text=t("label.subscription"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), anchor="e")
+        self._sub_label.grid(row=2, column=0, sticky="e", padx=(0, 6), pady=3)
         self._sub_combo = ttk.Combobox(form, textvariable=self._sub_var, state="normal",
                                         font=(FONT_FAMILY, FONT_SIZE))
-        self._sub_combo.grid(row=1, column=1, sticky="ew", pady=3, ipady=2)
+        self._sub_combo.grid(row=2, column=1, sticky="ew", pady=3, ipady=2)
         self._sub_combo.bind("<<ComboboxSelected>>", self._on_sub_selected)
-        self._sub_hint = tk.Label(form, text="(任意)", bg=WINDOW_BG, fg="#808080",
+        self._sub_hint = tk.Label(form, text=t("hint.optional"), bg=WINDOW_BG, fg="#808080",
                  font=(FONT_FAMILY, FONT_SIZE - 2))
-        self._sub_hint.grid(row=1, column=2, padx=(4, 0))
+        self._sub_hint.grid(row=2, column=2, padx=(4, 0))
 
-        # --- Row 2: Resource Group ---
+        # --- Row 3: Resource Group ---
         self._rg_var = tk.StringVar()
-        self._rg_label = tk.Label(form, text="Resource Group:", bg=WINDOW_BG, fg=TEXT_FG,
+        self._rg_label = tk.Label(form, text=t("label.resource_group"), bg=WINDOW_BG, fg=TEXT_FG,
                  font=(FONT_FAMILY, FONT_SIZE), anchor="e")
-        self._rg_label.grid(row=2, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._rg_label.grid(row=3, column=0, sticky="e", padx=(0, 6), pady=3)
         self._rg_combo = ttk.Combobox(form, textvariable=self._rg_var, state="normal",
                                        font=(FONT_FAMILY, FONT_SIZE))
-        self._rg_combo.grid(row=2, column=1, sticky="ew", pady=3, ipady=2)
-        self._rg_hint = tk.Label(form, text="(指定推奨)", bg=WINDOW_BG, fg="#808080",
+        self._rg_combo.grid(row=3, column=1, sticky="ew", pady=3, ipady=2)
+        self._rg_hint = tk.Label(form, text=t("hint.recommended"), bg=WINDOW_BG, fg="#808080",
                  font=(FONT_FAMILY, FONT_SIZE - 2))
-        self._rg_hint.grid(row=2, column=2, padx=(4, 0))
+        self._rg_hint.grid(row=3, column=2, padx=(4, 0))
 
-        # --- Row 3: Max Nodes ---
+        # --- Row 4: Max Nodes ---
         self._limit_var = tk.StringVar(value="300")
-        self._limit_label = tk.Label(form, text="Max Nodes:", bg=WINDOW_BG, fg=TEXT_FG,
+        self._limit_label = tk.Label(form, text=t("label.max_nodes"), bg=WINDOW_BG, fg=TEXT_FG,
                  font=(FONT_FAMILY, FONT_SIZE), anchor="e")
-        self._limit_label.grid(row=3, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._limit_label.grid(row=4, column=0, sticky="e", padx=(0, 6), pady=3)
         self._limit_entry = tk.Entry(form, textvariable=self._limit_var,
                  bg=INPUT_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
                  insertbackground=TEXT_FG, relief=tk.FLAT, borderwidth=0)
-        self._limit_entry.grid(row=3, column=1, sticky="ew", pady=3, ipady=3)
-        self._limit_hint = tk.Label(form, text="(既定: 300)", bg=WINDOW_BG, fg="#808080",
+        self._limit_entry.grid(row=4, column=1, sticky="ew", pady=3, ipady=3)
+        self._limit_hint = tk.Label(form, text=t("hint.default_300"), bg=WINDOW_BG, fg="#808080",
                  font=(FONT_FAMILY, FONT_SIZE - 2))
-        self._limit_hint.grid(row=3, column=2, padx=(4, 0))
+        self._limit_hint.grid(row=4, column=2, padx=(4, 0))
 
-        # --- Row 4: Output Folder ---
+        # --- Row 5: Output Folder ---
         self._output_dir_var = tk.StringVar(value=str(Path.home() / "Documents"))
-        tk.Label(form, text="Output Dir:", bg=WINDOW_BG, fg=TEXT_FG,
-                 font=(FONT_FAMILY, FONT_SIZE), anchor="e").grid(row=4, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._outdir_label = tk.Label(form, text=t("label.output_dir"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), anchor="e")
+        self._outdir_label.grid(row=5, column=0, sticky="e", padx=(0, 6), pady=3)
         outdir_frame = tk.Frame(form, bg=WINDOW_BG)
-        outdir_frame.grid(row=4, column=1, sticky="ew", pady=3)
+        outdir_frame.grid(row=5, column=1, sticky="ew", pady=3)
         outdir_frame.columnconfigure(0, weight=1)
         tk.Entry(outdir_frame, textvariable=self._output_dir_var,
                  bg=INPUT_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
@@ -294,15 +315,16 @@ class App:
                   command=self._on_open_output_dir,
                   bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
                   relief=tk.FLAT, padx=6, cursor="hand2")
-        self._open_dir_btn.grid(row=4, column=2, padx=(4, 0))
+        self._open_dir_btn.grid(row=5, column=2, padx=(4, 0))
 
-        # --- Row 5: Open App ---
+        # --- Row 6: Open App ---
         self._open_app_var = tk.StringVar(value="auto")
-        tk.Label(form, text="Open with:", bg=WINDOW_BG, fg=TEXT_FG,
-                 font=(FONT_FAMILY, FONT_SIZE), anchor="e").grid(row=5, column=0, sticky="e", padx=(0, 6), pady=3)
+        self._openwith_label = tk.Label(form, text=t("label.open_with"), bg=WINDOW_BG, fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE), anchor="e")
+        self._openwith_label.grid(row=6, column=0, sticky="e", padx=(0, 6), pady=3)
         app_frame = tk.Frame(form, bg=WINDOW_BG)
-        app_frame.grid(row=5, column=1, sticky="ew", pady=3)
-        for val, label in [("auto", "Auto"), ("drawio", "Draw.io"), ("vscode", "VS Code"), ("os", "OS既定")]:
+        app_frame.grid(row=6, column=1, sticky="ew", pady=3)
+        for val, label in [("auto", "Auto"), ("drawio", "Draw.io"), ("vscode", "VS Code"), ("os", "OS default")]:
             tk.Radiobutton(app_frame, text=label, variable=self._open_app_var, value=val,
                            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
                            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
@@ -310,10 +332,11 @@ class App:
                            ).pack(side=tk.LEFT, padx=(0, 10))
         # Draw.io 検出状態表示
         drawio_path = _detect_drawio_path()
-        hint = "✅ Draw.io 検出" if drawio_path else "⚠️ Draw.io 未検出"
-        tk.Label(form, text=hint, bg=WINDOW_BG,
+        hint_drawio = t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found")
+        self._drawio_hint_label = tk.Label(form, text=hint_drawio, bg=WINDOW_BG,
                  fg=SUCCESS_COLOR if drawio_path else "#808080",
-                 font=(FONT_FAMILY, FONT_SIZE - 2)).grid(row=5, column=2, padx=(4, 0))
+                 font=(FONT_FAMILY, FONT_SIZE - 2))
+        self._drawio_hint_label.grid(row=6, column=2, padx=(4, 0))
 
         # ============================================================
         # レポート設定パネル（レポート系View選択時のみ表示）
@@ -325,7 +348,7 @@ class App:
         tmpl_row = tk.Frame(self._report_panel, bg="#252526")
         tmpl_row.pack(fill=tk.X, padx=10, pady=(6, 2))
 
-        tk.Label(tmpl_row, text="Template:", bg="#252526", fg=ACCENT_COLOR,
+        tk.Label(tmpl_row, text=t("label.template"), bg="#252526", fg=ACCENT_COLOR,
                  font=(FONT_FAMILY, FONT_SIZE - 1, "bold")).pack(side=tk.LEFT)
         self._template_var = tk.StringVar(value="Standard")
         self._template_combo = ttk.Combobox(tmpl_row, textvariable=self._template_var,
@@ -339,10 +362,11 @@ class App:
                  bg="#252526", fg="#808080",
                  font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(8, 0))
 
-        tk.Button(tmpl_row, text="💾 Save as…",
+        self._save_tmpl_btn = tk.Button(tmpl_row, text=t("btn.save_template"),
                   command=self._on_save_template,
                   bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
-                  relief=tk.FLAT, padx=6, cursor="hand2").pack(side=tk.RIGHT)
+                  relief=tk.FLAT, padx=6, cursor="hand2")
+        self._save_tmpl_btn.pack(side=tk.RIGHT)
 
         # --- セクションチェックボックス（2列グリッド） ---
         self._sections_frame = tk.Frame(self._report_panel, bg="#252526")
@@ -354,8 +378,9 @@ class App:
         instr_frame = tk.Frame(self._report_panel, bg="#252526")
         instr_frame.pack(fill=tk.X, padx=10, pady=(2, 2))
 
-        tk.Label(instr_frame, text="追加指示:", bg="#252526", fg=TEXT_FG,
-                 font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), anchor="nw").pack(anchor="w")
+        self._instr_label = tk.Label(instr_frame, text=t("label.extra_instructions"), bg="#252526", fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), anchor="nw")
+        self._instr_label.pack(anchor="w")
 
         # 保存済み指示チェックボックス行
         self._saved_instr_frame = tk.Frame(instr_frame, bg="#252526")
@@ -367,8 +392,9 @@ class App:
         free_row = tk.Frame(instr_frame, bg="#252526")
         free_row.pack(fill=tk.X, pady=(2, 2))
         free_row.columnconfigure(1, weight=1)
-        tk.Label(free_row, text="自由入力:", bg="#252526", fg="#808080",
-                 font=(FONT_FAMILY, FONT_SIZE - 2), anchor="nw").grid(row=0, column=0, sticky="nw")
+        self._free_input_label = tk.Label(free_row, text=t("label.free_input"), bg="#252526", fg="#808080",
+                 font=(FONT_FAMILY, FONT_SIZE - 2), anchor="nw")
+        self._free_input_label.grid(row=0, column=0, sticky="nw")
         self._custom_instruction = tk.Text(free_row, height=2,
                  bg=INPUT_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
                  insertbackground=TEXT_FG, relief=tk.FLAT, borderwidth=0,
@@ -377,21 +403,24 @@ class App:
 
         free_btn_row = tk.Frame(free_row, bg="#252526")
         free_btn_row.grid(row=0, column=2, padx=(4, 0), sticky="n")
-        tk.Button(free_btn_row, text="💾 記憶",
+        self._save_instr_btn = tk.Button(free_btn_row, text=t("btn.save_instruction"),
                   command=self._on_save_instruction,
                   bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
-                  relief=tk.FLAT, padx=4, cursor="hand2").pack(pady=(0, 2))
-        tk.Button(free_btn_row, text="🗑 削除",
+                  relief=tk.FLAT, padx=4, cursor="hand2")
+        self._save_instr_btn.pack(pady=(0, 2))
+        self._del_instr_btn = tk.Button(free_btn_row, text=t("btn.delete_instruction"),
                   command=self._on_delete_instruction,
                   bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
-                  relief=tk.FLAT, padx=4, cursor="hand2").pack()
+                  relief=tk.FLAT, padx=4, cursor="hand2")
+        self._del_instr_btn.pack()
 
         # --- 出力形式 + 自動オープン ---
         export_row = tk.Frame(self._report_panel, bg="#252526")
         export_row.pack(fill=tk.X, padx=10, pady=(2, 6))
 
-        tk.Label(export_row, text="出力形式:", bg="#252526", fg=TEXT_FG,
-                 font=(FONT_FAMILY, FONT_SIZE - 1)).pack(side=tk.LEFT)
+        self._export_label = tk.Label(export_row, text=t("label.export_format"), bg="#252526", fg=TEXT_FG,
+                 font=(FONT_FAMILY, FONT_SIZE - 1))
+        self._export_label.pack(side=tk.LEFT)
         self._export_md_var = tk.BooleanVar(value=True)
         tk.Checkbutton(export_row, text="Markdown", variable=self._export_md_var,
                        bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
@@ -411,10 +440,11 @@ class App:
         ttk.Separator(export_row, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=8, fill=tk.Y)
 
         self._auto_open_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(export_row, text="生成後に自動で開く", variable=self._auto_open_var,
+        self._auto_open_cb = tk.Checkbutton(export_row, text=t("btn.auto_open"), variable=self._auto_open_var,
                        bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
                        activebackground="#252526", activeforeground=TEXT_FG,
-                       font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
+                       font=(FONT_FAMILY, FONT_SIZE - 2))
+        self._auto_open_cb.pack(side=tk.LEFT, padx=(4, 0))
 
         # テンプレートキャッシュ
         self._templates_cache: list[dict] = []
@@ -425,7 +455,7 @@ class App:
         btn_frame.pack(pady=8)
 
         self._collect_btn = tk.Button(
-            btn_frame, text="▶ Collect",
+            btn_frame, text=t("btn.collect"),
             command=self._on_collect,
             bg=ACCENT_COLOR, fg="white",
             font=(FONT_FAMILY, FONT_SIZE, "bold"),
@@ -437,7 +467,7 @@ class App:
         self._collect_btn.pack(side=tk.LEFT)
 
         self._abort_btn = tk.Button(
-            btn_frame, text="✖ Cancel",
+            btn_frame, text=t("btn.cancel"),
             command=self._on_abort,
             bg=ERROR_COLOR, fg="white",
             font=(FONT_FAMILY, FONT_SIZE, "bold"),
@@ -447,7 +477,7 @@ class App:
         # 初期非表示 — _set_working(True) で pack される
 
         self._refresh_btn = tk.Button(
-            btn_frame, text="🔄 Refresh",
+            btn_frame, text=t("btn.refresh"),
             command=self._on_refresh,
             bg="#3C3C3C", fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
@@ -457,7 +487,7 @@ class App:
         self._refresh_btn.pack(side=tk.LEFT, padx=(6, 0))
 
         self._open_btn = tk.Button(
-            btn_frame, text="Open File",
+            btn_frame, text=t("btn.open_file"),
             command=self._on_open_file,
             bg="#3C3C3C", fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
@@ -468,7 +498,7 @@ class App:
         self._open_btn.pack(side=tk.LEFT, padx=(6, 0))
 
         self._copy_btn = tk.Button(
-            btn_frame, text="Copy Log",
+            btn_frame, text=t("btn.copy_log"),
             command=self._on_copy_log,
             bg="#3C3C3C", fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
@@ -478,7 +508,7 @@ class App:
         self._copy_btn.pack(side=tk.LEFT, padx=(6, 0))
 
         self._login_btn = tk.Button(
-            btn_frame, text="🔑 az login",
+            btn_frame, text=t("btn.az_login"),
             command=self._on_az_login,
             bg="#3C3C3C", fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
@@ -503,7 +533,7 @@ class App:
         review_btn_row.pack(fill=tk.X, padx=10, pady=(2, 6))
 
         self._proceed_btn = tk.Button(
-            review_btn_row, text="  ✔ Proceed — 生成する  ",
+            review_btn_row, text=t("btn.proceed"),
             command=self._on_proceed,
             bg=SUCCESS_COLOR, fg="#1e1e1e",
             font=(FONT_FAMILY, FONT_SIZE, "bold"),
@@ -513,7 +543,7 @@ class App:
         self._proceed_btn.pack(side=tk.LEFT)
 
         self._cancel_btn = tk.Button(
-            review_btn_row, text="  ✖ Cancel  ",
+            review_btn_row, text=t("btn.cancel_review"),
             command=self._on_cancel,
             bg=ERROR_COLOR, fg="white",
             font=(FONT_FAMILY, FONT_SIZE),
@@ -564,7 +594,7 @@ class App:
                  bg="#252526", fg=ACCENT_COLOR, anchor="w",
                  font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT)
 
-        self._status_var = tk.StringVar(value="Ready")
+        self._status_var = tk.StringVar(value=t("status.ready"))
         tk.Label(status_frame, textvariable=self._status_var,
                  bg="#252526", fg=TEXT_FG, anchor="w",
                  font=(FONT_FAMILY, FONT_SIZE - 2), padx=8).pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -587,42 +617,42 @@ class App:
     # View 切り替え
     # ------------------------------------------------------------------ #
 
-    _VIEW_DESCRIPTIONS = {
-        "inventory": ".drawio 図生成",
-        "network": ".drawio ネットワーク図",
-        "security-report": "🛡️ セキュリティレポート (.md)",
-        "cost-report": "💰 コストレポート (.md)",
+    _VIEW_DESC_KEYS = {
+        "inventory": "view.inventory",
+        "network": "view.network",
+        "security-report": "view.security_report",
+        "cost-report": "view.cost_report",
     }
 
     def _on_view_changed(self, _event: tk.Event | None = None) -> None:
         """View 選択変更時にボタンラベル、説明、フォーム表示を更新。"""
         view = self._view_var.get().strip()
-        desc = self._VIEW_DESCRIPTIONS.get(view, "")
-        self._view_desc_var.set(desc)
+        desc_key = self._VIEW_DESC_KEYS.get(view, "")
+        self._view_desc_var.set(t(desc_key) if desc_key else "")
 
         is_report = view in ("security-report", "cost-report")
 
         # ボタンラベル
         if is_report:
-            self._collect_btn.configure(text="▶ Generate Report")
+            self._collect_btn.configure(text=t("btn.generate_report"))
         else:
-            self._collect_btn.configure(text="▶ Collect")
+            self._collect_btn.configure(text=t("btn.collect"))
 
         # RG / MaxNodes を動的に有効/無効化
         if is_report:
             self._rg_combo.configure(state="disabled")
             self._rg_label.configure(fg="#555555")
-            self._rg_hint.configure(text="(レポートでは不使用)")
+            self._rg_hint.configure(text=t("hint.not_used_report"))
             self._limit_entry.configure(state="disabled")
             self._limit_label.configure(fg="#555555")
-            self._limit_hint.configure(text="(レポートでは不使用)")
+            self._limit_hint.configure(text=t("hint.not_used_report"))
         else:
             self._rg_combo.configure(state="normal")
             self._rg_label.configure(fg=TEXT_FG)
-            self._rg_hint.configure(text="(指定推奨)")
+            self._rg_hint.configure(text=t("hint.recommended"))
             self._limit_entry.configure(state="normal")
             self._limit_label.configure(fg=TEXT_FG)
-            self._limit_hint.configure(text="(既定: 300)")
+            self._limit_hint.configure(text=t("hint.default_300"))
 
         # テンプレートパネル表示/非表示
         if is_report:
@@ -761,8 +791,8 @@ class App:
 
         # ラベル入力ダイアログ
         label = simpledialog.askstring(
-            "指示を保存",
-            "チェックボックスに表示するラベル名:",
+            t("dlg.save_instruction"),
+            t("dlg.label_prompt"),
             parent=self._root,
         )
         if not label or not label.strip():
@@ -791,7 +821,7 @@ class App:
         # UIリロード
         self._load_saved_instructions()
         self._custom_instruction.delete("1.0", tk.END)
-        self._log(f"指示を保存しました: {label}", "success")
+        self._log(t("instr.saved", label=label), "success")
 
     def _on_delete_instruction(self) -> None:
         """チェック済みの保存済み指示を削除する。"""
@@ -822,12 +852,12 @@ class App:
                 to_delete.add(instruction)
 
         if not to_delete:
-            self._log("削除する指示をチェックしてください", "warning")
+            self._log(t("instr.check_to_delete"), "warning")
             return
 
         # 確認
         count = len(to_delete)
-        if not messagebox.askyesno("指示を削除", f"チェック済みの {count} 件の指示を削除しますか？"):
+        if not messagebox.askyesno(t("dlg.delete_instruction"), t("dlg.delete_confirm", count=count)):
             return
 
         # フィルタして保存
@@ -836,32 +866,32 @@ class App:
 
         # UIリロード
         self._load_saved_instructions()
-        self._log(f"{count} 件の指示を削除しました", "success")
+        self._log(t("instr.deleted", count=count), "success")
 
     def _on_save_template(self) -> None:
         """現在のチェック状態を新しいテンプレートとして保存。"""
-        t = self._get_current_template_with_overrides()
-        if not t:
+        tmpl = self._get_current_template_with_overrides()
+        if not tmpl:
             return
 
         # frozen (PyInstaller) の同梱 templates は読み取り専用になり得るため、ユーザー領域を既定にする
         ensure_user_dirs()
         p = filedialog.asksaveasfilename(
-            title="Save Template",
+            title=t("dlg.save_template"),
             defaultextension=".json",
             filetypes=[("JSON", "*.json")],
             initialdir=str(user_templates_dir()) if user_templates_dir().is_dir() else str(Path.home() / "Documents"),
-            initialfile=f"{t.get('report_type', 'custom')}-custom.json",
+            initialfile=f"{tmpl.get('report_type', 'custom')}-custom.json",
         )
         if p:
             from ai_reviewer import save_template
-            t["template_name"] = Path(p).stem.split("-", 1)[-1].capitalize()
+            tmpl["template_name"] = Path(p).stem.split("-", 1)[-1].capitalize()
             # _pathは保存対象から除外
-            t.pop("_path", None)
-            save_template(p, t)
-            self._log(f"テンプレート保存: {p}", "success")
+            tmpl.pop("_path", None)
+            save_template(p, tmpl)
+            self._log(t("instr.template_saved", path=p), "success")
             # リロード
-            report_type = t.get("report_type", "security")
+            report_type = tmpl.get("report_type", "security")
             self._load_templates_for_type(report_type)
 
     # ------------------------------------------------------------------ #
@@ -870,7 +900,7 @@ class App:
 
     def _on_browse_output_dir(self) -> None:
         d = filedialog.askdirectory(
-            title="出力フォルダを選択",
+            title=t("dlg.select_output_dir"),
             initialdir=self._output_dir_var.get(),
         )
         if d:
@@ -961,8 +991,8 @@ class App:
         """収集中にCancelボタンを押した場合。"""
         self._cancel_requested = True
         self._review_event.set()  # レビュー待ちも解除
-        self._log("キャンセルを要求しました...", "warning")
-        self._set_status("Cancelling...")
+        self._log(t("log.cancel_requested"), "warning")
+        self._set_status(t("status.cancelling"))
         self._set_working(False)
         self._hide_review()
 
@@ -978,30 +1008,30 @@ class App:
             self._log(w, "warning")
 
         if self._preflight_ok:
-            self._log("Azure CLI: OK", "success")
+            self._log(t("log.azure_cli_ok"), "success")
             self._root.after(0, lambda: self._collect_btn.configure(state=tk.NORMAL))
         else:
-            self._log("\u2191 上記を解決してから Refresh を押してください", "error")
+            self._log(t("log.fix_above"), "error")
             self._root.after(0, lambda: self._collect_btn.configure(state=tk.DISABLED))
 
         # Sub 候補ロード
-        self._log("Subscription 候補を取得中...", "info")
+        self._log(t("log.loading_subs"), "info")
         subs = list_subscriptions()
         self._subs_cache = subs
         if subs:
-            values = ["(全サブスクリプション)"] + [f"{s['name']}  ({s['id']})" for s in subs]
+            values = [t("hint.all_subscriptions")] + [f"{s['name']}  ({s['id']})" for s in subs]
             self._root.after(0, lambda: self._sub_combo.configure(values=values))
-            self._log(f"  → {len(subs)} 件のサブスクリプションを検出", "success")
+            self._log(t("log.subs_found", count=len(subs)), "success")
 
             # Sub が1件なら自動選択 + RG自動ロード
             if len(subs) == 1:
                 auto_val = values[1]  # 実際のSub（全サブスクではない）
                 self._root.after(0, lambda: self._sub_var.set(auto_val))
-                self._log("  → サブスクリプションが1件のため自動選択", "info")
+                self._log(t("log.auto_selected_sub"), "info")
                 sub_id = subs[0]["id"]
                 self._bg_load_rgs(sub_id)
         else:
-            self._log("  Subscription 候補を取得できませんでした（手入力で続行可）", "warning")
+            self._log(t("log.subs_failed"), "warning")
 
     def _on_sub_selected(self, _event: tk.Event | None = None) -> None:
         """Subscription 選択時に RG 候補をロード。"""
@@ -1011,20 +1041,20 @@ class App:
             self._rgs_cache = []
             self._root.after(0, lambda: self._rg_combo.configure(values=[]))
             self._root.after(0, lambda: self._rg_var.set(""))
-            self._log("全サブスクリプションが選択されました（RG指定推奨）", "info")
+            self._log(t("log.all_subs_selected"), "info")
             return
         threading.Thread(target=self._bg_load_rgs, args=(sub_id,), daemon=True).start()
 
     def _bg_load_rgs(self, sub_id: str) -> None:
-        self._log(f"RG 候補を取得中 (sub={sub_id[:8]}...)...", "info")
+        self._log(t("log.loading_rgs", sub=sub_id[:8] + "..."), "info")
         rgs = list_resource_groups(sub_id)
         self._rgs_cache = rgs
         if rgs:
-            values = ["(全体)"] + rgs
+            values = [t("hint.all_rgs")] + rgs
             self._root.after(0, lambda: self._rg_combo.configure(values=values))
-            self._log(f"  → {len(rgs)} 件の RG を検出", "success")
+            self._log(t("log.rgs_found", count=len(rgs)), "success")
         else:
-            self._log("  RG 候補を取得できませんでした（手入力で続行可）", "warning")
+            self._log(t("log.rgs_failed"), "warning")
 
     def _on_refresh(self) -> None:
         threading.Thread(target=self._bg_preflight, daemon=True).start()
@@ -1032,7 +1062,7 @@ class App:
     def _on_az_login(self) -> None:
         """az login をバックグラウンドで実行し、完了後に Refresh。"""
         def _do_login() -> None:
-            self._log("az login を実行中... ブラウザが開きます", "info")
+            self._log(t("log.az_login_running"), "info")
             self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
             try:
                 import subprocess, sys
@@ -1047,7 +1077,7 @@ class App:
                     cmd = ["az", "login"]
                 result = subprocess.run(cmd, **kwargs)
                 if result.returncode == 0:
-                    self._log("az login 成功！環境を再チェックします...", "success")
+                    self._log(t("log.az_login_success"), "success")
                     # Sub/RG をクリア
                     self._root.after(0, lambda: self._sub_var.set(""))
                     self._root.after(0, lambda: self._rg_var.set(""))
@@ -1055,9 +1085,9 @@ class App:
                     self._root.after(0, lambda: self._rg_combo.configure(values=[]))
                     self._bg_preflight()
                 else:
-                    self._log(f"az login 失敗: {result.stderr[:200]}", "error")
+                    self._log(t("log.az_login_failed", err=result.stderr[:200]), "error")
             except Exception as e:
-                self._log(f"az login エラー: {e}", "error")
+                self._log(t("log.az_login_error", err=str(e)), "error")
             finally:
                 self._root.after(0, lambda: self._login_btn.configure(state=tk.NORMAL))
 
@@ -1066,7 +1096,7 @@ class App:
     def _extract_sub_id(self) -> str | None:
         """Combobox の表示値からサブスクID部分を取り出す。"""
         raw = self._sub_var.get().strip()
-        if not raw or raw == "(全サブスクリプション)":
+        if not raw or raw == t("hint.all_subscriptions"):
             return None
         # "name  (id)" 形式
         if "(" in raw and raw.endswith(")"):
@@ -1083,7 +1113,7 @@ class App:
 
         sub = self._extract_sub_id()
         rg_raw = self._rg_var.get().strip()
-        rg = None if (not rg_raw or rg_raw == "(全体)") else rg_raw
+        rg = None if (not rg_raw or rg_raw == t("hint.all_rgs")) else rg_raw
         view = self._view_var.get().strip()
         try:
             limit = int(self._limit_var.get().strip())
@@ -1125,19 +1155,19 @@ class App:
 
             # Step 1: Collect
             self._set_step("Step 1/5: Collect")
-            self._set_status("Running az graph query...")
-            self._log(f"az graph query を実行中... (view={view})", "info")
+            self._set_status(t("status.running_query"))
+            self._log(t("log.query_running", view=view), "info")
 
             collected_edges: list[Edge] = []
             if view == "network":
                 nodes, collected_edges, meta = collect_network(subscription=sub, resource_group=rg, limit=limit)
-                self._log(f"  → {len(nodes)} 件のネットワークリソース, {len(collected_edges)} 件の接続を取得", "success")
+                self._log(t("log.net_resources_found", nodes=len(nodes), edges=len(collected_edges)), "success")
             else:
                 nodes, meta = collect_inventory(subscription=sub, resource_group=rg, limit=limit)
-                self._log(f"  → {len(nodes)} 件のリソースを取得", "success")
+                self._log(t("log.resources_found", count=len(nodes)), "success")
 
             if self._cancel_requested:
-                self._log("キャンセルされました", "warning")
+                self._log(t("log.cancelled"), "warning")
                 return
 
             # type別サマリ
@@ -1147,7 +1177,7 @@ class App:
                 self._log(f"    {short}: {count}", "info")
 
             if limit <= len(nodes):
-                self._log(f"  ⚠ 上限 {limit} に達しています。実際はもっとあるかもしれません。", "warning")
+                self._log(t("log.limit_reached", limit=limit), "warning")
 
             # レビュー表示して Proceed/Cancel 待ち
             self._pending_nodes = nodes
@@ -1155,9 +1185,9 @@ class App:
 
             # --- AI レビュー（Copilot SDK） ---
             self._set_step("Step 2/5: AI Review")
-            self._set_status("Copilot SDK で構成をレビュー中...")
+            self._set_status(t("status.reviewing"))
             self._log("─" * 40, "accent")
-            self._log("🤖 AI レビューを開始...", "info")
+            self._log(t("log.ai_review_start"), "info")
 
             # サマリテキスト作成
             summary_lines = []
@@ -1188,32 +1218,32 @@ class App:
                     on_status=lambda s: self._log(s, "info"),
                 )
             except Exception as e:
-                self._log(f"AI レビューをスキップ: {e}", "warning")
+                self._log(t("log.ai_review_skip", err=str(e)), "warning")
 
             self._log("", "info")  # 改行
             self._log("─" * 40, "accent")
 
             if self._cancel_requested:
-                self._log("キャンセルされました", "warning")
+                self._log(t("log.cancelled"), "warning")
                 return
 
             review_text = (
-                f"取得結果: {len(nodes)} 件のリソース | "
-                f"{len(summary)} 種類のtype | "
-                f"Subscription: {sub or '(既定)'} | "
-                f"RG: {rg or '(全体)'}"
+                f"{len(nodes)} resources | "
+                f"{len(summary)} types | "
+                f"Sub: {sub or '(default)'} | "
+                f"RG: {rg or '(all)'}"
             )
             self._show_review(review_text)
             self._set_step("Review")
-            self._set_status("レビュー中 — Proceed または Cancel を押してください")
+            self._set_status(t("status.review_prompt"))
 
             # ブロッキング待ち（ワーカースレッド上）
             self._review_event.clear()
             self._review_event.wait()
 
             if not self._review_proceed or self._cancel_requested:
-                self._log("キャンセルされました", "warning")
-                self._set_status("Cancelled")
+                self._log(t("log.cancelled"), "warning")
+                self._set_status(t("status.cancelled"))
                 return
 
             self._hide_review()
@@ -1225,7 +1255,7 @@ class App:
             if initial_dir and Path(initial_dir).is_dir():
                 # 自動保存
                 out_path = Path(initial_dir) / default_name
-                self._log(f"  自動保存: {out_path}", "info")
+                self._log(t("log.auto_save", path=str(out_path)), "info")
             else:
                 # ダイアログ
                 out_path_holder: list[str] = []
@@ -1233,7 +1263,7 @@ class App:
 
                 def _ask_save() -> None:
                     p = filedialog.asksaveasfilename(
-                        title="Save .drawio",
+                        title=t("dlg.save_drawio"),
                         defaultextension=".drawio",
                         filetypes=[("Draw.io XML", "*.drawio"), ("All files", "*.*")],
                         initialfile=default_name,
@@ -1254,14 +1284,14 @@ class App:
 
             # Step 3: Normalize
             self._set_step("Step 3/5: Normalize")
-            self._set_status("Normalizing...")
+            self._set_status(t("status.normalizing"))
             azure_to_cell_id = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
             edges: list[Edge] = collected_edges
 
             # Step 4: Build XML
             self._set_step("Step 4/5: Build XML")
-            self._set_status("Generating .drawio XML...")
-            self._log(".drawio XML を生成中...")
+            self._set_status(t("status.generating_xml"))
+            self._log(t("log.generating_xml"))
             xml = build_drawio_xml(
                 nodes=nodes, edges=edges,
                 azure_to_cell_id=azure_to_cell_id,
@@ -1270,7 +1300,7 @@ class App:
 
             # Step 5: Save
             self._set_step("Step 5/5: Save")
-            self._set_status("Saving files...")
+            self._set_status(t("status.saving"))
             _write_text(out_path, xml)
             self._log(f"  → {out_path}", "success")
 
@@ -1298,7 +1328,7 @@ class App:
 
             # Done + Preview
             self._set_step("Done")
-            self._log("完了!", "success")
+            self._log(t("log.done"), "success")
             self._set_status(f"Done — {out_path}")
 
             self._last_out_path = out_path
@@ -1321,7 +1351,7 @@ class App:
 
         except Exception as e:
             self._log(f"ERROR: {e}", "error")
-            self._set_status("Error")
+            self._set_status(t("status.error"))
         finally:
             self._set_working(False)
 
@@ -1461,7 +1491,7 @@ class App:
         if content:
             self._root.clipboard_clear()
             self._root.clipboard_append(content)
-            self._set_status("ログをクリップボードにコピーしました")
+            self._set_status(t("status.log_copied"))
 
     # ------------------------------------------------------------------ #
     # Open File
@@ -1495,7 +1525,7 @@ class App:
             if dp:
                 subprocess.Popen([dp, str(path)])
             else:
-                self._log("Draw.io が見つかりません。OS既定で開きます", "warning")
+                self._log(t("log.drawio_not_found"), "warning")
                 _open_native(path)
 
         elif choice == "vscode":
@@ -1503,7 +1533,7 @@ class App:
             if vp:
                 subprocess.Popen([vp, str(path)])
             else:
-                self._log("VS Code が見つかりません。OS既定で開きます", "warning")
+                self._log(t("log.vscode_not_found"), "warning")
                 _open_native(path)
 
         else:  # "os"
@@ -1524,16 +1554,17 @@ class App:
                 tname = template.get('template_name', '?')
                 enabled_count = sum(1 for s in template.get('sections', {}).values() if s.get('enabled'))
                 total_count = len(template.get('sections', {}))
-                self._log(f"  Template: {tname} ({enabled_count}/{total_count} セクション)", "info")
+                self._log(t("log.template_info", name=tname, enabled=enabled_count, total=total_count), "info")
             if custom_instruction:
-                self._log(f"  追加指示: {custom_instruction[:80]}{'...' if len(custom_instruction) > 80 else ''}", "info")
+                truncated = custom_instruction[:80] + ('...' if len(custom_instruction) > 80 else '')
+                self._log(t("log.custom_instr_info", text=truncated), "info")
             # Step 1: リソース収集
             self._set_step("Step 1/3: Collect")
-            self._set_status("リソースを収集中...")
-            self._log(f"az graph query を実行中... (view={view})", "info")
+            self._set_status(t("status.collecting"))
+            self._log(t("log.query_running", view=view), "info")
 
             nodes, meta = collect_inventory(subscription=sub, resource_group=rg, limit=limit)
-            self._log(f"  → {len(nodes)} 件のリソースを取得", "success")
+            self._log(t("log.resources_found", count=len(nodes)), "success")
 
             # リソーステキスト作成
             summary = type_summary(nodes)
@@ -1556,17 +1587,17 @@ class App:
             report_result: str | None = None
 
             if view == "security-report":
-                self._set_status("セキュリティデータを収集中...")
-                self._log("🔒 セキュリティデータを収集中...", "info")
+                self._set_status(t("status.collecting_sec"))
+                self._log(t("log.sec_collecting"), "info")
                 security_data = collect_security(sub)
                 score = security_data.get("secure_score")
                 if score:
-                    self._log(f"  セキュアスコア: {score.get('current')} / {score.get('max')}", "info")
+                    self._log(t("log.sec_score", current=score.get('current'), max=score.get('max')), "info")
                 assess = security_data.get("assessments_summary")
                 if assess:
-                    self._log(f"  評価: {assess.get('total')}件 (Healthy:{assess.get('healthy')}, Unhealthy:{assess.get('unhealthy')})", "info")
+                    self._log(t("log.sec_assess", total=assess.get('total'), healthy=assess.get('healthy'), unhealthy=assess.get('unhealthy')), "info")
 
-                self._log("🤖 AI セキュリティレポートを生成中...", "info")
+                self._log(t("log.sec_ai_gen"), "info")
                 try:
                     from ai_reviewer import run_security_report
                     report_result = run_security_report(
@@ -1578,27 +1609,27 @@ class App:
                         on_status=lambda s: self._log(s, "info"),
                     )
                 except Exception as e:
-                    self._log(f"AI レポートエラー: {e}", "error")
+                    self._log(t("log.ai_report_error", err=str(e)), "error")
 
             elif view == "cost-report":
-                self._set_status("コストデータを収集中...")
-                self._log("💰 コストデータを収集中...", "info")
+                self._set_status(t("status.collecting_cost"))
+                self._log(t("log.cost_collecting"), "info")
                 cost_data = collect_cost(sub)
                 svc = cost_data.get("cost_by_service")
                 if svc:
-                    self._log(f"  サービス別コスト: {len(svc)}件", "info")
+                    self._log(t("log.cost_by_svc", count=len(svc)), "info")
                 rg_cost = cost_data.get("cost_by_rg")
                 if rg_cost:
-                    self._log(f"  RG別コスト: {len(rg_cost)}件", "info")
+                    self._log(t("log.cost_by_rg", count=len(rg_cost)), "info")
 
-                self._log("📝 Advisor 推奨事項を収集中...", "info")
+                self._log(t("log.advisor_collecting"), "info")
                 advisor_data = collect_advisor(sub)
                 adv_summary = advisor_data.get("summary", {})
                 if adv_summary:
                     for cat, cnt in adv_summary.items():
                         self._log(f"    {cat}: {cnt}", "info")
 
-                self._log("🤖 AI コストレポートを生成中...", "info")
+                self._log(t("log.cost_ai_gen"), "info")
                 try:
                     from ai_reviewer import run_cost_report
                     report_result = run_cost_report(
@@ -1611,7 +1642,7 @@ class App:
                         resource_types=resource_types,
                     )
                 except Exception as e:
-                    self._log(f"AI レポートエラー: {e}", "error")
+                    self._log(t("log.ai_report_error", err=str(e)), "error")
 
             self._log("", "info")
             self._log("─" * 40, "accent")
@@ -1620,8 +1651,8 @@ class App:
                 return
 
             if not report_result:
-                self._log("レポート生成に失敗しました", "error")
-                self._set_status("Failed")
+                self._log(t("log.report_failed"), "error")
+                self._set_status(t("status.failed"))
                 return
 
             # Step 3: 保存（Output Dir設定済みなら自動、未設定ならダイアログ）
@@ -1633,7 +1664,7 @@ class App:
             if initial_dir and Path(initial_dir).is_dir():
                 # 自動保存
                 out_path = Path(initial_dir) / default_name
-                self._log(f"  自動保存: {out_path}", "info")
+                self._log(t("log.auto_save", path=str(out_path)), "info")
             else:
                 # ダイアログ
                 out_path_holder: list[str] = []
@@ -1641,7 +1672,7 @@ class App:
 
                 def _ask_save() -> None:
                     p = filedialog.asksaveasfilename(
-                        title=f"Save {report_type} report",
+                        title=t("dlg.save_report", type=report_type),
                         defaultextension=".md",
                         filetypes=[("Markdown", "*.md"), ("All files", "*.*")],
                         initialfile=default_name,
@@ -1655,8 +1686,8 @@ class App:
                 done_event.wait()
 
                 if not out_path_holder:
-                    self._log("保存先が選択されませんでした", "warning")
-                    self._set_status("Cancelled")
+                    self._log(t("log.save_not_selected"), "warning")
+                    self._set_status(t("status.cancelled"))
                     return
                 out_path = Path(out_path_holder[0])
             _write_text(out_path, report_result)
@@ -1669,9 +1700,9 @@ class App:
                     from exporter import md_to_docx
                     docx_path = out_path.with_suffix(".docx")
                     md_to_docx(report_result, docx_path)
-                    self._log(f"  → {docx_path} (Word)", "success")
+                    self._log(t("log.word_output", path=str(docx_path)), "success")
                 except Exception as e:
-                    self._log(f"  Word 出力エラー: {e}", "warning")
+                    self._log(t("log.word_error", err=str(e)), "warning")
 
             if self._export_pdf_var.get():
                 try:
@@ -1679,25 +1710,77 @@ class App:
                     pdf_path = out_path.with_suffix(".pdf")
                     result = md_to_pdf(report_result, pdf_path)
                     if result:
-                        self._log(f"  → {pdf_path} (PDF)", "success")
+                        self._log(t("log.pdf_output", path=str(pdf_path)), "success")
                     else:
-                        self._log("  PDF 出力: Word/LibreOffice が見つかりません", "warning")
+                        self._log(t("log.pdf_not_found"), "warning")
                 except Exception as e:
-                    self._log(f"  PDF 出力エラー: {e}", "warning")
+                    self._log(t("log.pdf_error", err=str(e)), "warning")
 
             self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
-            self._set_status("完了!")
-            self._log("完了!", "success")
+            self._set_status(t("status.done"))
+            self._log(t("log.done"), "success")
 
             # 自動オープン
             if self._auto_open_var.get() and out_path.exists():
                 self._root.after(500, lambda p=out_path: self._open_file_with(p))
 
         except Exception as e:
-            self._log(f"エラー: {e}", "error")
+            self._log(f"ERROR: {e}", "error")
             self._set_status(f"Error: {e}")
         finally:
             self._set_working(False)
+
+    # ------------------------------------------------------------------ #
+    # 言語切替ハンドラ
+    # ------------------------------------------------------------------ #
+
+    def _on_language_changed(self) -> None:
+        """言語ラジオボタン変更時にUIテキストを更新。"""
+        lang = self._lang_var.get()
+        set_language(lang)
+        self._refresh_ui_texts()
+
+    def _refresh_ui_texts(self) -> None:
+        """全ウィジェットのテキストを現在の言語で再設定。"""
+        # タイトル
+        self._title_label.configure(text=t("app.title"))
+        self._subtitle_label.configure(text=t("app.subtitle"))
+
+        # フォームラベル
+        self._lang_label.configure(text=t("label.language"))
+        self._view_label.configure(text=t("label.view"))
+        self._sub_label.configure(text=t("label.subscription"))
+        self._sub_hint.configure(text=t("hint.optional"))
+        self._rg_label.configure(text=t("label.resource_group"))
+        self._limit_label.configure(text=t("label.max_nodes"))
+        self._outdir_label.configure(text=t("label.output_dir"))
+        self._openwith_label.configure(text=t("label.open_with"))
+
+        # Draw.io 検出ヒント
+        drawio_path = _detect_drawio_path()
+        self._drawio_hint_label.configure(
+            text=t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found"))
+
+        # ボタン
+        self._refresh_btn.configure(text=t("btn.refresh"))
+        self._open_btn.configure(text=t("btn.open_file"))
+        self._copy_btn.configure(text=t("btn.copy_log"))
+        self._login_btn.configure(text=t("btn.az_login"))
+        self._proceed_btn.configure(text=t("btn.proceed"))
+        self._cancel_btn.configure(text=t("btn.cancel_review"))
+        self._abort_btn.configure(text=t("btn.cancel"))
+
+        # レポートパネル
+        self._instr_label.configure(text=t("label.extra_instructions"))
+        self._free_input_label.configure(text=t("label.free_input"))
+        self._save_instr_btn.configure(text=t("btn.save_instruction"))
+        self._del_instr_btn.configure(text=t("btn.delete_instruction"))
+        self._export_label.configure(text=t("label.export_format"))
+        self._auto_open_cb.configure(text=t("btn.auto_open"))
+        self._save_tmpl_btn.configure(text=t("btn.save_template"))
+
+        # View依存（再トリガ）
+        self._on_view_changed()
 
     # ------------------------------------------------------------------ #
     # 起動
