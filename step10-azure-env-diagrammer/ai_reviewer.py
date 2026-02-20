@@ -41,6 +41,10 @@ def _approve_all(request: object) -> dict:
 _ALLOWED_TOOLS = frozenset({
     "view", "read", "readFile", "search", "grep",
     "list", "ls", "find", "cat", "head", "tail",
+    # Microsoft Docs MCP ツール（読み取り専用）
+    "microsoft_docs_search",
+    "microsoft_docs_fetch",
+    "microsoft_code_sample_search",
 })
 
 
@@ -186,7 +190,15 @@ def build_template_instruction(template: dict[str, Any], custom_instruction: str
 MODEL = "gpt-4.1"
 MAX_RETRY = 2
 RETRY_BACKOFF = 2.0
-SEND_TIMEOUT = 120  # sec
+SEND_TIMEOUT = 180  # sec（MCP ツール呼び出し分を考慮して延長）
+
+# Microsoft Docs MCP サーバー設定
+# learn.microsoft.com/api/mcp を HTTP MCP として SDK セッションに接続
+MCP_MICROSOFT_DOCS: dict[str, Any] = {
+    "type": "http",
+    "url": "https://learn.microsoft.com/api/mcp",
+    "tools": ["*"],
+}
 
 SYSTEM_PROMPT_REVIEW = """\
 あなたは Azure インフラストラクチャのレビュー専門家です。
@@ -203,20 +215,63 @@ SYSTEM_PROMPT_REVIEW = """\
 回答は Markdown で、全体 500文字以内に収めてください。
 """
 
-SYSTEM_PROMPT_SECURITY_BASE = """\
+_CAF_SECURITY_GUIDANCE = """
+## 準拠フレームワーク（必ず参照すること）
+
+推奨事項を書く際は、以下の Microsoft 公式フレームワークに基づいてください:
+
+1. **Microsoft Cloud Adoption Framework (CAF)** — セキュリティベースライン
+   - https://learn.microsoft.com/azure/cloud-adoption-framework/secure/
+   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/security-baseline/
+2. **Azure Well-Architected Framework — Security Pillar**
+   - https://learn.microsoft.com/azure/well-architected/security/
+3. **Microsoft Defender for Cloud 推奨事項**
+   - https://learn.microsoft.com/azure/defender-for-cloud/recommendations-reference
+4. **Azure Security Benchmark v3**
+   - https://learn.microsoft.com/security/benchmark/azure/overview
+
+### 出力ルール
+- 各推奨事項に **根拠となるフレームワーク名** と **公式ドキュメント URL** を必ず付与
+- 「microsoft_docs_search」ツールが利用可能な場合は、積極的に使って最新のドキュメントを検索し、URL を引用に含めること
+- 深刻度は CAF/ASB の分類（Critical / High / Medium / Low）に準拠
+"""
+
+SYSTEM_PROMPT_SECURITY_BASE = f"""\
 あなたは Azure セキュリティ監査の専門家です。
 Azure Security Center / Microsoft Defender for Cloud のデータが提供されます。
 日本語の Markdown 形式でセキュリティレポートを生成してください。
 表やリストを活用して読みやすく。
-参考ドキュメントが提供された場合は、推奨事項に公式ドキュメントの URL を脚注として付けてください。
+{_CAF_SECURITY_GUIDANCE}
 """
 
-SYSTEM_PROMPT_COST_BASE = """\
+_CAF_COST_GUIDANCE = """
+## 準拠フレームワーク（必ず参照すること）
+
+推奨事項を書く際は、以下の Microsoft 公式フレームワークに基づいてください:
+
+1. **Microsoft Cloud Adoption Framework (CAF)** — コスト管理
+   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/cost-management/
+   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/cost-management/best-practices
+2. **Azure Well-Architected Framework — Cost Optimization Pillar**
+   - https://learn.microsoft.com/azure/well-architected/cost-optimization/
+   - https://learn.microsoft.com/azure/well-architected/cost-optimization/checklist
+3. **FinOps Framework**
+   - https://learn.microsoft.com/azure/cost-management-billing/finops/overview-finops
+4. **Azure Advisor コスト推奨事項**
+   - https://learn.microsoft.com/azure/advisor/advisor-reference-cost-recommendations
+
+### 出力ルール
+- 各推奨事項に **根拠となるフレームワーク名** と **公式ドキュメント URL** を必ず付与
+- 「microsoft_docs_search」ツールが利用可能な場合は、積極的に使って最新のドキュメントを検索し、URL を引用に含めること
+- コスト削減の優先度は WAF Cost Optimization チェックリストに準拠
+- 金額は通貨記号付きで、表を活用して読みやすく
+"""
+
+SYSTEM_PROMPT_COST_BASE = f"""\
 あなたは Azure コスト最適化の専門家です。
 Azure Cost Management のデータ（サービス別・RG別コスト）が提供されます。
 日本語の Markdown 形式でコストレポートを生成してください。
-金額は通貨記号付きで、表を活用して読みやすく。
-参考ドキュメントが提供された場合は、推奨事項に公式ドキュメントの URL を脚注として付けてください。
+{_CAF_COST_GUIDANCE}
 """
 
 
@@ -274,8 +329,8 @@ class AIReviewer:
             await client.start()
             self._on_status("Copilot SDK 接続 OK")
 
-            # 2. セッション作成（hooks パターン）
-            session = await client.create_session({
+            # 2. セッション作成（hooks パターン + MCP サーバー）
+            session_cfg: dict[str, Any] = {
                 "model": MODEL,
                 "streaming": True,
                 "on_permission_request": _approve_all,
@@ -284,7 +339,16 @@ class AIReviewer:
                     "on_pre_tool_use": _on_pre_tool_use,
                     "on_error_occurred": _make_error_handler(self._on_status),
                 },
-            })
+            }
+
+            # Microsoft Docs MCP をセッションに接続
+            # learn.microsoft.com/api/mcp → AI が自律的にドキュメント検索可能
+            session_cfg["mcp_servers"] = {
+                "microsoftdocs": MCP_MICROSOFT_DOCS,
+            }
+            self._on_status("Microsoft Docs MCP を接続中...")
+
+            session = await client.create_session(session_cfg)
 
             # 3. ストリーミングイベント収集（session.idle パターン）
             collected: list[str] = []
@@ -405,7 +469,9 @@ def run_security_report(
         log("Microsoft Docs 参照なしでレポートを生成します")
 
     prompt = (
-        "以下のAzure環境のセキュリティレポートを生成してください。\n\n"
+        "以下のAzure環境のセキュリティレポートを生成してください。\n"
+        "※ microsoft_docs_search ツールを使って、推奨事項の根拠となる最新の Microsoft Learn ドキュメントを検索し、"
+        "URL を引用に含めてください。\n\n"
         "## セキュリティデータ\n"
         f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## リソース一覧\n"
@@ -447,7 +513,9 @@ def run_cost_report(
         log("Microsoft Docs 参照なしでレポートを生成します")
 
     prompt = (
-        "以下のAzure環境のコストレポートを生成してください。\n\n"
+        "以下のAzure環境のコストレポートを生成してください。\n"
+        "※ microsoft_docs_search ツールを使って、推奨事項の根拠となる最新の Microsoft Learn ドキュメントを検索し、"
+        "URL を引用に含めてください。\n\n"
         "## コストデータ\n"
         f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## Advisor 推奨事項\n"
