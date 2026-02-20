@@ -82,6 +82,8 @@ _STRINGS: dict[str, dict[str, str]] = {
                                  "en": "Reviewing with Copilot SDK..."},
     "status.review_prompt":     {"ja": "レビュー中 — Proceed または Cancel を押してください",
                                  "en": "Reviewing — Press Proceed or Cancel"},
+        "status.report_review_prompt": {"ja": "レポート確認 — Proceed で保存 / Cancel で破棄",
+                                     "en": "Review report — Proceed to save / Cancel to discard"},
     "status.normalizing":       {"ja": "Normalizing...",                "en": "Normalizing..."},
     "status.generating_xml":    {"ja": "Generating .drawio XML...",     "en": "Generating .drawio XML..."},
     "status.saving":            {"ja": "Saving files...",               "en": "Saving files..."},

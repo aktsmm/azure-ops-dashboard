@@ -168,7 +168,9 @@ class TestGuiHelpers(unittest.TestCase):
 
 # ---------- ai_reviewer tests (unit only, no SDK) ----------
 
-from ai_reviewer import choose_default_model_id
+from ai_reviewer import choose_default_model_id, build_template_instruction
+from docs_enricher import enrich_with_docs, security_search_queries, cost_search_queries
+from i18n import get_language, set_language
 
 
 class TestAIReviewerHelpers(unittest.TestCase):
@@ -190,6 +192,65 @@ class TestAIReviewerHelpers(unittest.TestCase):
         ids = ["custom-model-1"]
         result = choose_default_model_id(ids)
         self.assertEqual(result, "custom-model-1")
+
+
+class TestPromptAndDocs(unittest.TestCase):
+    def test_build_template_instruction_english_headers(self) -> None:
+        prev = get_language()
+        try:
+            set_language("en", persist=False)
+            tmpl = {
+                "sections": {
+                    "s1": {"label": "概要", "label_en": "Overview", "enabled": True, "description": "desc"},
+                    "s2": {"label": "詳細", "label_en": "Details", "enabled": False, "description": "desc"},
+                },
+                "options": {
+                    "show_resource_ids": True,
+                    "show_mermaid_charts": False,
+                    "include_remediation": True,
+                    "redact_subscription": True,
+                    "max_detail_items": 3,
+                    "currency_symbol": "$",
+                },
+            }
+            out = build_template_instruction(tmpl)
+            self.assertIn("## Report Structure Instructions", out)
+            self.assertIn("### Included sections", out)
+            self.assertIn("### Excluded sections", out)
+            self.assertIn("### Output options", out)
+            self.assertIn("Show full Resource IDs", out)
+            self.assertIn("Redact subscription IDs", out)
+        finally:
+            set_language(prev, persist=False)
+
+    def test_build_template_instruction_japanese_headers(self) -> None:
+        prev = get_language()
+        try:
+            set_language("ja", persist=False)
+            tmpl = {"sections": {"s1": {"label": "概要", "enabled": True}}, "options": {}}
+            out = build_template_instruction(tmpl)
+            self.assertIn("## レポート構成指示", out)
+            self.assertIn("### 含めるセクション", out)
+        finally:
+            set_language(prev, persist=False)
+
+    def test_docs_queries_include_waf_caf(self) -> None:
+        sec = security_search_queries([])
+        cost = cost_search_queries([])
+        self.assertTrue(any("Well-Architected" in q for q in sec))
+        self.assertTrue(any("Cloud Adoption Framework" in q for q in sec))
+        self.assertTrue(any("Well-Architected" in q for q in cost))
+        self.assertTrue(any("Cloud Adoption Framework" in q for q in cost))
+
+    def test_enrich_with_docs_includes_waf_static_refs_en(self) -> None:
+        prev = get_language()
+        try:
+            set_language("en", persist=False)
+            block = enrich_with_docs([], report_type="security", resource_types=[], on_status=lambda _s: None)
+            self.assertIn("Well-Architected", block)
+            self.assertIn("Cloud Adoption Framework", block)
+        finally:
+            set_language(prev, persist=False)
 
 
 if __name__ == "__main__":

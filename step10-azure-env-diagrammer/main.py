@@ -1936,6 +1936,21 @@ class App:
                 self._set_status(t("status.failed"))
                 return
 
+            # レビュー表示して Proceed/Cancel 待ち（ワーカースレッド上）
+            self._show_review(t("status.report_review_prompt"))
+            self._set_step("Review")
+            self._set_status(t("status.report_review_prompt"))
+            self._review_proceed = False
+            self._review_event.clear()
+            self._review_event.wait()
+
+            if not self._review_proceed or self._cancel_event.is_set():
+                self._log(t("log.cancelled"), "warning")
+                self._set_status(t("status.cancelled"))
+                return
+
+            self._hide_review()
+
             # Step 3: 保存（Output Dir設定済みなら自動、未設定ならダイアログ）
             self._set_step("Step 3/3: Save")
             report_type = "security" if view == "security-report" else "cost"

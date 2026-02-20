@@ -147,54 +147,77 @@ def build_template_instruction(template: dict[str, Any], custom_instruction: str
 
     lang = get_language()
 
+    def _desc(v: dict[str, Any]) -> str:
+        if lang == "en":
+            return str(v.get("description_en") or v.get("description") or "")
+        return str(v.get("description") or v.get("description_en") or "")
+
     def _label(v: dict[str, Any]) -> str:
         if lang == "en":
             return str(v.get("label_en") or v.get("label") or "")
         return str(v.get("label") or v.get("label_en") or "")
 
-    enabled = [f"- {_label(v)}: {v.get('description', '')}"
+    enabled = [f"- {_label(v)}: {_desc(v)}"
                for _k, v in sections.items() if v.get("enabled")]
     disabled = [f"- {_label(v)}" for _k, v in sections.items() if not v.get("enabled")]
 
     lines = []
-    lines.append("## レポート構成指示")
+    if lang == "en":
+        lines.append("## Report Structure Instructions")
+    else:
+        lines.append("## レポート構成指示")
     lines.append("")
-    lines.append("### 含めるセクション（必ず出力すること）:")
+    lines.append(
+        "### Included sections (must output):" if lang == "en"
+        else "### 含めるセクション（必ず出力すること）:"
+    )
     lines.extend(enabled)
     lines.append("")
     if disabled:
-        lines.append("### 含めないセクション（出力しないこと）:")
+        lines.append(
+            "### Excluded sections (do NOT output):" if lang == "en"
+            else "### 含めないセクション（出力しないこと）:"
+        )
         lines.extend(disabled)
         lines.append("")
 
     # オプション
     opt_lines = []
     if options.get("show_resource_ids"):
-        opt_lines.append("- リソースIDをフル表示する")
+        opt_lines.append("- Show full Resource IDs" if lang == "en" else "- リソースIDをフル表示する")
     else:
-        opt_lines.append("- リソースIDは省略し、リソース名のみ表示")
+        opt_lines.append(
+            "- Omit Resource IDs; show resource names only" if lang == "en"
+            else "- リソースIDは省略し、リソース名のみ表示"
+        )
     if options.get("show_mermaid_charts"):
-        opt_lines.append("- Mermaid チャートを含める")
+        opt_lines.append("- Include Mermaid charts" if lang == "en" else "- Mermaid チャートを含める")
     else:
-        opt_lines.append("- Mermaid チャートは含めない")
+        opt_lines.append("- Do not include Mermaid charts" if lang == "en" else "- Mermaid チャートは含めない")
     if options.get("include_remediation"):
-        opt_lines.append("- 修復手順を含める")
+        opt_lines.append("- Include remediation steps" if lang == "en" else "- 修復手順を含める")
     if options.get("redact_subscription"):
-        opt_lines.append("- サブスクリプションIDはマスクする（例: xxxxxxxx-xxxx-...）")
+        opt_lines.append(
+            "- Redact subscription IDs (e.g., xxxxxxxx-xxxx-...)" if lang == "en"
+            else "- サブスクリプションIDはマスクする（例: xxxxxxxx-xxxx-...）"
+        )
     max_items = options.get("max_detail_items", 10)
-    opt_lines.append(f"- 詳細項目は最大 {max_items} 件まで")
+    opt_lines.append(
+        f"- Limit detail items to max {max_items}" if lang == "en"
+        else f"- 詳細項目は最大 {max_items} 件まで"
+    )
     currency = options.get("currency_symbol", "")
     if currency:
-        opt_lines.append(f"- 通貨記号: {currency}")
+        opt_lines.append(f"- Currency symbol: {currency}" if lang == "en" else f"- 通貨記号: {currency}")
 
     if opt_lines:
-        lines.append("### 出力オプション:")
+        lines.append("### Output options:" if lang == "en" else "### 出力オプション:")
         lines.extend(opt_lines)
         lines.append("")
 
     # カスタム指示
     if custom_instruction.strip():
-        lines.append("### ユーザーからの追加指示:")
+        lines.append("### Additional user instructions:" if lang == "en" else "### ユーザーからの追加指示:")
         lines.append(custom_instruction.strip())
         lines.append("")
 
@@ -331,6 +354,14 @@ The microsoft_docs_search tool is available. Use it as follows:
 - Classify severity as Critical / High / Medium / Low
 - Attach official documentation in the format "Reference: [CAF Security Baseline](URL)" to each recommendation
 - Do not comment on resource types that do not exist in this environment
+
+## Tone (customer-aligned)
+
+- Start by acknowledging what's already done well in this environment (if any).
+- Use constructive, supportive wording (avoid blaming language).
+- When recommending changes, present options and trade-offs (cost, effort, risk).
+- Prefer actionable next steps: who should do what, and what to validate.
+- If business context is unclear, state assumptions explicitly and keep them reasonable.
 """
     return """
 ## 準拠フレームワーク
@@ -360,6 +391,14 @@ microsoft_docs_search ツールが利用可能です。以下のように活用�
 - 深刻度は Critical / High / Medium / Low で分類
 - 各推奨事項に「根拠: [CAF Security Baseline](URL)」の形式で公式ドキュメントを付与
 - 環境に存在しないリソースについての指摘はしない
+
+## トーン（顧客に寄り添う）
+
+- まず、この環境で「できている点」を短く認める（該当があれば）。
+- 責める表現は避け、建設的・支援的な言い回しにする。
+- 推奨は一択にせず、コスト/工数/リスクのトレードオフを示す。
+- 「次のアクション」を具体的に（誰が・何を・何を確認するか）。
+- 顧客の目的が不明な場合は、前提を明記して控えめに推測する。
 """
 
 
@@ -419,6 +458,13 @@ The microsoft_docs_search tool is available. Use it as follows:
 - Attach official documentation in the format "Reference: [WAF Cost Optimization](URL)" to each recommendation
 - Include currency symbols with amounts, use tables for readability
 - Do not comment on resource types that do not exist in this environment
+
+## Tone (customer-aligned)
+
+- Highlight good practices found (e.g., tags, reservations, budgets) before pointing out gaps.
+- Be sensitive to operational constraints (e.g., production workloads, compliance).
+- Separate **Quick wins** (low effort) and **Strategic changes** (higher effort).
+- Avoid recommending deletion when uncertainty is high; suggest validation steps first.
 """
     return """
 ## 準拠フレームワーク
@@ -449,6 +495,13 @@ microsoft_docs_search ツールが利用可能です。以下のように活用�
 - 各推奨事項に「根拠: [WAF Cost Optimization](URL)」の形式で公式ドキュメントを付与
 - 金額は通貨記号付きで、表を活用して読みやすく
 - 環境に存在しないリソースについての指摘はしない
+
+## トーン（顧客に寄り添う）
+
+- できている運用（タグ、予約、予算など）があれば先に評価する。
+- 本番/コンプライアンス等の制約を前提に、無理のない提案にする。
+- **Quick win**（低工数）と **Strategic**（中長期）を分けて提案する。
+- 不確実性が高いものは即削除推奨せず、検証手順→判断の順にする。
 """
 
 

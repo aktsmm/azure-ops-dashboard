@@ -46,6 +46,21 @@ def _security_refs() -> list[DocReference]:
     if get_language() == "en":
         return [
             DocReference(
+                "Azure Well-Architected Framework (WAF) overview",
+                f"{base}/well-architected/",
+                "Official guidance across pillars (security, reliability, cost, etc.)",
+            ),
+            DocReference(
+                "WAF: Security pillar",
+                f"{base}/well-architected/security",
+                "Security design principles and checklist",
+            ),
+            DocReference(
+                "Cloud Adoption Framework (CAF) overview",
+                f"{base}/cloud-adoption-framework/",
+                "Adoption guidance including governance and security baselines",
+            ),
+            DocReference(
                 "Azure security best practices",
                 f"{base}/security/best-practices-and-patterns",
                 "Core Azure security principles and best practices",
@@ -72,6 +87,21 @@ def _security_refs() -> list[DocReference]:
             ),
         ]
     return [
+        DocReference(
+            "Azure Well-Architected Framework (WAF) の概要",
+            f"{base}/well-architected/",
+            "セキュリティ/信頼性/コストなどの公式設計ガイダンス",
+        ),
+        DocReference(
+            "WAF: セキュリティ",
+            f"{base}/well-architected/security",
+            "セキュリティ設計原則とチェックリスト",
+        ),
+        DocReference(
+            "Cloud Adoption Framework (CAF) の概要",
+            f"{base}/cloud-adoption-framework/",
+            "採用・統制・セキュリティベースラインの公式ガイダンス",
+        ),
         DocReference(
             "Azure セキュリティのベスト プラクティス",
             f"{base}/security/best-practices-and-patterns",
@@ -105,6 +135,21 @@ def _cost_refs() -> list[DocReference]:
     if get_language() == "en":
         return [
             DocReference(
+                "Azure Well-Architected Framework (WAF) overview",
+                f"{base}/well-architected/",
+                "Official guidance across pillars (security, reliability, cost, etc.)",
+            ),
+            DocReference(
+                "WAF: Cost Optimization pillar",
+                f"{base}/well-architected/cost-optimization",
+                "Cost optimization design principles and checklist",
+            ),
+            DocReference(
+                "Cloud Adoption Framework (CAF) overview",
+                f"{base}/cloud-adoption-framework/",
+                "Adoption guidance including cost management and governance",
+            ),
+            DocReference(
                 "Azure Cost Management best practices",
                 f"{base}/cost-management-billing/costs/best-practices-cost-management",
                 "Best practices for monitoring, analyzing, and optimizing costs",
@@ -126,6 +171,21 @@ def _cost_refs() -> list[DocReference]:
             ),
         ]
     return [
+        DocReference(
+            "Azure Well-Architected Framework (WAF) の概要",
+            f"{base}/well-architected/",
+            "セキュリティ/信頼性/コストなどの公式設計ガイダンス",
+        ),
+        DocReference(
+            "WAF: コスト最適化",
+            f"{base}/well-architected/cost-optimization",
+            "コスト最適化の設計原則とチェックリスト",
+        ),
+        DocReference(
+            "Cloud Adoption Framework (CAF) の概要",
+            f"{base}/cloud-adoption-framework/",
+            "採用・統制・コスト管理の公式ガイダンス",
+        ),
         DocReference(
             "Azure Cost Management のベスト プラクティス",
             f"{base}/cost-management-billing/costs/best-practices-cost-management",
@@ -339,6 +399,8 @@ def security_search_queries(resource_types: list[str] | None = None) -> list[str
     """セキュリティレポート向けの検索クエリを生成。"""
     base = [
         "Azure security best practices Microsoft Defender for Cloud",
+        "Azure Well-Architected Framework security pillar checklist",
+        "Cloud Adoption Framework security baseline",
     ]
     if resource_types:
         type_keywords = set()
@@ -353,6 +415,8 @@ def cost_search_queries(resource_types: list[str] | None = None) -> list[str]:
     """コストレポート向けの検索クエリを生成。"""
     base = [
         "Azure cost optimization best practices",
+        "Azure Well-Architected Framework cost optimization checklist",
+        "Cloud Adoption Framework cost management best practices",
     ]
     if resource_types:
         type_keywords = set()

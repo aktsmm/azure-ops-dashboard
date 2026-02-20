@@ -42,6 +42,10 @@ Azure Ops Dashboard で AI レポート生成に使用されるプロンプト�
 | **User Prompt** | サブスク名 → 依頼文 → セキュリティデータ → リソース一覧 → Docs参照 | `_run_report()` — `ai_reviewer.py` L828-864 |
 | **Docs 検索** | `Azure security best practices` + タイプ別 (max 3) | `security_search_queries()` — `docs_enricher.py` L338 |
 
+### レポートのレビューゲート（保存前）
+
+AI レポート生成後、**Proceed / Cancel** の確認ステップを挟み、ユーザーがログ上の内容を確認してから保存に進みます。
+
 ### System Prompt 概要
 
 ```text
@@ -84,6 +88,10 @@ Azure Security Center / Microsoft Defender for Cloud のデータと、
 | **+ カスタム指示** | 同上 | |
 | **User Prompt** | サブスク名 → 依頼文 → コストデータ → Advisor推奨 → Docs参照 | `_run_report()` |
 | **Docs 検索** | `Azure cost optimization best practices` + タイプ別 (max 3) | `cost_search_queries()` — `docs_enricher.py` L352 |
+
+### レポートのレビューゲート（保存前）
+
+AI レポート生成後、**Proceed / Cancel** の確認ステップを挟み、ユーザーがログ上の内容を確認してから保存に進みます。
 
 ### System Prompt 概要
 
@@ -180,6 +188,10 @@ Azure Cost Management のデータ（サービス別・RG別コスト）と、
 | ツール | エンドポイント | 用途 |
 |---|---|---|
 | `microsoft_docs_search` | `https://learn.microsoft.com/api/mcp` | Microsoft Learn 検索 → 引用URL付与 |
+
+補足:
+
+- セキュリティ/コストのレポート生成では、プロンプトに **WAF / CAF の静的参照** と **検索クエリ** も含め、Well-Architected / Cloud Adoption Framework の根拠URLを付けやすくしています。
 
 ---
 
