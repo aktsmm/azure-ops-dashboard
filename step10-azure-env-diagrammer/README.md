@@ -72,11 +72,11 @@ exe にしても **外部依存（Azure CLI など）は同梱されません**�
 レポート用テンプレートや保存済み指示（インストラクション）は、ユーザー領域で **上書き**できます。
 exe を作り直さずに反映したい場合は、以下に JSON を配置してアプリを再起動してください。
 
-| OS      | パス                                       |
-| ------- | ------------------------------------------ |
-| Windows | `%APPDATA%\AzureOpsDashboard\templates\`   |
-| macOS   | `~/.AzureOpsDashboard/templates/`          |
-| Linux   | `~/.AzureOpsDashboard/templates/`          |
+| OS      | パス                                     |
+| ------- | ---------------------------------------- |
+| Windows | `%APPDATA%\AzureOpsDashboard\templates\` |
+| macOS   | `~/.AzureOpsDashboard/templates/`        |
+| Linux   | `~/.AzureOpsDashboard/templates/`        |
 
 - `security-*.json` / `cost-*.json`（テンプレート）
 - `saved-instructions.json`（保存済み追加指示）
@@ -115,7 +115,7 @@ GUIウィンドウが起動するので:
 | `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                       |
 | `exporter.py`      | Markdown → Word (.docx) / PDF 変換                             |
 | `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）      |
-| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                   |
+| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                  |
 | `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                |
 | `templates/`       | レポートテンプレート JSON + 保存済み指示                       |
 
