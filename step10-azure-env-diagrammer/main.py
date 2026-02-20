@@ -300,10 +300,10 @@ class App:
         self._report_header = tk.Frame(self._report_panel, bg="#252526")
         self._report_header.pack(fill=tk.X, padx=0, pady=0)
 
-        self._report_collapsed = False  # 初期は展開
+        self._report_collapsed = True  # 初期は折りたたみ
 
         self._toggle_btn = tk.Label(
-            self._report_header, text="▼", bg="#252526", fg=ACCENT_COLOR,
+            self._report_header, text="▶", bg="#252526", fg=ACCENT_COLOR,
             font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), cursor="hand2",
         )
         self._toggle_btn.pack(side=tk.LEFT, padx=(10, 2), pady=(4, 2))
@@ -333,9 +333,42 @@ class App:
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._save_tmpl_btn.pack(side=tk.RIGHT)
 
-        # --- 折りたたみ本体 ---
-        self._report_body = tk.Frame(self._report_panel, bg="#252526")
-        self._report_body.pack(fill=tk.X)
+        # --- 折りたたみ本体（スクロール対応） ---
+        self._report_body_outer = tk.Frame(self._report_panel, bg="#252526")
+        # 初期は折りたたみなので pack しない
+
+        self._report_canvas = tk.Canvas(
+            self._report_body_outer, bg="#252526", highlightthickness=0,
+            height=140,  # 最大表示高さ
+        )
+        self._report_scrollbar = tk.Scrollbar(
+            self._report_body_outer, orient="vertical",
+            command=self._report_canvas.yview,
+        )
+        self._report_canvas.configure(yscrollcommand=self._report_scrollbar.set)
+        self._report_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._report_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self._report_body = tk.Frame(self._report_canvas, bg="#252526")
+        self._report_canvas_window = self._report_canvas.create_window(
+            (0, 0), window=self._report_body, anchor="nw",
+        )
+
+        def _on_report_body_configure(_e: tk.Event) -> None:
+            self._report_canvas.configure(scrollregion=self._report_canvas.bbox("all"))
+            # 内容幅をキャンバス幅に合わせる
+            self._report_canvas.itemconfigure(self._report_canvas_window, width=self._report_canvas.winfo_width())
+
+        self._report_body.bind("<Configure>", _on_report_body_configure)
+        self._report_canvas.bind("<Configure>", lambda e: self._report_canvas.itemconfigure(
+            self._report_canvas_window, width=e.width))
+
+        # マウスホイールでスクロール
+        def _on_mousewheel(event: tk.Event) -> None:
+            self._report_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        self._report_canvas.bind("<MouseWheel>", _on_mousewheel)
+        self._report_body.bind("<MouseWheel>", _on_mousewheel)
 
         # --- セクションチェックボックス（2列グリッド） ---
         self._sections_frame = tk.Frame(self._report_body, bg="#252526")
@@ -753,11 +786,11 @@ class App:
     def _toggle_report_body(self) -> None:
         """レポート設定パネルの本体を展開/折りたたみ切り替え。"""
         if self._report_collapsed:
-            self._report_body.pack(fill=tk.X)
+            self._report_body_outer.pack(fill=tk.X)
             self._toggle_btn.configure(text="▼")
             self._report_collapsed = False
         else:
-            self._report_body.pack_forget()
+            self._report_body_outer.pack_forget()
             self._toggle_btn.configure(text="▶")
             self._report_collapsed = True
 
@@ -1723,6 +1756,11 @@ class App:
             template = self._get_current_template_with_overrides()
             custom_instruction = self._get_custom_instruction()
 
+            # サブスクリプション表示名（AIがレポートタイトルに使う）
+            sub_display = self._sub_var.get().strip()
+            if not sub_display or sub_display == t("hint.all_subscriptions"):
+                sub_display = sub or ""
+
             if template:
                 tname = template.get('template_name', '?')
                 enabled_count = sum(1 for s in template.get('sections', {}).values() if s.get('enabled'))
@@ -1781,6 +1819,7 @@ class App:
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
                         model_id=self._model_var.get().strip() or None,
+                        subscription_info=sub_display,
                     )
                 except Exception as e:
                     self._log(t("log.ai_report_error", err=str(e)), "error")
@@ -1815,6 +1854,7 @@ class App:
                         on_status=lambda s: self._log(s, "info"),
                         resource_types=resource_types,
                         model_id=self._model_var.get().strip() or None,
+                        subscription_info=sub_display,
                     )
                 except Exception as e:
                     self._log(t("log.ai_report_error", err=str(e)), "error")

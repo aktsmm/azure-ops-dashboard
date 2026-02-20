@@ -1,4 +1,4 @@
-"""Step10: Azure Ops Dashboard — AI レビュー & レポート (GitHub Copilot SDK)
+﻿"""Step10: Azure Ops Dashboard — AI レビュー & レポート (GitHub Copilot SDK)
 
 Collect したリソース一覧を Copilot SDK に送り、
 構成のレビュー結果や各種レポート（日本語）をストリーミングで返す。
@@ -261,7 +261,30 @@ MCP_MICROSOFT_DOCS: dict[str, Any] = {
     "tools": ["*"],
 }
 
-SYSTEM_PROMPT_REVIEW = """\
+
+# ============================================================
+# システムプロンプト（言語対応）
+# ============================================================
+
+
+def _system_prompt_review() -> str:
+    """リソースレビュー用システムプロンプト（言語対応）。"""
+    if get_language() == "en":
+        return """\
+You are an Azure infrastructure review expert.
+The user will provide a list of Azure resources obtained via Azure Resource Graph.
+
+Review from the following perspectives and summarize concisely:
+
+1. **Architecture Overview** — Infer the system purpose in 2-3 lines
+2. **Resource Configuration** — Redundancy, HA setup, missing resources
+3. **Security** — Presence of NSG, Key Vault, Private Endpoint
+4. **Cost Optimization** — Seemingly unnecessary resources (e.g. duplicate NetworkWatcher)
+5. **Diagram Hints** — Grouping suggestions
+
+Respond in Markdown, keep the total under 500 words.
+"""
+    return """\
 あなたは Azure インフラストラクチャのレビュー専門家です。
 ユーザーから Azure Resource Graph で取得したリソース一覧が提供されます。
 
@@ -276,7 +299,40 @@ SYSTEM_PROMPT_REVIEW = """\
 回答は Markdown で、全体 500文字以内に収めてください。
 """
 
-_CAF_SECURITY_GUIDANCE = """
+
+def _caf_security_guidance() -> str:
+    """セキュリティガイダンス（言語対応）。"""
+    if get_language() == "en":
+        return """
+## Compliance Frameworks
+
+Recommendations must be based on these Microsoft official frameworks:
+- **Cloud Adoption Framework (CAF)** — Security Baseline
+- **Well-Architected Framework (WAF)** — Security Pillar
+- **Azure Security Benchmark v3 (ASB)**
+- **Microsoft Defender for Cloud** recommendations
+
+## Environment-Specific Analysis
+
+Read the provided resource list and security data carefully, and point out issues specific to THIS environment:
+- Reference actual resource names and types in your comments
+- Write "In this environment, X is Y, therefore Z should be done" — not generic advice
+- Identify VMs without NSG, exposed Public IPs, unused Key Vault, missing Private Endpoints by concrete resource name
+- If Secure Score is low, specify what improvements would raise the score
+
+## Microsoft Learn Documentation Search
+
+The microsoft_docs_search tool is available. Use it as follows:
+1. Search for security best practices related to detected resource types
+2. Search for Defender recommendation remediation documentation
+3. Add search result URLs as "📚 Reference" to each recommendation
+
+## Output Rules
+- Classify severity as Critical / High / Medium / Low
+- Attach official documentation in the format "Reference: [CAF Security Baseline](URL)" to each recommendation
+- Do not comment on resource types that do not exist in this environment
+"""
+    return """
 ## 準拠フレームワーク
 
 推奨事項は以下の Microsoft 公式フレームワークに基づくこと:
@@ -306,17 +362,65 @@ microsoft_docs_search ツールが利用可能です。以下のように活用�
 - 環境に存在しないリソースについての指摘はしない
 """
 
-SYSTEM_PROMPT_SECURITY_BASE = f"""\
+
+def _system_prompt_security_base() -> str:
+    """セキュリティレポート用システムプロンプト（言語対応）。"""
+    guidance = _caf_security_guidance()
+    if get_language() == "en":
+        return f"""\
+You are an Azure security audit expert.
+You will be provided with Azure Security Center / Microsoft Defender for Cloud data and the actual Azure environment resource list.
+
+Your report comments must be **specific findings for this particular environment** based on the provided data.
+Prioritize specificity: "Resource X in this environment is Y, therefore Z should be done" — not generic advice.
+Output in English Markdown format, using tables and lists for readability.
+{guidance}
+"""
+    return f"""\
 あなたは Azure セキュリティ監査の専門家です。
 Azure Security Center / Microsoft Defender for Cloud のデータと、実際の Azure 環境のリソース一覧が提供されます。
 
 レポートのコメントは、提供データを読み解いた上で「この環境固有の具体的な指摘」を書いてください。
 一般論ではなく、「この環境の ○○ は △△ だから □□ すべき」という具体性を最優先してください。
 日本語の Markdown 形式で、表やリストを活用して読みやすく。
-{_CAF_SECURITY_GUIDANCE}
+{guidance}
 """
 
-_CAF_COST_GUIDANCE = """
+
+def _caf_cost_guidance() -> str:
+    """コストガイダンス（言語対応）。"""
+    if get_language() == "en":
+        return """
+## Compliance Frameworks
+
+Recommendations must be based on these Microsoft official frameworks:
+- **Cloud Adoption Framework (CAF)** — Cost Management best practices
+- **Well-Architected Framework (WAF)** — Cost Optimization Pillar / Checklist
+- **FinOps Framework** — Cloud cost optimization practices
+- **Azure Advisor** — Cost recommendations
+
+## Environment-Specific Analysis
+
+Read the provided cost data and resource list carefully, and point out issues specific to THIS environment:
+- Name top-cost resources explicitly, mention SKU downgrade or reservation purchase opportunities
+- For resources with Advisor recommendations, provide specific savings amounts and remediation steps
+- Write "Resource X in this environment costs $Y/month; doing Z would save $W" — not generic advice
+- Identify unused or underutilized resources by name and recommend stopping/deleting
+- If resources lack tags, flag this from a FinOps cost allocation perspective
+
+## Microsoft Learn Documentation Search
+
+The microsoft_docs_search tool is available. Use it as follows:
+1. Search for optimization documentation related to detected cost issues
+2. Search for resource-type-specific pricing guidance (e.g. "Azure SQL cost optimization")
+3. Add search result URLs as "📚 Reference" to each recommendation
+
+## Output Rules
+- Attach official documentation in the format "Reference: [WAF Cost Optimization](URL)" to each recommendation
+- Include currency symbols with amounts, use tables for readability
+- Do not comment on resource types that do not exist in this environment
+"""
+    return """
 ## 準拠フレームワーク
 
 推奨事項は以下の Microsoft 公式フレームワークに基づくこと:
@@ -330,7 +434,7 @@ _CAF_COST_GUIDANCE = """
 提供されたコストデータとリソース一覧をよく読み、この環境固有の問題を指摘すること:
 - コスト上位のリソースを具体名で挙げ、SKU ダウングレードや予約購入の可能性を言及
 - Advisor 推奨があるリソースは具体的な削減額と対応方法を記載
-- 「一般論」ではなく「この環境の ○○ は 月額 X円 かかっており、△△ すれば Y円 削減可能」と書く
+- 「一般論」ではなく「この環境の ○○ は 月額 X円 かかっており、△△ すれば Y 円 削減可能」と書く
 - 未使用・低稼働リソースは具体名を挙げて停止・削除を推奨
 - タグ未設定のリソースがあれば、FinOps の「コスト配分」の観点で指摘
 
@@ -347,15 +451,30 @@ microsoft_docs_search ツールが利用可能です。以下のように活用�
 - 環境に存在しないリソースについての指摘はしない
 """
 
-SYSTEM_PROMPT_COST_BASE = f"""\
+
+def _system_prompt_cost_base() -> str:
+    """コストレポート用システムプロンプト（言語対応）。"""
+    guidance = _caf_cost_guidance()
+    if get_language() == "en":
+        return f"""\
+You are an Azure cost optimization expert.
+You will be provided with Azure Cost Management data (cost by service / by RG) and the actual Azure environment resource list.
+
+Your report comments must be **specific findings for this particular environment** based on the provided data.
+Prioritize specificity: "Resource X in this environment is Y, therefore Z should be done" — not generic advice.
+Output in English Markdown format, using tables and lists for readability.
+{guidance}
+"""
+    return f"""\
 あなたは Azure コスト最適化の専門家です。
 Azure Cost Management のデータ（サービス別・RG別コスト）と、実際の Azure 環境のリソース一覧が提供されます。
 
 レポートのコメントは、提供データを読み解いた上で「この環境固有の具体的な指摘」を書いてください。
 一般論ではなく、「この環境の ○○ は △△ だから □□ すべき」という具体性を最優先してください。
 日本語の Markdown 形式で、表やリストを活用して読みやすく。
-{_CAF_COST_GUIDANCE}
+{guidance}
 """
+
 
 
 # ============================================================
@@ -467,7 +586,7 @@ class AIReviewer:
                 "以下のAzureリソース一覧をレビューしてください:\n\n"
                 f"```\n{resource_text}\n```"
             )
-        return await self.generate(prompt, SYSTEM_PROMPT_REVIEW, model_id=self._model_id)
+        return await self.generate(prompt, _system_prompt_review(), model_id=self._model_id)
 
     async def generate(self, prompt: str, system_prompt: str, *, model_id: str | None = None) -> str | None:
         """汎用: 任意のプロンプトとシステムプロンプトで生成。
@@ -607,6 +726,7 @@ def run_security_report(
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
     model_id: str | None = None,
+    subscription_info: str = "",
 ) -> str | None:
     """セキュリティレポートを生成。"""
     resource_types = _extract_resource_types(resource_text)
@@ -614,7 +734,7 @@ def run_security_report(
         ("Security Data", "セキュリティデータ", security_data),
     ]
     return _run_report(
-        base_system_prompt=SYSTEM_PROMPT_SECURITY_BASE,
+        base_system_prompt=_system_prompt_security_base(),
         report_type="security",
         data_sections=data_sections,
         resource_text=resource_text,
@@ -625,6 +745,7 @@ def run_security_report(
         on_delta=on_delta,
         on_status=on_status,
         model_id=model_id,
+        subscription_info=subscription_info,
     )
 
 
@@ -637,6 +758,7 @@ def run_cost_report(
     on_status: Optional[Callable[[str], None]] = None,
     resource_types: list[str] | None = None,
     model_id: str | None = None,
+    subscription_info: str = "",
 ) -> str | None:
     """コストレポートを生成。"""
     data_sections: list[tuple[str, str, dict]] = [
@@ -644,7 +766,7 @@ def run_cost_report(
         ("Advisor Recommendations", "Advisor 推奨事項", advisor_data),
     ]
     return _run_report(
-        base_system_prompt=SYSTEM_PROMPT_COST_BASE,
+        base_system_prompt=_system_prompt_cost_base(),
         report_type="cost",
         data_sections=data_sections,
         resource_text=None,
@@ -655,6 +777,7 @@ def run_cost_report(
         on_delta=on_delta,
         on_status=on_status,
         model_id=model_id,
+        subscription_info=subscription_info,
     )
 
 
@@ -675,6 +798,7 @@ def _run_report(
     on_delta: Optional[Callable[[str], None]],
     on_status: Optional[Callable[[str], None]],
     model_id: str | None,
+    subscription_info: str = "",
 ) -> str | None:
     """security / cost レポート の共通ロジック。"""
     reviewer = AIReviewer(on_delta=on_delta, on_status=on_status, model_id=model_id)
@@ -703,6 +827,14 @@ def _run_report(
     # プロンプト組み立て
     en = get_language() == "en"
     parts: list[str] = []
+
+    # サブスクリプション情報（タイトルに使えるように）
+    if subscription_info:
+        if en:
+            parts.append(f"**Target Subscription**: {subscription_info}\n\n")
+        else:
+            parts.append(f"**対象サブスクリプション**: {subscription_info}\n\n")
+
     if en:
         parts.append(
             f"Generate a {report_type} report for the following Azure environment.\n\n"
