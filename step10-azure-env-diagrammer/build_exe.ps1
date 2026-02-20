@@ -24,7 +24,7 @@ if (Test-Path $copilotBinDir) {
   Write-Host "WARNING: Copilot CLI binary not found — AI review will be unavailable in exe"
 }
 
-$buildArgs = @(
+$pyiParams = @(
   'pyinstaller',
   'main.py',
   '--name', 'AzureOpsDashboard',
@@ -35,17 +35,17 @@ $buildArgs = @(
 )
 
 if ($copilotData) {
-  $buildArgs += '--add-data'
-  $buildArgs += $copilotData
+  $pyiParams += '--add-data'
+  $pyiParams += $copilotData
 }
 
 if ($Mode -eq 'onefile') {
-  $buildArgs += '--onefile'
+  $pyiParams += '--onefile'
 } else {
-  $buildArgs += '--onedir'
+  $pyiParams += '--onedir'
 }
 
-uv run @buildArgs
+uv run @pyiParams
 
 Write-Host ''
 Write-Host 'Build output:'
