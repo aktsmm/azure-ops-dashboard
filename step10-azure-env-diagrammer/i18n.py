@@ -33,6 +33,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "label.free_input":         {"ja": "自由入力:",                     "en": "Free input:"},
     "label.export_format":      {"ja": "出力形式:",                     "en": "Export format:"},
     "label.language":           {"ja": "Language:",                     "en": "Language:"},
+    "label.model":              {"ja": "Model:",                        "en": "Model:"},
 
     # --- ヒント ---
     "hint.optional":            {"ja": "(任意)",                        "en": "(optional)"},
@@ -44,6 +45,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "hint.drawio_detected":     {"ja": "✅ Draw.io 検出",              "en": "✅ Draw.io detected"},
     "hint.drawio_not_found":    {"ja": "⚠️ Draw.io 未検出",            "en": "⚠️ Draw.io not found"},
     "hint.no_templates":        {"ja": "(テンプレートなし)",           "en": "(No templates)"},
+    "hint.loading_models":      {"ja": "(モデル取得中)",               "en": "(Loading models)"},
 
     # --- View 説明 ---
     "view.inventory":           {"ja": ".drawio 図生成",               "en": ".drawio diagram"},
@@ -96,6 +98,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.fix_above":            {"ja": "↑ 上記を解決してから Refresh を押してください",
                                  "en": "↑ Fix the above issues and press Refresh"},
     "log.loading_subs":         {"ja": "Subscription 候補を取得中...",  "en": "Loading subscriptions..."},
+    "log.loading_models":       {"ja": "利用可能モデルを取得中...",     "en": "Loading available models..."},
     "log.subs_found":           {"ja": "  → {count} 件のサブスクリプションを検出",
                                  "en": "  → Found {count} subscription(s)"},
     "log.auto_selected_sub":    {"ja": "  → サブスクリプションが1件のため自動選択",

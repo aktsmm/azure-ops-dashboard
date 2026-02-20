@@ -11,6 +11,7 @@ import asyncio
 import json
 import sys
 import threading
+import re
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -195,6 +196,49 @@ MODEL = "gpt-4.1"
 MAX_RETRY = 2
 RETRY_BACKOFF = 2.0
 SEND_TIMEOUT = 180  # sec（MCP ツール呼び出し分を考慮して延長）
+
+
+def choose_default_model_id(model_ids: list[str]) -> str:
+    """モデルID一覧から既定モデルを選ぶ。
+
+    優先順位:
+      1) claude-sonnet の最新（x.y を数値比較）
+      2) gpt-4.1
+      3) 先頭
+    """
+
+    def _sonnet_ver(mid: str) -> tuple[int, int] | None:
+        m = re.match(r"^claude-sonnet-(\d+)(?:\.(\d+))?$", mid)
+        if not m:
+            return None
+        major = int(m.group(1))
+        minor = int(m.group(2) or 0)
+        return (major, minor)
+
+    sonnets: list[tuple[tuple[int, int], str]] = []
+    for mid in model_ids:
+        v = _sonnet_ver(mid)
+        if v:
+            sonnets.append((v, mid))
+    if sonnets:
+        sonnets.sort(key=lambda x: x[0], reverse=True)
+        return sonnets[0][1]
+
+    if "gpt-4.1" in model_ids:
+        return "gpt-4.1"
+
+    return model_ids[0] if model_ids else MODEL
+
+
+async def _list_model_ids_async(client: CopilotClient) -> list[str]:
+    """Copilot SDK から利用可能なモデルIDを取得する。"""
+    models = await client.list_models()
+    ids: list[str] = []
+    for m in models:
+        mid = getattr(m, "id", None)
+        if isinstance(mid, str) and mid.strip():
+            ids.append(mid.strip())
+    return ids
 
 # Microsoft Docs MCP サーバー設定
 # learn.microsoft.com/api/mcp を HTTP MCP として SDK セッションに接続
@@ -392,9 +436,11 @@ class AIReviewer:
         self,
         on_delta: Optional[Callable[[str], None]] = None,
         on_status: Optional[Callable[[str], None]] = None,
+        model_id: str | None = None,
     ) -> None:
         self._on_delta = on_delta or (lambda s: print(s, end="", flush=True))
         self._on_status = on_status or (lambda s: print(f"[reviewer] {s}"))
+        self._model_id = model_id
 
     async def review(self, resource_text: str) -> str | None:
         """リソースサマリをレビューし、結果テキストを返す。"""
@@ -408,9 +454,9 @@ class AIReviewer:
                 "以下のAzureリソース一覧をレビューしてください:\n\n"
                 f"```\n{resource_text}\n```"
             )
-        return await self.generate(prompt, SYSTEM_PROMPT_REVIEW)
+        return await self.generate(prompt, SYSTEM_PROMPT_REVIEW, model_id=self._model_id)
 
-    async def generate(self, prompt: str, system_prompt: str) -> str | None:
+    async def generate(self, prompt: str, system_prompt: str, *, model_id: str | None = None) -> str | None:
         """汎用: 任意のプロンプトとシステムプロンプトで生成。
 
         SDK 推奨パターン:
@@ -429,7 +475,7 @@ class AIReviewer:
 
             # 2. セッション作成（hooks パターン + MCP サーバー）
             session_cfg: dict[str, Any] = {
-                "model": MODEL,
+                "model": model_id or self._model_id or MODEL,
                 "streaming": True,
                 "on_permission_request": _approve_all,
                 "system_message": system_prompt,
@@ -533,9 +579,10 @@ def run_ai_review(
     resource_text: str,
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
+    model_id: str | None = None,
 ) -> str | None:
     """同期的にAIレビューを実行して結果を返す。"""
-    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
+    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status, model_id=model_id)
     return _run_async(reviewer.review(resource_text))
 
 
@@ -546,6 +593,7 @@ def run_security_report(
     custom_instruction: str = "",
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
+    model_id: str | None = None,
 ) -> str | None:
     """セキュリティレポートを生成。"""
     resource_types = _extract_resource_types(resource_text)
@@ -563,6 +611,7 @@ def run_security_report(
         custom_instruction=custom_instruction,
         on_delta=on_delta,
         on_status=on_status,
+        model_id=model_id,
     )
 
 
@@ -574,6 +623,7 @@ def run_cost_report(
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
     resource_types: list[str] | None = None,
+    model_id: str | None = None,
 ) -> str | None:
     """コストレポートを生成。"""
     data_sections: list[tuple[str, str, dict]] = [
@@ -591,6 +641,7 @@ def run_cost_report(
         custom_instruction=custom_instruction,
         on_delta=on_delta,
         on_status=on_status,
+        model_id=model_id,
     )
 
 
@@ -610,9 +661,10 @@ def _run_report(
     custom_instruction: str,
     on_delta: Optional[Callable[[str], None]],
     on_status: Optional[Callable[[str], None]],
+    model_id: str | None,
 ) -> str | None:
     """security / cost レポート の共通ロジック。"""
-    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
+    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status, model_id=model_id)
     log = on_status or (lambda s: None)
 
     # テンプレート → システムプロンプト
@@ -665,7 +717,25 @@ def _run_report(
         parts.append(docs_block)
 
     prompt = "".join(parts)
-    return _run_async(reviewer.generate(prompt, system_prompt))
+    return _run_async(reviewer.generate(prompt, system_prompt, model_id=model_id))
+
+
+def list_available_model_ids_sync(
+    on_status: Optional[Callable[[str], None]] = None,
+) -> list[str]:
+    """利用可能モデルID一覧を同期的に取得する。
+
+    GUI のバックグラウンドスレッドから呼べるように同期化。
+    """
+
+    async def _inner() -> list[str]:
+        client = await _get_or_create_client(on_status=on_status)
+        return await _list_model_ids_async(client)
+
+    try:
+        return list(_run_async(_inner()))
+    except Exception:
+        return []
 
 
 # ============================================================

@@ -197,6 +197,9 @@ class App:
         self._subs_cache: list[dict[str, str]] = []
         self._rgs_cache: list[str] = []
 
+        # 利用モデル（起動後に動的取得してUIに反映）
+        self._models_cache: list[str] = []
+
         # レビュー待ち用
         self._review_event = threading.Event()
         self._review_proceed = False
@@ -212,6 +215,9 @@ class App:
 
         # 起動時に事前チェック + Sub候補ロード（非同期）
         threading.Thread(target=self._bg_preflight, daemon=True).start()
+
+        # 起動時に利用可能モデル一覧を取得（非同期）
+        threading.Thread(target=self._bg_load_models, daemon=True).start()
 
         # ウィンドウを前面に表示（起動直後に背面に隠れる問題の対策）
         self._root.after(100, self._bring_to_front)
@@ -269,6 +275,20 @@ class App:
                            font=(FONT_FAMILY, FONT_SIZE - 1),
                            command=self._on_language_changed,
                            ).pack(side=tk.LEFT, padx=(0, 10))
+
+        # --- Row 0: Model (right side) ---
+        self._model_var = tk.StringVar(value="")
+        self._model_label = tk.Label(
+            form, text=t("label.model"), bg=WINDOW_BG, fg=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE), anchor="e",
+        )
+        self._model_label.grid(row=0, column=2, sticky="e", padx=(12, 6), pady=3)
+        self._model_combo = ttk.Combobox(
+            form, textvariable=self._model_var, state="disabled",
+            values=[t("hint.loading_models")], width=24,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+        )
+        self._model_combo.grid(row=0, column=3, sticky="w", pady=3, ipady=2)
 
         # --- Row 1: View ---
         self._view_var = tk.StringVar(value="inventory")
@@ -669,6 +689,7 @@ class App:
         data["export_docx"] = "1" if self._export_docx_var.get() else "0"
         data["export_pdf"] = "1" if self._export_pdf_var.get() else "0"
         data["last_template"] = self._template_var.get()
+        data["model"] = self._model_var.get()
         save_all_settings(data)
 
     def _restore_all_settings(self) -> None:
@@ -709,6 +730,37 @@ class App:
         saved_pdf = load_setting("export_pdf", "")
         if saved_pdf in ("0", "1"):
             self._export_pdf_var.set(saved_pdf == "1")
+
+        # Model（一覧ロード後に適用するため、ここでは値だけ復元）
+        saved_model = load_setting("model", "")
+        if saved_model:
+            self._model_var.set(saved_model)
+
+    def _bg_load_models(self) -> None:
+        """Copilot SDK から利用可能モデル一覧を取得してUIに反映する。"""
+        try:
+            from ai_reviewer import list_available_model_ids_sync, choose_default_model_id
+
+            self._log(t("log.loading_models"), "info")
+            model_ids = list_available_model_ids_sync(on_status=lambda s: self._log(s, "info"))
+            model_ids = [m for m in model_ids if isinstance(m, str) and m.strip()]
+            if not model_ids:
+                return
+            # 表示順はそのまま（SDK側順）
+            self._models_cache = model_ids
+
+            def _apply() -> None:
+                self._model_combo.configure(values=model_ids, state="readonly")
+
+                current = self._model_var.get().strip()
+                if current in model_ids:
+                    return
+                default_model = choose_default_model_id(model_ids)
+                self._model_var.set(default_model)
+
+            self._root.after(0, _apply)
+        except Exception:
+            return
 
     def _restore_last_template(self) -> None:
         """テンプレート一覧ロード後に前回選択を復元する。"""
@@ -1350,6 +1402,7 @@ class App:
                     resource_text=resource_text,
                     on_delta=lambda d: self._log_append_delta(d),
                     on_status=lambda s: self._log(s, "info"),
+                    model_id=self._model_var.get().strip() or None,
                 )
             except Exception as e:
                 self._log(t("log.ai_review_skip", err=str(e)), "warning")
@@ -1733,6 +1786,7 @@ class App:
                         custom_instruction=custom_instruction,
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
+                        model_id=self._model_var.get().strip() or None,
                     )
                 except Exception as e:
                     self._log(t("log.ai_report_error", err=str(e)), "error")
@@ -1766,6 +1820,7 @@ class App:
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
                         resource_types=resource_types,
+                        model_id=self._model_var.get().strip() or None,
                     )
                 except Exception as e:
                     self._log(t("log.ai_report_error", err=str(e)), "error")
@@ -1874,6 +1929,7 @@ class App:
 
         # フォームラベル
         self._lang_label.configure(text=t("label.language"))
+        self._model_label.configure(text=t("label.model"))
         self._view_label.configure(text=t("label.view"))
         self._sub_label.configure(text=t("label.subscription"))
         self._sub_hint.configure(text=t("hint.optional"))
