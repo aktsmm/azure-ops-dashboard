@@ -16,6 +16,11 @@ from typing import Any, Callable, Optional
 from copilot import CopilotClient
 
 from app_paths import bundled_templates_dir, ensure_user_dirs, template_search_dirs
+from docs_enricher import (
+    cost_search_queries,
+    enrich_with_docs,
+    security_search_queries,
+)
 
 
 def _approve_all(request: object) -> dict:
@@ -150,6 +155,7 @@ SYSTEM_PROMPT_SECURITY_BASE = """\
 Azure Security Center / Microsoft Defender for Cloud のデータが提供されます。
 日本語の Markdown 形式でセキュリティレポートを生成してください。
 表やリストを活用して読みやすく。
+参考ドキュメントが提供された場合は、推奨事項に公式ドキュメントの URL を脚注として付けてください。
 """
 
 SYSTEM_PROMPT_COST_BASE = """\
@@ -157,6 +163,7 @@ SYSTEM_PROMPT_COST_BASE = """\
 Azure Cost Management のデータ（サービス別・RG別コスト）が提供されます。
 日本語の Markdown 形式でコストレポートを生成してください。
 金額は通貨記号付きで、表を活用して読みやすく。
+参考ドキュメントが提供された場合は、推奨事項に公式ドキュメントの URL を脚注として付けてください。
 """
 
 
@@ -253,6 +260,18 @@ class AIReviewer:
 # 同期ラッパー（tkinter スレッドから呼ぶ用）
 # ============================================================
 
+
+def _extract_resource_types(resource_text: str) -> list[str]:
+    """リソーステキストから type 列を抽出する（ベストエフォート）。"""
+    types: set[str] = set()
+    for line in resource_text.splitlines():
+        parts = line.split()
+        for p in parts:
+            if "/" in p and p.lower().startswith("microsoft."):
+                types.add(p.strip().lower())
+    return list(types)
+
+
 def run_ai_review(
     resource_text: str,
     on_delta: Optional[Callable[[str], None]] = None,
@@ -273,6 +292,7 @@ def run_security_report(
 ) -> str | None:
     """セキュリティレポートを生成。"""
     reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
+    log = on_status or (lambda s: None)
 
     # テンプレートがあればシステムプロンプトに反映
     if template:
@@ -283,12 +303,23 @@ def run_security_report(
         if custom_instruction.strip():
             system_prompt += f"\n\n### ユーザーからの追加指示:\n{custom_instruction.strip()}"
 
+    # Microsoft Docs 参照を取得（失敗時はスキップ）
+    resource_types = _extract_resource_types(resource_text)
+    queries = security_search_queries(resource_types)
+    docs_block = enrich_with_docs(
+        queries, report_type="security",
+        resource_types=resource_types, on_status=log,
+    )
+    if not docs_block:
+        log("Microsoft Docs 参照なしでレポートを生成します")
+
     prompt = (
         "以下のAzure環境のセキュリティレポートを生成してください。\n\n"
         "## セキュリティデータ\n"
         f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## リソース一覧\n"
         f"```\n{resource_text}\n```"
+        f"{docs_block}"
     )
     return _run_async(reviewer.generate(prompt, system_prompt))
 
@@ -300,9 +331,11 @@ def run_cost_report(
     custom_instruction: str = "",
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
+    resource_types: list[str] | None = None,
 ) -> str | None:
     """コストレポートを生成。"""
     reviewer = AIReviewer(on_delta=on_delta, on_status=on_status)
+    log = on_status or (lambda s: None)
 
     # テンプレートがあればシステムプロンプトに反映
     if template:
@@ -313,12 +346,22 @@ def run_cost_report(
         if custom_instruction.strip():
             system_prompt += f"\n\n### ユーザーからの追加指示:\n{custom_instruction.strip()}"
 
+    # Microsoft Docs 参照を取得（失敗時はスキップ）
+    queries = cost_search_queries(resource_types)
+    docs_block = enrich_with_docs(
+        queries, report_type="cost",
+        resource_types=resource_types, on_status=log,
+    )
+    if not docs_block:
+        log("Microsoft Docs 参照なしでレポートを生成します")
+
     prompt = (
         "以下のAzure環境のコストレポートを生成してください。\n\n"
         "## コストデータ\n"
         f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## Advisor 推奨事項\n"
         f"```json\n{json.dumps(advisor_data, indent=2, ensure_ascii=False)}\n```"
+        f"{docs_block}"
     )
     return _run_async(reviewer.generate(prompt, system_prompt))
 
