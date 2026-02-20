@@ -1309,8 +1309,8 @@ class App:
                 done_event.wait()
 
                 if not out_path_holder:
-                    self._log("保存先が選択されませんでした", "warning")
-                    self._set_status("Cancelled")
+                    self._log(t("log.save_not_selected"), "warning")
+                    self._set_status(t("status.cancelled"))
                     return
                 out_path = Path(out_path_holder[0])
 
