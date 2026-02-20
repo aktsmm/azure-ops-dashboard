@@ -299,6 +299,57 @@ Azure Cost Management のデータ（サービス別・RG別コスト）と、�
 
 
 # ============================================================
+# CopilotClient キャッシュ（モジュール単位で再利用）
+# ============================================================
+
+_cached_client: CopilotClient | None = None
+_cached_client_started: bool = False
+
+
+async def _get_or_create_client(
+    on_status: Optional[Callable[[str], None]] = None,
+) -> CopilotClient:
+    """CopilotClient をキャッシュして返す。
+
+    連続レポート生成時に毎回接続→停止のオーバーヘッドを排除する。
+    """
+    global _cached_client, _cached_client_started
+    log = on_status or (lambda s: None)
+
+    if _cached_client and _cached_client_started:
+        log("Copilot SDK: キャッシュ済みクライアントを再利用")
+        return _cached_client
+
+    log("Copilot SDK に接続中...")
+    client_opts: dict[str, Any] = {
+        "auto_restart": True,
+    }
+    cli = copilot_cli_path()
+    if cli:
+        client_opts["cli_path"] = cli
+        log(f"CLI path: {cli}")
+
+    _cached_client = CopilotClient(client_opts)
+    await _cached_client.start()
+    _cached_client_started = True
+    log("Copilot SDK 接続 OK")
+    return _cached_client
+
+
+async def shutdown_cached_client() -> None:
+    """アプリケーション終了時にキャッシュ済みクライアントを停止。"""
+    global _cached_client, _cached_client_started
+    if _cached_client and _cached_client_started:
+        try:
+            await _cached_client.stop()
+        except Exception:
+            pass
+        finally:
+            _cached_client = None
+            _cached_client_started = False
+
+
+# ============================================================
 # Reviewer クラス
 # ============================================================
 
@@ -346,21 +397,9 @@ class AIReviewer:
         lang_instruction = _t("ai.output_language")
         system_prompt = system_prompt.rstrip() + "\n\n" + lang_instruction + "\n"
 
-        client: CopilotClient | None = None
         try:
-            # 1. SDK 接続（auto_restart で CLI クラッシュから回復）
-            self._on_status("Copilot SDK に接続中...")
-            client_opts: dict[str, Any] = {
-                "auto_restart": True,
-            }
-            # PyInstaller frozen: 同梱 CLI パスを明示指定
-            cli = copilot_cli_path()
-            if cli:
-                client_opts["cli_path"] = cli
-                self._on_status(f"CLI path: {cli}")
-            client = CopilotClient(client_opts)
-            await client.start()
-            self._on_status("Copilot SDK 接続 OK")
+            # 1. SDK 接続（キャッシュ済みクライアントを再利用）
+            client = await _get_or_create_client(on_status=self._on_status)
 
             # 2. セッション作成（hooks パターン + MCP サーバー）
             session_cfg: dict[str, Any] = {
@@ -428,20 +467,18 @@ class AIReviewer:
 
             result = "".join(collected) if collected else None
 
-            # 5. クリーンアップ
+            # 5. セッションのみ破棄（クライアントはキャッシュ維持）
             await session.destroy()
 
             return result
 
         except Exception as e:
             self._on_status(f"AI レビューエラー: {e}")
+            # エラー時はキャッシュを無効化（次回再作成）
+            global _cached_client, _cached_client_started
+            _cached_client = None
+            _cached_client_started = False
             return None
-        finally:
-            if client:
-                try:
-                    await client.stop()
-                except Exception:
-                    pass
 
 
 # ============================================================

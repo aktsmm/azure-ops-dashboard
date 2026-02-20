@@ -58,6 +58,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "btn.refresh":              {"ja": "🔄 Refresh",                   "en": "🔄 Refresh"},
     "btn.open_file":            {"ja": "Open File",                     "en": "Open File"},
     "btn.copy_log":             {"ja": "Copy Log",                      "en": "Copy Log"},
+    "btn.clear_log":            {"ja": "Clear",                         "en": "Clear"},
     "btn.az_login":             {"ja": "🔑 az login",                  "en": "🔑 az login"},
     "btn.proceed":              {"ja": "  ✔ Proceed — 生成する  ",    "en": "  ✔ Proceed — Generate  "},
     "btn.cancel_review":        {"ja": "  ✖ Cancel  ",                 "en": "  ✖ Cancel  "},
@@ -193,6 +194,7 @@ _STRINGS: dict[str, dict[str, str]] = {
 
 _current_lang: str = "ja"
 _listeners: list = []
+_PERSIST_KEY = "language"
 
 
 def get_language() -> str:
@@ -200,12 +202,14 @@ def get_language() -> str:
     return _current_lang
 
 
-def set_language(lang: str) -> None:
-    """言語を切り替え、リスナーに通知する。"""
+def set_language(lang: str, *, persist: bool = True) -> None:
+    """言語を切り替え、リスナーに通知する。persist=True で settings.json に保存。"""
     global _current_lang
     if lang not in ("ja", "en"):
         lang = "ja"
     _current_lang = lang
+    if persist:
+        _save_language(lang)
     for cb in _listeners:
         try:
             cb(lang)
@@ -216,6 +220,40 @@ def set_language(lang: str) -> None:
 def on_language_changed(callback: Any) -> None:
     """言語変更時のコールバックを登録。"""
     _listeners.append(callback)
+
+
+def load_saved_language() -> None:
+    """起動時に settings.json から言語設定を復元する。"""
+    try:
+        from app_paths import settings_path
+        p = settings_path()
+        if p.exists():
+            import json
+            data = json.loads(p.read_text(encoding="utf-8"))
+            lang = data.get(_PERSIST_KEY, "ja")
+            set_language(lang, persist=False)
+    except Exception:
+        pass
+
+
+def _save_language(lang: str) -> None:
+    """settings.json に言語設定を保存する。"""
+    try:
+        import json
+        from app_paths import ensure_user_dirs, settings_path
+        ensure_user_dirs()
+        p = settings_path()
+        data: dict[str, Any] = {}
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        data[_PERSIST_KEY] = lang
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def t(key: str, **kwargs: Any) -> str:

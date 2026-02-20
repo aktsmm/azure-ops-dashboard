@@ -42,6 +42,11 @@ def ensure_user_dirs() -> None:
     user_templates_dir().mkdir(parents=True, exist_ok=True)
 
 
+def settings_path() -> Path:
+    """ユーザー設定ファイルのパスを返す（ユーザー領域）。"""
+    return user_app_dir() / "settings.json"
+
+
 def saved_instructions_path() -> Path:
     """保存済み指示のパス（ユーザー上書き優先）を返す。"""
     user_path = user_templates_dir() / "saved-instructions.json"

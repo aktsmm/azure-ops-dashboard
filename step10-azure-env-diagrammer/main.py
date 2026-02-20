@@ -44,7 +44,7 @@ from collector import (
 from drawio_writer import build_drawio_xml, now_stamp
 
 from app_paths import ensure_user_dirs, saved_instructions_path, user_templates_dir
-from i18n import t, set_language, get_language, on_language_changed
+from i18n import t, set_language, get_language, on_language_changed, load_saved_language
 
 
 # ============================================================
@@ -151,6 +151,9 @@ class App:
     """
 
     def __init__(self) -> None:
+        # 起動時に保存済み言語を復元
+        load_saved_language()
+
         self._root = tk.Tk()
         self._root.title(WINDOW_TITLE)
         self._root.configure(bg=WINDOW_BG)
@@ -437,15 +440,6 @@ class App:
                        activebackground="#252526", activeforeground=TEXT_FG,
                        font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
 
-        ttk.Separator(export_row, orient=tk.VERTICAL).pack(side=tk.LEFT, padx=8, fill=tk.Y)
-
-        self._auto_open_var = tk.BooleanVar(value=True)
-        self._auto_open_cb = tk.Checkbutton(export_row, text=t("btn.auto_open"), variable=self._auto_open_var,
-                       bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
-                       activebackground="#252526", activeforeground=TEXT_FG,
-                       font=(FONT_FAMILY, FONT_SIZE - 2))
-        self._auto_open_cb.pack(side=tk.LEFT, padx=(4, 0))
-
         # テンプレートキャッシュ
         self._templates_cache: list[dict] = []
         self._current_template: dict | None = None
@@ -507,6 +501,16 @@ class App:
         )
         self._copy_btn.pack(side=tk.LEFT, padx=(6, 0))
 
+        self._clear_log_btn = tk.Button(
+            btn_frame, text=t("btn.clear_log"),
+            command=self._on_clear_log,
+            bg="#3C3C3C", fg=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+            relief=tk.FLAT, padx=12, pady=6,
+            cursor="hand2",
+        )
+        self._clear_log_btn.pack(side=tk.LEFT, padx=(6, 0))
+
         self._login_btn = tk.Button(
             btn_frame, text=t("btn.az_login"),
             command=self._on_az_login,
@@ -516,6 +520,15 @@ class App:
             cursor="hand2",
         )
         self._login_btn.pack(side=tk.LEFT, padx=(6, 0))
+
+        # --- auto_open（メインフォーム、図/レポート両方で有効） ---
+        self._auto_open_var = tk.BooleanVar(value=True)
+        self._auto_open_main_cb = tk.Checkbutton(
+            btn_frame, text=t("btn.auto_open"), variable=self._auto_open_var,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 2))
+        self._auto_open_main_cb.pack(side=tk.LEFT, padx=(12, 0))
 
         # --- レビューパネル（初期非表示 / 2行構成） ---
         self._review_frame = tk.Frame(self._root, bg="#303030", relief=tk.RIDGE, borderwidth=1)
@@ -938,6 +951,18 @@ class App:
     def _set_step(self, text: str) -> None:
         self._root.after(0, self._step_var.set, text)
 
+    def _on_clear_log(self) -> None:
+        """ログエリアとCanvasプレビューをクリア。"""
+        def _do() -> None:
+            self._log_area.configure(state=tk.NORMAL)
+            self._log_area.delete("1.0", tk.END)
+            self._log_area.configure(state=tk.DISABLED)
+            # Canvas プレビューもクリア
+            self._canvas.delete("all")
+            if self._preview_frame.winfo_ismapped():
+                self._preview_frame.pack_forget()
+        self._root.after(0, _do)
+
     # ------------------------------------------------------------------ #
     # 進捗タイマー
     # ------------------------------------------------------------------ #
@@ -1123,6 +1148,13 @@ class App:
         self._cancel_requested = False
         self._set_working(True)
         self._hide_review()
+
+        # Canvasプレビューをリセット
+        def _reset_preview() -> None:
+            self._canvas.delete("all")
+            if self._preview_frame.winfo_ismapped():
+                self._preview_frame.pack_forget()
+        self._root.after(0, _reset_preview)
 
         # ログクリア（新しい実行ごとに見やすく）
         def _clear_log() -> None:
@@ -1346,7 +1378,7 @@ class App:
             self._draw_preview(nodes, edges, azure_to_cell_id)
 
             # 自動オープン
-            if out_path.exists():
+            if self._auto_open_var.get() and out_path.exists():
                 self._root.after(500, lambda p=out_path: self._open_file_with(p))
 
         except Exception as e:
@@ -1765,10 +1797,12 @@ class App:
         self._refresh_btn.configure(text=t("btn.refresh"))
         self._open_btn.configure(text=t("btn.open_file"))
         self._copy_btn.configure(text=t("btn.copy_log"))
+        self._clear_log_btn.configure(text=t("btn.clear_log"))
         self._login_btn.configure(text=t("btn.az_login"))
         self._proceed_btn.configure(text=t("btn.proceed"))
         self._cancel_btn.configure(text=t("btn.cancel_review"))
         self._abort_btn.configure(text=t("btn.cancel"))
+        self._auto_open_main_cb.configure(text=t("btn.auto_open"))
 
         # レポートパネル
         self._instr_label.configure(text=t("label.extra_instructions"))
@@ -1776,7 +1810,6 @@ class App:
         self._save_instr_btn.configure(text=t("btn.save_instruction"))
         self._del_instr_btn.configure(text=t("btn.delete_instruction"))
         self._export_label.configure(text=t("label.export_format"))
-        self._auto_open_cb.configure(text=t("btn.auto_open"))
         self._save_tmpl_btn.configure(text=t("btn.save_template"))
 
         # View依存（再トリガ）
