@@ -216,61 +216,83 @@ SYSTEM_PROMPT_REVIEW = """\
 """
 
 _CAF_SECURITY_GUIDANCE = """
-## 準拠フレームワーク（必ず参照すること）
+## 準拠フレームワーク
 
-推奨事項を書く際は、以下の Microsoft 公式フレームワークに基づいてください:
+推奨事項は以下の Microsoft 公式フレームワークに基づくこと:
+- **Cloud Adoption Framework (CAF)** — セキュリティベースライン
+- **Well-Architected Framework (WAF)** — Security Pillar
+- **Azure Security Benchmark v3 (ASB)**
+- **Microsoft Defender for Cloud** 推奨事項
 
-1. **Microsoft Cloud Adoption Framework (CAF)** — セキュリティベースライン
-   - https://learn.microsoft.com/azure/cloud-adoption-framework/secure/
-   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/security-baseline/
-2. **Azure Well-Architected Framework — Security Pillar**
-   - https://learn.microsoft.com/azure/well-architected/security/
-3. **Microsoft Defender for Cloud 推奨事項**
-   - https://learn.microsoft.com/azure/defender-for-cloud/recommendations-reference
-4. **Azure Security Benchmark v3**
-   - https://learn.microsoft.com/security/benchmark/azure/overview
+## 環境固有の分析指示
 
-### 出力ルール
-- 各推奨事項に **根拠となるフレームワーク名** と **公式ドキュメント URL** を必ず付与
-- 「microsoft_docs_search」ツールが利用可能な場合は、積極的に使って最新のドキュメントを検索し、URL を引用に含めること
-- 深刻度は CAF/ASB の分類（Critical / High / Medium / Low）に準拠
+提供されたリソース一覧とセキュリティデータをよく読み、この環境固有の問題を指摘すること:
+- 実際に存在するリソース名・タイプを具体的に挙げてコメントする
+- 「一般論」でなく「この環境では○○が△△だから□□すべき」と書く
+- NSG未設定の VM、Public IP 露出、Key Vault 未使用、Private Endpoint 未構成などを具体的リソース名で指摘
+- セキュアスコアが低い場合は、具体的に何を改善すればスコアが上がるか言及
+
+## Microsoft Learn ドキュメント検索
+
+microsoft_docs_search ツールが利用可能です。以下のように活用してください:
+1. 検出したリソースタイプに関連するセキュリティベストプラクティスを検索
+2. Defender 推奨事項の修復手順ドキュメントを検索
+3. 検索結果の URL を「📚 参考」として各推奨事項に付与
+
+## 出力ルール
+- 深刻度は Critical / High / Medium / Low で分類
+- 各推奨事項に「根拠: [CAF Security Baseline](URL)」の形式で公式ドキュメントを付与
+- 環境に存在しないリソースについての指摘はしない
 """
 
 SYSTEM_PROMPT_SECURITY_BASE = f"""\
 あなたは Azure セキュリティ監査の専門家です。
-Azure Security Center / Microsoft Defender for Cloud のデータが提供されます。
-日本語の Markdown 形式でセキュリティレポートを生成してください。
-表やリストを活用して読みやすく。
+Azure Security Center / Microsoft Defender for Cloud のデータと、実際の Azure 環境のリソース一覧が提供されます。
+
+レポートのコメントは、提供データを読み解いた上で「この環境固有の具体的な指摘」を書いてください。
+一般論ではなく、「この環境の ○○ は △△ だから □□ すべき」という具体性を最優先してください。
+日本語の Markdown 形式で、表やリストを活用して読みやすく。
 {_CAF_SECURITY_GUIDANCE}
 """
 
 _CAF_COST_GUIDANCE = """
-## 準拠フレームワーク（必ず参照すること）
+## 準拠フレームワーク
 
-推奨事項を書く際は、以下の Microsoft 公式フレームワークに基づいてください:
+推奨事項は以下の Microsoft 公式フレームワークに基づくこと:
+- **Cloud Adoption Framework (CAF)** — コスト管理ベストプラクティス
+- **Well-Architected Framework (WAF)** — Cost Optimization Pillar / チェックリスト
+- **FinOps Framework** — クラウドコスト最適化の実践
+- **Azure Advisor** — コスト推奨事項
 
-1. **Microsoft Cloud Adoption Framework (CAF)** — コスト管理
-   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/cost-management/
-   - https://learn.microsoft.com/azure/cloud-adoption-framework/govern/cost-management/best-practices
-2. **Azure Well-Architected Framework — Cost Optimization Pillar**
-   - https://learn.microsoft.com/azure/well-architected/cost-optimization/
-   - https://learn.microsoft.com/azure/well-architected/cost-optimization/checklist
-3. **FinOps Framework**
-   - https://learn.microsoft.com/azure/cost-management-billing/finops/overview-finops
-4. **Azure Advisor コスト推奨事項**
-   - https://learn.microsoft.com/azure/advisor/advisor-reference-cost-recommendations
+## 環境固有の分析指示
 
-### 出力ルール
-- 各推奨事項に **根拠となるフレームワーク名** と **公式ドキュメント URL** を必ず付与
-- 「microsoft_docs_search」ツールが利用可能な場合は、積極的に使って最新のドキュメントを検索し、URL を引用に含めること
-- コスト削減の優先度は WAF Cost Optimization チェックリストに準拠
+提供されたコストデータとリソース一覧をよく読み、この環境固有の問題を指摘すること:
+- コスト上位のリソースを具体名で挙げ、SKU ダウングレードや予約購入の可能性を言及
+- Advisor 推奨があるリソースは具体的な削減額と対応方法を記載
+- 「一般論」ではなく「この環境の ○○ は 月額 X円 かかっており、△△ すれば Y円 削減可能」と書く
+- 未使用・低稼働リソースは具体名を挙げて停止・削除を推奨
+- タグ未設定のリソースがあれば、FinOps の「コスト配分」の観点で指摘
+
+## Microsoft Learn ドキュメント検索
+
+microsoft_docs_search ツールが利用可能です。以下のように活用してください:
+1. 検出したコスト問題に関連する最適化ドキュメントを検索
+2. リソースタイプ固有の価格ガイダンスを検索（例: 「Azure SQL cost optimization」）
+3. 検索結果の URL を「📚 参考」として各推奨事項に付与
+
+## 出力ルール
+- 各推奨事項に「根拠: [WAF Cost Optimization](URL)」の形式で公式ドキュメントを付与
 - 金額は通貨記号付きで、表を活用して読みやすく
+- 環境に存在しないリソースについての指摘はしない
 """
 
 SYSTEM_PROMPT_COST_BASE = f"""\
 あなたは Azure コスト最適化の専門家です。
-Azure Cost Management のデータ（サービス別・RG別コスト）が提供されます。
-日本語の Markdown 形式でコストレポートを生成してください。
+Azure Cost Management のデータ（サービス別・RG別コスト）と、実際の Azure 環境のリソース一覧が提供されます。
+
+レポートのコメントは、提供データを読み解いた上で「この環境固有の具体的な指摘」を書いてください。
+一般論ではなく、「この環境の ○○ は △△ だから □□ すべき」という具体性を最優先してください。
+日本語の Markdown 形式で、表やリストを活用して読みやすく。
 {_CAF_COST_GUIDANCE}
 """
 
@@ -469,9 +491,10 @@ def run_security_report(
         log("Microsoft Docs 参照なしでレポートを生成します")
 
     prompt = (
-        "以下のAzure環境のセキュリティレポートを生成してください。\n"
-        "※ microsoft_docs_search ツールを使って、推奨事項の根拠となる最新の Microsoft Learn ドキュメントを検索し、"
-        "URL を引用に含めてください。\n\n"
+        "以下の Azure 環境のセキュリティレポートを生成してください。\n\n"
+        "**重要**: 以下のデータをよく読み、この環境固有の具体的な指摘を書いてください。\n"
+        "リソース名やタイプを具体的に挙げてコメントし、「一般論」は避けてください。\n"
+        "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
         "## セキュリティデータ\n"
         f"```json\n{json.dumps(security_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## リソース一覧\n"
@@ -513,9 +536,10 @@ def run_cost_report(
         log("Microsoft Docs 参照なしでレポートを生成します")
 
     prompt = (
-        "以下のAzure環境のコストレポートを生成してください。\n"
-        "※ microsoft_docs_search ツールを使って、推奨事項の根拠となる最新の Microsoft Learn ドキュメントを検索し、"
-        "URL を引用に含めてください。\n\n"
+        "以下の Azure 環境のコストレポートを生成してください。\n\n"
+        "**重要**: 以下のデータをよく読み、この環境固有の具体的なコスト指摘を書いてください。\n"
+        "リソース名と具体的な金額を挙げてコメントし、「一般論」は避けてください。\n"
+        "microsoft_docs_search ツールで関連ドキュメントを検索し、引用 URL を付けてください。\n\n"
         "## コストデータ\n"
         f"```json\n{json.dumps(cost_data, indent=2, ensure_ascii=False)}\n```\n\n"
         "## Advisor 推奨事項\n"

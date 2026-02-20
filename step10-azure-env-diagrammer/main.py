@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import tkinter as tk
-from tkinter import filedialog, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
 from collector import (
     Node,
@@ -340,13 +340,25 @@ class App:
         # 自由入力欄
         free_row = tk.Frame(instr_frame, bg="#252526")
         free_row.pack(fill=tk.X, pady=(2, 2))
+        free_row.columnconfigure(1, weight=1)
         tk.Label(free_row, text="自由入力:", bg="#252526", fg="#808080",
-                 font=(FONT_FAMILY, FONT_SIZE - 2), anchor="nw").pack(side=tk.LEFT, anchor="n")
+                 font=(FONT_FAMILY, FONT_SIZE - 2), anchor="nw").grid(row=0, column=0, sticky="nw")
         self._custom_instruction = tk.Text(free_row, height=2,
                  bg=INPUT_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
                  insertbackground=TEXT_FG, relief=tk.FLAT, borderwidth=0,
                  wrap=tk.WORD)
-        self._custom_instruction.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0), ipady=2)
+        self._custom_instruction.grid(row=0, column=1, sticky="ew", padx=(6, 0), ipady=2)
+
+        free_btn_row = tk.Frame(free_row, bg="#252526")
+        free_btn_row.grid(row=0, column=2, padx=(4, 0), sticky="n")
+        tk.Button(free_btn_row, text="💾 記憶",
+                  command=self._on_save_instruction,
+                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  relief=tk.FLAT, padx=4, cursor="hand2").pack(pady=(0, 2))
+        tk.Button(free_btn_row, text="🗑 削除",
+                  command=self._on_delete_instruction,
+                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  relief=tk.FLAT, padx=4, cursor="hand2").pack()
 
         # --- 出力形式 + 自動オープン ---
         export_row = tk.Frame(self._report_panel, bg="#252526")
@@ -714,6 +726,72 @@ class App:
         if free:
             parts.append(free)
         return "\n".join(parts)
+
+    def _on_save_instruction(self) -> None:
+        """自由入力欄のテキストを保存済み指示に追加する。"""
+        text = self._custom_instruction.get("1.0", tk.END).strip()
+        if not text:
+            return
+
+        # ラベル入力ダイアログ
+        label = simpledialog.askstring(
+            "指示を保存",
+            "チェックボックスに表示するラベル名:",
+            parent=self._root,
+        )
+        if not label or not label.strip():
+            return
+        label = label.strip()
+
+        # JSONに追記
+        instr_path = saved_instructions_path()
+        ensure_user_dirs()
+        try:
+            data = json.loads(instr_path.read_text(encoding="utf-8")) if instr_path.exists() else []
+        except (json.JSONDecodeError, OSError):
+            data = []
+
+        data.append({"label": label, "instruction": text})
+        instr_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        # UIリロード
+        self._load_saved_instructions()
+        self._custom_instruction.delete("1.0", tk.END)
+        self._log(f"指示を保存しました: {label}", "success")
+
+    def _on_delete_instruction(self) -> None:
+        """チェック済みの保存済み指示を削除する。"""
+        instr_path = saved_instructions_path()
+        if not instr_path.exists():
+            return
+
+        try:
+            data = json.loads(instr_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        # チェック済みの指示テキストを収集
+        to_delete: set[str] = set()
+        for var, instruction in self._saved_instr_vars:
+            if var.get():
+                to_delete.add(instruction)
+
+        if not to_delete:
+            self._log("削除する指示をチェックしてください", "warning")
+            return
+
+        # 確認
+        count = len(to_delete)
+        if not messagebox.askyesno("指示を削除", f"チェック済みの {count} 件の指示を削除しますか？"):
+            return
+
+        # フィルタして保存
+        data = [item for item in data if item.get("instruction", "") not in to_delete]
+        instr_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        # UIリロード
+        self._load_saved_instructions()
+        self._log(f"{count} 件の指示を削除しました", "success")
 
     def _on_save_template(self) -> None:
         """現在のチェック状態を新しいテンプレートとして保存。"""
