@@ -27,6 +27,54 @@ def _approve_all(request: object) -> dict:
     """全てのパーミッションリクエストを承認する。"""
     return {"kind": "approved", "rules": []}
 
+
+# ============================================================
+# Session Hooks（SDK推奨パターン）
+# ============================================================
+
+# 読み取り専用ツールのみ許可（安全性向上）
+_ALLOWED_TOOLS = frozenset({
+    "view", "read", "readFile", "search", "grep",
+    "list", "ls", "find", "cat", "head", "tail",
+})
+
+
+async def _on_pre_tool_use(input_data: dict, invocation: Any) -> dict:
+    """ツール実行前のフック: 読み取り専用ツールのみ許可。"""
+    tool_name = input_data.get("toolName", "")
+    # 読み取り系は許可、それ以外は拒否
+    if tool_name in _ALLOWED_TOOLS:
+        decision = "allow"
+    else:
+        decision = "deny"
+    return {
+        "permissionDecision": decision,
+        "modifiedArgs": input_data.get("toolArgs"),
+    }
+
+
+def _make_error_handler(
+    on_status: Callable[[str], None],
+    max_retry: int = 2,
+) -> Callable:
+    """リトライ付きエラーハンドラを生成。"""
+    _retry_count: dict[str, int] = {}
+
+    async def _on_error_occurred(input_data: dict, invocation: Any) -> dict:
+        ctx = input_data.get("errorContext", "unknown")
+        err = input_data.get("error", "")
+        key = f"{ctx}:{err}"
+        _retry_count[key] = _retry_count.get(key, 0) + 1
+
+        if _retry_count[key] <= max_retry:
+            on_status(f"AI エラー（リトライ {_retry_count[key]}/{max_retry}）: {err}")
+            return {"errorHandling": "retry"}
+        else:
+            on_status(f"AI エラー（中止）: {err}")
+            return {"errorHandling": "abort"}
+
+    return _on_error_occurred
+
 # ============================================================
 # テンプレート管理
 # ============================================================
@@ -197,48 +245,78 @@ class AIReviewer:
         return await self.generate(prompt, SYSTEM_PROMPT_REVIEW)
 
     async def generate(self, prompt: str, system_prompt: str) -> str | None:
-        """汎用: 任意のプロンプトとシステムプロンプトで生成。"""
+        """汎用: 任意のプロンプトとシステムプロンプトで生成。
+
+        SDK 推奨パターン:
+          - session.idle イベント + asyncio.Event で完了待ち
+          - hooks.on_error_occurred でリトライ制御
+          - reasoning_delta 対応
+          - on_pre_tool_use で読み取り専用ツールのみ許可
+        """
         client: CopilotClient | None = None
         try:
-            # 1. SDK 接続
+            # 1. SDK 接続（auto_restart で CLI クラッシュから回復）
             self._on_status("Copilot SDK に接続中...")
-            client = CopilotClient()
+            client = CopilotClient({
+                "auto_restart": True,
+            })
             await client.start()
             self._on_status("Copilot SDK 接続 OK")
 
-            # 2. セッション作成
+            # 2. セッション作成（hooks パターン）
             session = await client.create_session({
                 "model": MODEL,
                 "streaming": True,
                 "on_permission_request": _approve_all,
                 "system_message": system_prompt,
+                "hooks": {
+                    "on_pre_tool_use": _on_pre_tool_use,
+                    "on_error_occurred": _make_error_handler(self._on_status),
+                },
             })
 
-            # 3. ストリーミングイベント収集
+            # 3. ストリーミングイベント収集（session.idle パターン）
             collected: list[str] = []
+            done = asyncio.Event()
 
             def _handler(event: Any) -> None:
                 etype = event.type.value if hasattr(event.type, "value") else str(event.type)
+
                 if etype == "assistant.message_delta":
                     delta = getattr(event.data, "delta_content", "")
                     if delta:
                         collected.append(delta)
                         self._on_delta(delta)
 
+                elif etype == "assistant.reasoning_delta":
+                    # 推論過程のストリーミング（対応モデルのみ）
+                    delta = getattr(event.data, "delta_content", "")
+                    if delta:
+                        self._on_status(f"[推論中] {delta[:80]}")
+
+                elif etype == "assistant.message":
+                    # 最終メッセージ（streaming の有無に関わらず送信される）
+                    content = getattr(event.data, "content", "")
+                    if content and not collected:
+                        collected.append(content)
+
+                elif etype == "session.idle":
+                    # セッション完了シグナル
+                    done.set()
+
             session.on(_handler)
 
-            # 4. 送信
+            # 4. 送信（send + idle 待ち — SDK 推奨パターン）
             self._on_status("AI 処理実行中...")
-            reply = await session.send_and_wait(
-                {"prompt": prompt},
-                timeout=SEND_TIMEOUT,
-            )
+            await session.send({"prompt": prompt})
 
-            # send_and_wait の戻り値 or ストリーム収集結果
-            if reply and hasattr(reply, "data") and hasattr(reply.data, "content"):
-                result = reply.data.content
-            else:
-                result = "".join(collected) if collected else None
+            # タイムアウト付きで idle 待ち
+            try:
+                await asyncio.wait_for(done.wait(), timeout=SEND_TIMEOUT)
+            except asyncio.TimeoutError:
+                self._on_status(f"AI 処理タイムアウト（{SEND_TIMEOUT}秒）")
+
+            result = "".join(collected) if collected else None
 
             # 5. クリーンアップ
             await session.destroy()
