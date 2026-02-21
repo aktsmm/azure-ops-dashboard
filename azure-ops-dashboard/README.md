@@ -77,6 +77,7 @@ GUI からは `🔐 SP login` ボタンでも実行できます（Secret は保�
 ```powershell
 pwsh .\scripts\collect-azure-env.ps1 -SubscriptionId <SUB_ID> -ResourceGroup <RG> -Limit 300 -OutDir <OUTPUT_DIR>
 ```
+
 - AI 機能（レビュー/レポート）を使う場合:
   - Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
   - もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
@@ -128,19 +129,19 @@ GUIウィンドウが起動するので:
 
 ## ファイル構成
 
-| ファイル           | 説明                                                           |
-| ------------------ | -------------------------------------------------------------- |
-| `main.py`          | GUI アプリ本体（tkinter）                                      |
-| `gui_helpers.py`   | GUI 共通定数・ユーティリティ（main.py から分離）               |
-| `collector.py`     | Azure データ収集（az graph query / Security / Cost / Advisor） |
-| `drawio_writer.py` | .drawio XML 生成                                               |
-| `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                       |
-| `exporter.py`      | Markdown → Word (.docx) / PDF 変換                             |
-| `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）      |
-| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                  |
-| `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                |
+| ファイル           | 説明                                                                 |
+| ------------------ | -------------------------------------------------------------------- |
+| `main.py`          | GUI アプリ本体（tkinter）                                            |
+| `gui_helpers.py`   | GUI 共通定数・ユーティリティ（main.py から分離）                     |
+| `collector.py`     | Azure データ収集（az graph query / Security / Cost / Advisor）       |
+| `drawio_writer.py` | .drawio XML 生成                                                     |
+| `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                             |
+| `exporter.py`      | Markdown → Word (.docx) / PDF 変換                                   |
+| `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）            |
+| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                        |
+| `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                      |
 | `tests.py`         | ユニットテスト（collector / drawio_writer / exporter / gui_helpers） |
-| `templates/`       | レポートテンプレート JSON + 保存済み指示                       |
+| `templates/`       | レポートテンプレート JSON + 保存済み指示                             |
 
 ### テンプレート
 
