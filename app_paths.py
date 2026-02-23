@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -95,30 +96,35 @@ def copilot_cli_path() -> str | None:
 # settings.json 読み書き（一元管理）
 # ============================================================
 
+_settings_lock = threading.Lock()
+
+
 def load_setting(key: str, default: str = "") -> str:
     """settings.json から値を読み込む。"""
-    try:
-        p = settings_path()
-        if p.exists():
-            data = json.loads(p.read_text(encoding="utf-8"))
-            return str(data.get(key, default))
-    except Exception:
-        pass
-    return default
+    with _settings_lock:
+        try:
+            p = settings_path()
+            if p.exists():
+                data = json.loads(p.read_text(encoding="utf-8"))
+                return str(data.get(key, default))
+        except Exception:
+            pass
+        return default
 
 
 def save_setting(key: str, value: str) -> None:
     """settings.json に値を書き込む（単一キー）。"""
-    try:
-        settings = load_all_settings()
-        settings[key] = value
-        save_all_settings(settings)
-    except Exception:
-        pass
+    with _settings_lock:
+        try:
+            settings = _load_all_settings_unlocked()
+            settings[key] = value
+            _save_all_settings_unlocked(settings)
+        except Exception:
+            pass
 
 
-def load_all_settings() -> dict[str, Any]:
-    """settings.json を丸ごと読み込む。"""
+def _load_all_settings_unlocked() -> dict[str, Any]:
+    """settings.json を丸ごと読み込む（ロックなし内部用）。"""
     try:
         p = settings_path()
         if p.exists():
@@ -128,8 +134,8 @@ def load_all_settings() -> dict[str, Any]:
     return {}
 
 
-def save_all_settings(data: dict[str, Any]) -> None:
-    """settings.json を丸ごと書き込む（一括保存）。"""
+def _save_all_settings_unlocked(data: dict[str, Any]) -> None:
+    """settings.json を丸ごと書き込む（ロックなし内部用）。"""
     try:
         ensure_user_dirs()
         p = settings_path()
@@ -137,3 +143,15 @@ def save_all_settings(data: dict[str, Any]) -> None:
         p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
+
+
+def load_all_settings() -> dict[str, Any]:
+    """settings.json を丸ごと読み込む。"""
+    with _settings_lock:
+        return _load_all_settings_unlocked()
+
+
+def save_all_settings(data: dict[str, Any]) -> None:
+    """settings.json を丸ごと書き込む（一括保存）。"""
+    with _settings_lock:
+        _save_all_settings_unlocked(data)

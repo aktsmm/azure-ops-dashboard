@@ -88,7 +88,7 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
         completed = subprocess.run(args, **kwargs)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         en = get_language() == "en"
         raise RuntimeError(
             (f"Command timed out after {timeout_s} seconds.\n"
@@ -96,7 +96,7 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
              if en else
              f"コマンドが {timeout_s} 秒でタイムアウトしました。\n"
              f"→ RG を指定して範囲を絞るか、resource-graph 拡張を確認してください。")
-        )
+        ) from e
     return completed.returncode, completed.stdout, completed.stderr
 
 

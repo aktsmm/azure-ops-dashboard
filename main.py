@@ -1568,6 +1568,8 @@ class App:
             _close()
 
             def _do_login() -> None:
+                # secret をローカルにキャプチャし、使用後に即消去する
+                _secret = secret
                 self._log(t("log.sp_login_running"), "info")
                 self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
                 self._root.after(0, lambda: self._sp_login_btn.configure(state=tk.DISABLED))
@@ -1580,8 +1582,9 @@ class App:
                         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                     cmd: list[str] = [
                         "az", "login", "--service-principal",
-                        "-u", client_id, "-p", secret, "--tenant", tenant_id,
+                        "-u", client_id, "-p", _secret, "--tenant", tenant_id,
                     ]
+                    del _secret  # メモリ上から即消去
                     result = subprocess.run(cmd, **kwargs)
                     if result.returncode == 0:
                         self._log(t("log.sp_login_success"), "success")
