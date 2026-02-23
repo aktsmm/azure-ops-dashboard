@@ -8,7 +8,7 @@ Draw.io（diagrams.net）で開ける .drawio 図を生成するGUI。
   Worker Thread → az graph query → .drawio 生成（UIをブロックしない）
 
 操作フロー:
-  入力 → Collect → Review（Proceed/Cancel） → Generate → Preview → Open
+    入力 → Collect → (AI Reviewをログに表示) → Generate → Preview → Open
 """
 
 from __future__ import annotations
@@ -40,13 +40,15 @@ from collector import (
     list_resource_groups,
     list_subscriptions,
     preflight_check,
+    run_az_command,
     type_summary,
 )
-from drawio_writer import build_drawio_xml, now_stamp
+from drawio_writer import build_drawio_xml, now_stamp, preprocess_nodes
 
 from app_paths import (
     ensure_user_dirs, load_all_settings, load_setting, save_all_settings,
-    save_setting, saved_instructions_path, settings_path, user_templates_dir,
+    save_setting, saved_instructions_path, user_saved_instructions_path, settings_path, user_templates_dir,
+    bundled_templates_dir,
 )
 from gui_helpers import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -106,8 +108,6 @@ class App:
         self._models_cache: list[str] = []
 
         # レビュー待ち用
-        self._review_event = threading.Event()
-        self._review_proceed = False
         self._pending_nodes: list[Node] = []
         self._pending_meta: dict[str, Any] = {}
 
@@ -119,10 +119,11 @@ class App:
         self._restore_all_settings()
 
         # 起動時に事前チェック + Sub候補ロード（非同期）
-        threading.Thread(target=self._bg_preflight, daemon=True).start()
+        # NOTE: mainloop 開始後に遅延起動して after() コールバックの安全性を保証 (review #17)
+        self._root.after(100, lambda: threading.Thread(target=self._bg_preflight, daemon=True).start())
 
         # 起動時に利用可能モデル一覧を取得（非同期）
-        threading.Thread(target=self._bg_load_models, daemon=True).start()
+        self._root.after(200, lambda: threading.Thread(target=self._bg_load_models, daemon=True).start())
 
         # ウィンドウを前面に表示（起動直後に背面に隠れる問題の対策）
         self._root.after(100, self._bring_to_front)
@@ -435,7 +436,7 @@ class App:
         def _on_mousewheel(event: tk.Event) -> None:
             self._report_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-        def _bind_mousewheel_recursive(widget: tk.Widget) -> None:
+        def _bind_mousewheel_recursive(widget: tk.Misc) -> None:
             """widget とその全子孫に MouseWheel バインドを適用。"""
             widget.bind("<MouseWheel>", _on_mousewheel)
             for child in widget.winfo_children():
@@ -637,41 +638,6 @@ class App:
             font=(FONT_FAMILY, FONT_SIZE - 2))
         self._svg_cb.pack(side=tk.LEFT, padx=(6, 0))
 
-        # --- レビューパネル（初期非表示 / 2行構成） ---
-        self._review_frame = tk.Frame(self._root, bg="#303030", relief=tk.RIDGE, borderwidth=1)
-        # pack は _show_review で
-
-        # 行1: サマリテキスト
-        self._review_text_var = tk.StringVar(value="")
-        tk.Label(self._review_frame, textvariable=self._review_text_var,
-                 bg="#303030", fg=WARNING_COLOR, anchor="w", justify="left",
-                 font=(FONT_FAMILY, FONT_SIZE - 1), wraplength=680
-                 ).pack(fill=tk.X, padx=10, pady=(6, 2))
-
-        # 行2: ボタン（左寄せで大きめ）
-        review_btn_row = tk.Frame(self._review_frame, bg="#303030")
-        review_btn_row.pack(fill=tk.X, padx=10, pady=(2, 6))
-
-        self._proceed_btn = tk.Button(
-            review_btn_row, text=t("btn.proceed"),
-            command=self._on_proceed,
-            bg=SUCCESS_COLOR, fg="#1e1e1e",
-            font=(FONT_FAMILY, FONT_SIZE, "bold"),
-            relief=tk.FLAT, padx=20, pady=6,
-            cursor="hand2",
-        )
-        self._proceed_btn.pack(side=tk.LEFT)
-
-        self._cancel_btn = tk.Button(
-            review_btn_row, text=t("btn.cancel_review"),
-            command=self._on_cancel,
-            bg=ERROR_COLOR, fg=BUTTON_FG,
-            font=(FONT_FAMILY, FONT_SIZE),
-            relief=tk.FLAT, padx=20, pady=6,
-            cursor="hand2",
-        )
-        self._cancel_btn.pack(side=tk.LEFT, padx=(8, 0))
-
         # --- ログエリア ---
         self._log_area = scrolledtext.ScrolledText(
             self._root, wrap=tk.WORD, state=tk.DISABLED,
@@ -822,9 +788,10 @@ class App:
             from ai_reviewer import list_available_model_ids_sync, choose_default_model_id, MODEL
 
             self._log(t("log.loading_models"), "info")
+            timeout_sec = 45 if getattr(sys, "_MEIPASS", None) else 15
             model_ids = list_available_model_ids_sync(
                 on_status=lambda s: self._log(s, "info"),
-                timeout=15,
+                timeout=timeout_sec,
             )
             model_ids = [m for m in model_ids if isinstance(m, str) and m.strip()]
             if not model_ids:
@@ -843,8 +810,10 @@ class App:
                 self._model_var.set(default_model)
 
             self._root.after(0, _apply)
-        except Exception:
-            return
+        except Exception as exc:
+            self._log(t("log.model_list_error", err=str(exc)[:200]), "warning")
+            import traceback
+            traceback.print_exc()
 
     def _restore_last_template(self) -> None:
         """テンプレート一覧ロード後に前回選択を復元する。"""
@@ -1049,11 +1018,23 @@ class App:
         try:
             data = json.loads(instr_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
+            fallback = bundled_templates_dir() / "saved-instructions.json"
+            if fallback != instr_path and fallback.exists():
+                try:
+                    data = json.loads(fallback.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    return
+            else:
+                return
+
+        if not isinstance(data, list):
             return
 
         row, col = 0, 0
         lang = get_language()
         for item in data:
+            if not isinstance(item, dict):
+                continue
             label = item.get(f"label_{lang}", item.get("label", ""))
             instruction = item.get("instruction", "")
             if not label:
@@ -1159,7 +1140,7 @@ class App:
 
         # JSONに追記（ユーザー領域に保存）
         ensure_user_dirs()
-        instr_path = user_templates_dir() / "saved-instructions.json"
+        instr_path = user_saved_instructions_path()
         try:
             if instr_path.exists():
                 data = json.loads(instr_path.read_text(encoding="utf-8"))
@@ -1171,6 +1152,9 @@ class App:
                 else:
                     data = []
         except (json.JSONDecodeError, OSError):
+            data = []
+
+        if not isinstance(data, list):
             data = []
 
         data.append({"label": label, "instruction": text})
@@ -1185,7 +1169,7 @@ class App:
         """チェック済みの保存済み指示を削除する。"""
         # ユーザー領域のファイルを操作（bundled は変更しない）
         ensure_user_dirs()
-        instr_path = user_templates_dir() / "saved-instructions.json"
+        instr_path = user_saved_instructions_path()
 
         # ユーザー領域にまだファイルがなければ bundled からコピー
         if not instr_path.exists():
@@ -1203,6 +1187,9 @@ class App:
             except (json.JSONDecodeError, OSError):
                 return
 
+        if not isinstance(data, list):
+            return
+
         # チェック済みの指示テキストを収集
         to_delete: set[str] = set()
         for var, instruction in self._saved_instr_vars:
@@ -1219,7 +1206,14 @@ class App:
             return
 
         # フィルタして保存
-        data = [item for item in data if item.get("instruction", "") not in to_delete]
+        filtered: list[dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            if item.get("instruction", "") in to_delete:
+                continue
+            filtered.append(item)
+        data = filtered
         instr_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
         # UIリロード
@@ -1407,11 +1401,9 @@ class App:
     def _on_abort(self) -> None:
         """収集中にCancelボタンを押した場合。"""
         self._cancel_event.set()
-        self._review_event.set()  # レビュー待ちも解除
         self._log(t("log.cancel_requested"), "warning")
         self._set_status(t("status.cancelling"))
         self._set_working(False)
-        self._hide_review()
 
     # ------------------------------------------------------------------ #
     # 事前チェック + Sub/RG ロード（バックグラウンド）
@@ -1482,15 +1474,8 @@ class App:
             self._log(t("log.az_login_running"), "info")
             self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
             try:
-                kwargs: dict = {
-                    "capture_output": True, "text": True,
-                    "timeout": 120, "encoding": "utf-8", "errors": "replace",
-                }
-                if sys.platform == "win32":
-                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-                cmd: list[str] = ["az", "login"]
-                result = subprocess.run(cmd, **kwargs)
-                if result.returncode == 0:
+                code, _out, err = run_az_command(["login"], timeout_s=120)
+                if code == 0:
                     self._log(t("log.az_login_success"), "success")
                     # Sub/RG をクリア
                     self._root.after(0, lambda: self._sub_var.set(""))
@@ -1499,7 +1484,7 @@ class App:
                     self._root.after(0, lambda: self._rg_combo.configure(values=[]))
                     self._bg_preflight()
                 else:
-                    self._log(t("log.az_login_failed", err=result.stderr[:200]), "error")
+                    self._log(t("log.az_login_failed", err=(err or "")[:200]), "error")
             except Exception as e:
                 self._log(t("log.az_login_error", err=str(e)), "error")
             finally:
@@ -1565,28 +1550,25 @@ class App:
             save_setting("sp_client_id", client_id)
             save_setting("sp_tenant_id", tenant_id)
 
+            # Entry の内容はすぐ消しておく（Secret を画面/メモリに残しにくくする）
+            try:
+                secret_var.set("")
+            except Exception:
+                pass
+
             _close()
 
-            def _do_login() -> None:
-                # secret をローカルにキャプチャし、使用後に即消去する
-                _secret = secret
+            def _do_login(*, sp_client_id: str, sp_tenant_id: str, sp_secret: str) -> None:
                 self._log(t("log.sp_login_running"), "info")
                 self._root.after(0, lambda: self._login_btn.configure(state=tk.DISABLED))
                 self._root.after(0, lambda: self._sp_login_btn.configure(state=tk.DISABLED))
                 try:
-                    kwargs: dict = {
-                        "capture_output": True, "text": True,
-                        "timeout": 120, "encoding": "utf-8", "errors": "replace",
-                    }
-                    if sys.platform == "win32":
-                        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
                     cmd: list[str] = [
-                        "az", "login", "--service-principal",
-                        "-u", client_id, "-p", _secret, "--tenant", tenant_id,
+                        "login", "--service-principal",
+                        "-u", sp_client_id, "-p", sp_secret, "--tenant", sp_tenant_id,
                     ]
-                    del _secret  # メモリ上から即消去
-                    result = subprocess.run(cmd, **kwargs)
-                    if result.returncode == 0:
+                    code, _out, err = run_az_command(cmd, timeout_s=120)
+                    if code == 0:
                         self._log(t("log.sp_login_success"), "success")
                         # Sub/RG をクリアして再ロード
                         self._root.after(0, lambda: self._sub_var.set(""))
@@ -1595,15 +1577,24 @@ class App:
                         self._root.after(0, lambda: self._rg_combo.configure(values=[]))
                         self._bg_preflight()
                     else:
-                        err = (result.stderr or "").strip()[:200]
-                        self._log(t("log.sp_login_failed", err=err), "error")
+                        err_short = (err or "").strip()[:200]
+                        self._log(t("log.sp_login_failed", err=err_short), "error")
                 except Exception as e:
                     self._log(t("log.sp_login_failed", err=str(e)), "error")
                 finally:
                     self._root.after(0, lambda: self._login_btn.configure(state=tk.NORMAL))
                     self._root.after(0, lambda: self._sp_login_btn.configure(state=tk.NORMAL))
 
-            threading.Thread(target=_do_login, daemon=True).start()
+            threading.Thread(
+                target=_do_login,
+                kwargs={
+                    "sp_client_id": client_id,
+                    "sp_tenant_id": tenant_id,
+                    "sp_secret": secret,
+                },
+                daemon=True,
+            ).start()
+            secret = ""  # ベストエフォートで参照を落とす
 
         tk.Button(btns, text=t("btn.login"), command=_login,
                   bg=ACCENT_COLOR, fg=BUTTON_FG, font=(FONT_FAMILY, FONT_SIZE, "bold"),
@@ -1666,7 +1657,6 @@ class App:
         self._diff_btn.configure(state=tk.DISABLED)
 
         self._set_working(True)
-        self._hide_review()
 
         # Canvasプレビューをリセット
         def _reset_preview() -> None:
@@ -1692,26 +1682,46 @@ class App:
         if diagram_views:
             self._log(f"  Limit: {limit}")
 
+        # --- GUI 変数のスナップショット (review #1/#2) ---
+        # tkinter は単一スレッドモデル。ワーカースレッドから StringVar.get() を
+        # 呼ぶのは未定義動作になり得るため、UI スレッドで全変数を取得してから渡す。
+        worker_opts: dict[str, Any] = {
+            "model_id": self._model_var.get().strip() or None,
+            "ai_drawio": bool(self._ai_drawio_var.get()),
+            "export_svg": bool(self._export_svg_var.get()),
+            "export_docx": bool(self._export_docx_var.get()),
+            "export_pdf": bool(self._export_pdf_var.get()),
+            "auto_open": bool(self._auto_open_var.get()),
+            "output_dir": self._output_dir_var.get().strip(),
+            "sub_display": self._sub_var.get().strip(),
+            "rg_display": rg or "",
+            "open_app": self._open_app_var.get(),
+        }
+
         threading.Thread(
             target=self._worker_collect,
-            args=(sub, rg, limit, view, report_views, diagram_views),
+            args=(sub, rg, limit, view, report_views, diagram_views, worker_opts),
             daemon=True,
         ).start()
 
     def _worker_collect(self, sub: str | None, rg: str | None, limit: int, view: str = "inventory",
                         report_views: list[str] | None = None,
-                        diagram_views: list[str] | None = None) -> None:
+                        diagram_views: list[str] | None = None,
+                        opts: dict[str, Any] | None = None) -> None:
         """収集ワーカー。完了後にレビュー画面を表示して待つ。"""
+        if opts is None:
+            opts = {}
         try:
-            # レポートのみの場合は別フローへ
-            if report_views and not diagram_views:
-                if len(report_views) > 1:
-                    self._log(t("log.multi_report_start", count=len(report_views)), "info")
-                self._worker_reports(sub, rg, limit, report_views)
-                return
+            diagram_results: list[tuple[str, Path, dict[str, Any]]] = []  # (view, out_path, summary)
+            generated_reports: list[tuple[str, Path]] = []  # (report_type, path)
 
             # 図の生成（1つ以上の diagram view）
-            diagram_list = diagram_views or [view]
+            diagram_list: list[str] = []
+            if diagram_views is None:
+                diagram_list = [view]
+            else:
+                diagram_list = list(diagram_views)
+
             first_diagram = True
             for dv in diagram_list:
                 if self._cancel_event.is_set():
@@ -1720,13 +1730,21 @@ class App:
                 if not first_diagram:
                     self._log("─" * 40, "accent")
                 first_diagram = False
-                self._worker_single_diagram(sub, rg, limit, dv)
+                result = self._worker_single_diagram(sub, rg, limit, dv, opts=opts)
+                if result:
+                    out_path, summary = result
+                    diagram_results.append((dv, out_path, summary))
 
-            # 図が終わったらレポートも（同時選択時）
+            # 図が終わったらレポートも（同時選択時 or レポートのみ）
             if report_views:
                 self._log("─" * 40, "accent")
-                self._log(t("log.multi_report_start", count=len(report_views)), "info")
-                self._worker_reports(sub, rg, limit, report_views)
+                if len(report_views) > 1:
+                    self._log(t("log.multi_report_start", count=len(report_views)), "info")
+                generated_reports = self._worker_reports(sub, rg, limit, report_views, opts=opts)
+
+            # 複数出力があれば統合レポートを生成
+            if not self._cancel_event.is_set() and (len(diagram_results) + len(generated_reports) >= 2):
+                self._generate_integrated_report(sub, diagram_results, generated_reports, opts=opts)
 
         except Exception as e:
             self._log(f"ERROR: {e}", "error")
@@ -1734,20 +1752,27 @@ class App:
         finally:
             self._set_working(False)
 
-    def _worker_single_diagram(self, sub: str | None, rg: str | None, limit: int, view: str) -> None:
+    def _worker_single_diagram(self, sub: str | None, rg: str | None, limit: int, view: str,
+                                *, opts: dict[str, Any] | None = None) -> tuple[Path, dict[str, Any]] | None:
         """単一の diagram view を収集→生成する（_worker_collect から呼ばれる）。"""
         self._log(f"  📊 Diagram: {view}", "accent")
 
         # Step 1: Collect
-        self._set_step("Step 1/5: Collect")
+        self._set_step("Step 1/6: Collect")
         self._set_status(t("status.running_query"))
         self._log(t("log.query_running", view=view), "info")
+
+        def _check_cancel(msg: str) -> None:
+            if self._cancel_event.is_set():
+                raise RuntimeError("Cancelled")
+            self._log(f"    {msg}", "info")
 
         nodes, collected_edges, meta = collect_diagram_view(
             view=view,
             subscription=sub,
             resource_group=rg,
             limit=limit,
+            on_progress=_check_cancel,
         )
         if view == "network":
             self._log(t("log.net_resources_found", nodes=len(nodes), edges=len(collected_edges)), "success")
@@ -1756,7 +1781,7 @@ class App:
 
         if self._cancel_event.is_set():
             self._log(t("log.cancelled"), "warning")
-            return
+            return None
 
         # type別サマリ
         summary = type_summary(nodes)
@@ -1772,7 +1797,7 @@ class App:
         self._pending_meta = meta
 
         # --- AI レビュー（Copilot SDK） ---
-        self._set_step("Step 2/5: AI Review")
+        self._set_step("Step 2/6: AI Review")
         self._set_status(t("status.reviewing"))
         self._log("─" * 40, "accent")
         self._log(t("log.ai_review_start"), "info")
@@ -1804,7 +1829,7 @@ class App:
                 resource_text=resource_text,
                 on_delta=lambda d: self._log_append_delta(d),
                 on_status=lambda s: self._log(s, "info"),
-                model_id=self._model_var.get().strip() or None,
+                model_id=opts.get("model_id"),
             )
         except Exception as e:
             self._log(t("log.ai_review_skip", err=str(e)), "warning")
@@ -1814,32 +1839,16 @@ class App:
 
         if self._cancel_event.is_set():
             self._log(t("log.cancelled"), "warning")
-            return
+            return None
 
-        review_text = (
-            f"{len(nodes)} resources | "
-            f"{len(summary)} types | "
-            f"Sub: {sub or '(default)'} | "
-            f"RG: {rg or '(all)'}"
-        )
-        self._show_review(review_text)
-        self._set_step("Review")
-        self._set_status(t("status.review_prompt"))
-
-        # ブロッキング待ち（ワーカースレッド上）
-        self._review_event.clear()
-        self._review_event.wait()
-
-        if not self._review_proceed or self._cancel_event.is_set():
-            self._log(t("log.cancelled"), "warning")
-            self._set_status(t("status.cancelled"))
-            return
-
-        self._hide_review()
+        # NOTE:
+        # 図生成では Proceed/Cancel の確認を挟まず、自動で次へ進む。
 
         # Step 2: 保存先決定（Output Dir設定済みなら自動、未設定ならダイアログ）
-        initial_dir = self._output_dir_var.get().strip()
-        default_name = self._make_filename("env", sub, rg, ".drawio")
+        self._set_step("Step 3/6: Output")
+        self._set_status(t("status.choosing_output"))
+        initial_dir = opts.get("output_dir", "")
+        default_name = self._make_filename(f"env-{view}", sub, rg, ".drawio")
 
         if initial_dir and Path(initial_dir).is_dir():
             # 自動保存
@@ -1863,27 +1872,40 @@ class App:
                 done_event.set()
 
             self._root.after(0, _ask_save)
-            done_event.wait()
+            done_event.wait(timeout=300)  # 5分でタイムアウト (review #14)
 
             if not out_path_holder:
                 self._log(t("log.save_not_selected"), "warning")
                 self._set_status(t("status.cancelled"))
-                return
+                return None
             out_path = Path(out_path_holder[0])
 
-        # Step 3: Normalize
-        self._set_step("Step 3/5: Normalize")
+        # Step 3: Normalize + Preprocess
+        self._set_step("Step 4/6: Normalize")
         self._set_status(t("status.normalizing"))
-        azure_to_cell_id = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
         edges: list[Edge] = collected_edges
 
+        # ノード前処理: ノイズ除去 + 類似リソースグルーピング
+        pp_nodes, pp_edges, pp_groups = preprocess_nodes(nodes, edges)
+        if pp_groups:
+            for g in pp_groups:
+                if g["type"] == "noise":
+                    self._log(f"    \u26a1 {g['prefix']}: {g['total']} noise resources removed", "info")
+                else:
+                    shown = len(g["representative"])
+                    self._log(f"    \u26a1 {g['prefix']}: {g['total']} resources \u2192 {shown} shown + summary", "info")
+        nodes = pp_nodes
+        edges = pp_edges
+
+        azure_to_cell_id = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
+
         # Step 4: Build XML
-        self._set_step("Step 4/5: Build XML")
+        self._set_step("Step 5/6: Build XML")
         diagram_name = f"{view}-{now_stamp()}"
         xml: str | None = None
 
         # AI mode (preferred)
-        if self._ai_drawio_var.get():
+        if opts.get("ai_drawio"):
             try:
                 from ai_reviewer import run_drawio_generation
 
@@ -1922,6 +1944,11 @@ class App:
                     "resourceGroup": rg,
                     "nodes": nodes_for_ai,
                     "edges": edges_for_ai,
+                    "preprocessed": True,
+                    "groups": [
+                        {"prefix": g["prefix"], "type": g["type"], "total": g["total"]}
+                        for g in pp_groups
+                    ] if pp_groups else [],
                     "rules": {
                         "requireAzure2Icons": True,
                         "preferContainers": True,
@@ -1931,7 +1958,7 @@ class App:
                 ai_xml = run_drawio_generation(
                     diagram_request,
                     on_status=lambda s: self._log(s, "info"),
-                    model_id=self._model_var.get().strip() or None,
+                    model_id=opts.get("model_id"),
                 )
                 if ai_xml:
                     xml = ai_xml
@@ -1951,7 +1978,7 @@ class App:
             )
 
         # Step 5: Save
-        self._set_step("Step 5/5: Save")
+        self._set_step("Step 6/6: Save")
         self._set_status(t("status.saving"))
         write_text(out_path, xml)
         self._log(f"  → {out_path}", "success")
@@ -1973,13 +2000,16 @@ class App:
             ],
             "azureIdToCellId": azure_to_cell_id,
         }
-        write_json(out_dir / "env.json", env_payload)
-        self._log(f"  → {out_dir / 'env.json'}", "success")
+        env_json_path = out_path.with_name(out_path.stem + "-env.json")
+        write_json(env_json_path, env_payload)
+        self._log(f"  → {env_json_path}", "success")
 
-        write_json(out_dir / "collect.log.json", {"tool": "az graph query", "meta": meta})
+        collect_log_path = out_path.with_name(out_path.stem + "-collect-log.json")
+        write_json(collect_log_path, {"tool": "az graph query", "meta": meta})
+        self._log(f"  → {collect_log_path}", "success")
 
         # SVG エクスポート
-        if self._export_svg_var.get():
+        if opts.get("export_svg"):
             svg_result = export_drawio_svg(out_path)
             if svg_result:
                 self._log(f"  → {svg_result}", "success")
@@ -1998,8 +2028,33 @@ class App:
         self._draw_preview(nodes, edges, azure_to_cell_id)
 
         # 自動オープン
-        if self._auto_open_var.get() and out_path.exists():
+        if opts.get("auto_open") and out_path.exists():
             self._root.after(500, lambda p=out_path: self._open_file_with(p))
+
+        # 統合レポート用に、最小のサマリ情報を返す
+        try:
+            compact_type_summary = type_summary(nodes)
+            samples = [
+                {
+                    "name": n.name,
+                    "type": n.type,
+                    "resourceGroup": n.resource_group,
+                    "location": n.location,
+                }
+                for n in nodes[:30]
+            ]
+            diagram_summary: dict[str, Any] = {
+                "view": view,
+                "drawio": out_path.name,
+                "nodes": len(nodes),
+                "edges": len(edges),
+                "typeSummary": compact_type_summary,
+                "sampleResources": samples,
+            }
+        except Exception:
+            diagram_summary = {"view": view, "drawio": out_path.name}
+
+        return out_path, diagram_summary
 
     @staticmethod
     def _pick_standard_template(report_type: str) -> dict | None:
@@ -2012,13 +2067,14 @@ class App:
                 return tmpl
         return templates[0]
 
-    def _worker_reports(self, sub: str | None, rg: str | None, limit: int, views: list[str]) -> None:
+    def _worker_reports(self, sub: str | None, rg: str | None, limit: int, views: list[str],
+                        *, opts: dict[str, Any] | None = None) -> list[tuple[str, Path]]:
         total = len(views)
         generated_reports: list[tuple[str, Path]] = []  # (report_type, path)
 
         for idx, view in enumerate(views, start=1):
             if self._cancel_event.is_set():
-                return
+                return generated_reports
 
             # 複数生成時は常に Standard テンプレ（既定セクション）を使用
             template_override: dict | None = None
@@ -2031,26 +2087,34 @@ class App:
                 name = "security" if view == "security-report" else "cost"
                 self._log(t("log.multi_report_item", index=idx, total=total, name=name), "accent")
 
-            result_path = self._worker_report(sub, rg, limit, view, template_override=template_override)
+            result_path = self._worker_report(sub, rg, limit, view, template_override=template_override, opts=opts)
             if result_path:
                 rtype = "security" if view == "security-report" else "cost"
                 generated_reports.append((rtype, result_path))
 
-        # 複数レポートが2件以上生成された場合 → サマリレポートを自動生成
-        if len(generated_reports) >= 2 and not self._cancel_event.is_set():
-            self._generate_summary_report(sub, generated_reports)
+        return generated_reports
 
-    def _generate_summary_report(
+    def _generate_integrated_report(
         self,
         sub: str | None,
+        diagram_results: list[tuple[str, Path, dict[str, Any]]],
         generated_reports: list[tuple[str, Path]],
+        *,
+        opts: dict[str, Any] | None = None,
     ) -> None:
-        """複数レポートのエグゼクティブサマリを生成・保存する。"""
+        """複数ビュー（図/レポート）を統合したレポートを生成・保存する。"""
         try:
-            self._set_step(t("step.summary"))
-            self._set_status(t("status.generating_summary"))
+            self._set_step(t("step.integrated"))
+            self._set_status(t("status.generating_integrated"))
             self._log("═" * 50, "accent")
-            self._log(t("log.summary_start", count=len(generated_reports)), "info")
+            self._log(
+                t(
+                    "log.integrated_start",
+                    diagrams=len(diagram_results),
+                    reports=len(generated_reports),
+                ),
+                "info",
+            )
 
             # 各レポートの本文を読み込み
             report_contents: list[tuple[str, str]] = []
@@ -2058,88 +2122,153 @@ class App:
                 try:
                     content = path.read_text(encoding="utf-8")
                     report_contents.append((rtype, content))
-                    self._log(t("log.summary_read", type=rtype, path=path.name), "info")
+                    self._log(t("log.integrated_read_report", type=rtype, path=path.name), "info")
                 except Exception as e:
                     self._log(f"  Skip {rtype}: {e}", "warning")
 
-            if len(report_contents) < 2:
-                self._log(t("log.summary_skip_few"), "warning")
+            # 図サマリを整形
+            diagram_summaries: list[dict[str, Any]] = []
+            for dv, out_path, summary in diagram_results:
+                base = {"view": dv, "path": out_path.name}
+                if isinstance(summary, dict):
+                    base.update(summary)
+                diagram_summaries.append(base)
+
+            if (len(diagram_summaries) + len(report_contents)) < 2:
                 return
 
-            sub_display = self._sub_var.get().strip()
+            sub_display = opts.get("sub_display", "") if opts else ""
             if not sub_display or sub_display == t("hint.all_subscriptions"):
                 sub_display = sub or ""
 
-            self._log(t("log.summary_ai_gen"), "info")
+            self._log(t("log.integrated_ai_gen"), "info")
             self._log("─" * 40, "accent")
 
-            from ai_reviewer import run_summary_report
-            summary_result = run_summary_report(
-                report_contents=report_contents,
-                on_delta=lambda d: self._log_append_delta(d),
-                on_status=lambda s: self._log(s, "info"),
-                model_id=self._model_var.get().strip() or None,
-                subscription_info=sub_display,
-            )
+            integrated_result: str | None = None
+            try:
+                from ai_reviewer import run_integrated_report
+                rg_display = opts.get("rg_display", "") if opts else ""
+
+                integrated_result = run_integrated_report(
+                    diagram_summaries=diagram_summaries,
+                    report_contents=report_contents,
+                    on_delta=lambda d: self._log_append_delta(d),
+                    on_status=lambda s: self._log(s, "info"),
+                    model_id=opts.get("model_id") if opts else None,
+                    subscription_info=sub_display,
+                    resource_group=rg_display,
+                )
+            except Exception as e:
+                self._log(f"  AI integrated skipped: {e}", "warning")
 
             self._log("", "info")
             self._log("─" * 40, "accent")
 
-            if not summary_result:
-                self._log(t("log.summary_failed"), "warning")
+            if not integrated_result:
+                self._log(t("log.integrated_fallback"), "warning")
+                integrated_result = self._build_integrated_report_fallback(
+                    sub_display=sub_display,
+                    diagram_summaries=diagram_summaries,
+                    report_paths=generated_reports,
+                    rg_display=opts.get("rg_display", "") if opts else "",
+                )
+            if not integrated_result:
+                self._log(t("log.integrated_failed"), "warning")
                 return
 
-            # 保存先は最初のレポートと同じディレクトリ
-            out_dir = generated_reports[0][1].parent
-            rg_raw = self._rg_var.get().strip()
-            rg = None if (not rg_raw or rg_raw == t("hint.all_rgs")) else rg_raw
-            summary_name = self._make_filename("summary-report", sub, rg, ".md")
-            summary_path = out_dir / summary_name
-            write_text(summary_path, summary_result)
-            self._last_out_path = summary_path
-            self._log(f"  → {summary_path}", "success")
+            # 保存先は最初に生成できた成果物（図 or レポート）と同じディレクトリ
+            first_path: Path | None = None
+            if diagram_results:
+                first_path = diagram_results[0][1]
+            elif generated_reports:
+                first_path = generated_reports[0][1]
+            if not first_path:
+                return
+            out_dir = first_path.parent
+            rg_for_filename = opts.get("rg_display", "") if opts else ""
+            rg_val = rg_for_filename or None
+            out_name = self._make_filename("integrated-report", sub, rg_val, ".md")
+            out_path = out_dir / out_name
+            write_text(out_path, integrated_result)
+            self._last_out_path = out_path
+            self._log(f"  → {out_path}", "success")
 
             # Word 出力（オプション）
-            if self._export_docx_var.get():
+            if opts.get("export_docx") if opts else False:
                 try:
                     from exporter import md_to_docx
-                    docx_path = summary_path.with_suffix(".docx")
-                    md_to_docx(summary_result, docx_path)
+                    docx_path = out_path.with_suffix(".docx")
+                    md_to_docx(integrated_result, docx_path)
                     self._log(t("log.word_output", path=str(docx_path)), "success")
                 except Exception as e:
                     self._log(t("log.word_error", err=str(e)), "warning")
 
             self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
-            self._log(t("log.summary_done"), "success")
+            self._log(t("log.integrated_done"), "success")
 
-            if self._auto_open_var.get() and summary_path.exists():
-                self._root.after(500, lambda p=summary_path: self._open_file_with(p))
+            if opts.get("auto_open") and out_path.exists() if opts else False:
+                self._root.after(500, lambda p=out_path: self._open_file_with(p))
 
         except Exception as e:
-            self._log(f"Summary ERROR: {e}", "error")
+            self._log(f"Integrated ERROR: {e}", "error")
 
-    # ------------------------------------------------------------------ #
-    # レビュー
-    # ------------------------------------------------------------------ #
+    def _build_integrated_report_fallback(
+        self,
+        *,
+        sub_display: str,
+        diagram_summaries: list[dict[str, Any]],
+        report_paths: list[tuple[str, Path]],
+        rg_display: str = "",
+    ) -> str:
+        """AIなしでも最低限読める統合レポート（Markdown）を生成する。"""
+        en = get_language() == "en"
+        lines: list[str] = []
+        lines.append("# Azure Environment Integrated Report" if en else "# Azure 環境 統合レポート")
+        if sub_display:
+            lines.append(f"- Subscription: {sub_display}")
 
-    def _show_review(self, text: str) -> None:
-        def _do() -> None:
-            self._review_text_var.set(text)
-            self._review_frame.pack(fill=tk.X, padx=12, pady=(0, 4), before=self._log_area)
-        self._root.after(0, _do)
+        if rg_display:
+            lines.append(f"- Resource Group: {rg_display}")
+        lines.append("")
 
-    def _hide_review(self) -> None:
-        self._root.after(0, self._review_frame.pack_forget)
+        if diagram_summaries:
+            lines.append("## Diagram Summaries" if en else "## 図サマリ")
+            for ds in diagram_summaries:
+                view = str(ds.get("view", ""))
+                nodes = ds.get("nodes")
+                edges = ds.get("edges")
+                drawio = ds.get("drawio") or ds.get("path") or ""
+                lines.append(f"- {view}: {nodes} nodes / {edges} edges ({drawio})")
+            lines.append("")
 
-    def _on_proceed(self) -> None:
-        self._review_proceed = True
-        self._review_event.set()
+        if report_paths:
+            lines.append("## Generated Reports" if en else "## 生成レポート")
+            for rtype, path in report_paths:
+                lines.append(f"- {rtype}: {path.name}")
+            lines.append("")
 
-    def _on_cancel(self) -> None:
-        self._review_proceed = False
-        self._cancel_event.set()
-        self._review_event.set()
-        self._hide_review()
+        lines.append("## Priority Actions (Draft)" if en else "## 優先アクション (暫定)")
+        if en:
+            lines.append("- Quick win: Identify and remove unused resources")
+            lines.append("- Quick win: Triage and remediate Critical/High security findings")
+            lines.append("- Strategic: Re-validate network boundaries and access control design")
+            lines.append("- Strategic: Establish cost allocation (tags/policies) and continuous monitoring")
+            lines.append("- Strategic: Create an execution plan (owner/due date/impact metrics)")
+        else:
+            lines.append("- Quick win: 不要/未使用リソースの棚卸しと削除候補の抽出")
+            lines.append("- Quick win: セキュリティの Critical/High を先に潰す")
+            lines.append("- Strategic: ネットワーク境界とアクセス制御の設計再確認")
+            lines.append("- Strategic: コスト配賦（タグ/ポリシー）と継続的モニタリング")
+            lines.append("- Strategic: 改善の実行計画（担当/期限/効果測定）")
+        lines.append("")
+
+        lines.append("---")
+        lines.append(
+            "Note: AI integrated generation was unavailable; this is a basic fallback. Please refer to individual outputs for details."
+            if en
+            else "※ AI 統合が利用できなかったため簡易版です。詳細は個別成果物を参照してください。"
+        )
+        return "\n".join(lines)
 
     # ------------------------------------------------------------------ #
     # Canvas プレビュー
@@ -2148,7 +2277,7 @@ class App:
     def _draw_preview(self, nodes: list[Node], edges: list[Edge],
                       azure_to_cell_id: dict[str, str]) -> None:
         """ログエリアの下にCanvasで簡易描画。色はdrawio_writerと同じ。"""
-        from drawio_writer import _color_for_type, _TYPE_ICONS
+        from drawio_writer import get_type_icon, color_for_type
 
         def _do() -> None:
             self._canvas.delete("all")
@@ -2180,10 +2309,10 @@ class App:
 
                     # type色を決定
                     lower = node.type.lower()
-                    if lower in _TYPE_ICONS:
+                    if get_type_icon(node.type):
                         type_colors[node.type] = "#0078d4"  # Azure Blue
                     else:
-                        type_colors[node.type] = _color_for_type(node.type)
+                        type_colors[node.type] = color_for_type(node.type)
 
                     # 列ヘッダー
                     short_header = node.type.split("/")[-1] if "/" in node.type else node.type
@@ -2276,37 +2405,51 @@ class App:
         suffix = path.suffix.lower()
         is_drawio = suffix == ".drawio"
 
+        def _open_os_default() -> None:
+            try:
+                open_native(path)
+            except Exception as exc:
+                self._log(t("log.open_failed", err=str(exc)[:200]), "warning")
+
+        def _try_popen(exe_path: str) -> bool:
+            try:
+                subprocess.Popen([exe_path, str(path)], **_subprocess_no_window())
+                return True
+            except Exception as exc:
+                self._log(t("log.open_failed", err=str(exc)[:200]), "warning")
+                return False
+
         if choice == "auto":
             if is_drawio:
                 # Draw.io があればそれ、なければ VS Code、それもなければ OS既定
                 dp = cached_drawio_path()
-                if dp:
-                    subprocess.Popen([dp, str(path)], **_subprocess_no_window())
+                if dp and _try_popen(dp):
                     return
                 vp = cached_vscode_path()
-                if vp:
-                    subprocess.Popen([vp, str(path)], **_subprocess_no_window())
+                if vp and _try_popen(vp):
                     return
-            open_native(path)
+            _open_os_default()
 
         elif choice == "drawio":
             dp = cached_drawio_path()
             if dp:
-                subprocess.Popen([dp, str(path)], **_subprocess_no_window())
+                if not _try_popen(dp):
+                    _open_os_default()
             else:
                 self._log(t("log.drawio_not_found"), "warning")
-                open_native(path)
+                _open_os_default()
 
         elif choice == "vscode":
             vp = cached_vscode_path()
             if vp:
-                subprocess.Popen([vp, str(path)], **_subprocess_no_window())
+                if not _try_popen(vp):
+                    _open_os_default()
             else:
                 self._log(t("log.vscode_not_found"), "warning")
-                open_native(path)
+                _open_os_default()
 
         else:  # "os"
-            open_native(path)
+            _open_os_default()
 
     # ------------------------------------------------------------------ #
     # レポート生成ワーカー (security-report / cost-report)
@@ -2321,7 +2464,7 @@ class App:
             custom_instruction = self._get_custom_instruction()
 
             # サブスクリプション表示名（AIがレポートタイトルに使う）
-            sub_display = self._sub_var.get().strip()
+            sub_display = opts.get("sub_display", "") if opts else ""
             if not sub_display or sub_display == t("hint.all_subscriptions"):
                 sub_display = sub or ""
 
@@ -2360,6 +2503,9 @@ class App:
             self._log("─" * 40, "accent")
 
             report_result: str | None = None
+            security_data: dict[str, Any] = {}
+            cost_data: dict[str, Any] = {}
+            advisor_data: dict[str, Any] = {}
 
             if view == "security-report":
                 self._set_status(t("status.collecting_sec"))
@@ -2382,7 +2528,7 @@ class App:
                         custom_instruction=custom_instruction,
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
-                        model_id=self._model_var.get().strip() or None,
+                        model_id=opts.get("model_id") if opts else None,
                         subscription_info=sub_display,
                     )
                 except Exception as e:
@@ -2417,7 +2563,7 @@ class App:
                         on_delta=lambda d: self._log_append_delta(d),
                         on_status=lambda s: self._log(s, "info"),
                         resource_types=resource_types,
-                        model_id=self._model_var.get().strip() or None,
+                        model_id=opts.get("model_id") if opts else None,
                         subscription_info=sub_display,
                     )
                 except Exception as e:
@@ -2434,26 +2580,11 @@ class App:
                 self._set_status(t("status.failed"))
                 return
 
-            # レビュー表示して Proceed/Cancel 待ち（ワーカースレッド上）
-            self._show_review(t("status.report_review_prompt"))
-            self._set_step("Review")
-            self._set_status(t("status.report_review_prompt"))
-            self._review_proceed = False
-            self._review_event.clear()
-            self._review_event.wait()
-
-            if not self._review_proceed or self._cancel_event.is_set():
-                self._log(t("log.cancelled"), "warning")
-                self._set_status(t("status.cancelled"))
-                return
-
-            self._hide_review()
-
-            # Step 3: 保存（Output Dir設定済みなら自動、未設定ならダイアログ）
+            # 保存（Output Dir設定済みなら自動、未設定ならダイアログ）
             self._set_step("Step 3/3: Save")
             report_type = "security" if view == "security-report" else "cost"
             default_name = self._make_filename(f"{report_type}-report", sub, rg, ".md")
-            initial_dir = self._output_dir_var.get().strip()
+            initial_dir = opts.get("output_dir", "") if opts else ""
 
             if initial_dir and Path(initial_dir).is_dir():
                 # 自動保存
@@ -2477,7 +2608,7 @@ class App:
                     done_event.set()
 
                 self._root.after(0, _ask_save)
-                done_event.wait()
+                done_event.wait(timeout=300)  # 5分でタイムアウト (review #14)
 
                 if not out_path_holder:
                     self._log(t("log.save_not_selected"), "warning")
@@ -2528,7 +2659,7 @@ class App:
                 pass  # 差分生成は best-effort
 
             # 追加出力形式
-            if self._export_docx_var.get():
+            if opts.get("export_docx") if opts else False:
                 try:
                     from exporter import md_to_docx
                     docx_path = out_path.with_suffix(".docx")
@@ -2537,7 +2668,7 @@ class App:
                 except Exception as e:
                     self._log(t("log.word_error", err=str(e)), "warning")
 
-            if self._export_pdf_var.get():
+            if opts.get("export_pdf") if opts else False:
                 try:
                     from exporter import md_to_pdf
                     pdf_path = out_path.with_suffix(".pdf")
@@ -2554,7 +2685,7 @@ class App:
             self._log(t("log.done"), "success")
 
             # 自動オープン
-            if self._auto_open_var.get() and out_path.exists():
+            if opts.get("auto_open") and out_path.exists() if opts else False:
                 self._root.after(500, lambda p=out_path: self._open_file_with(p))
 
             return out_path
@@ -2611,8 +2742,6 @@ class App:
         self._clear_log_btn.configure(text=t("btn.clear_log"))
         self._login_btn.configure(text=t("btn.az_login"))
         self._sp_login_btn.configure(text=t("btn.sp_login"))
-        self._proceed_btn.configure(text=t("btn.proceed"))
-        self._cancel_btn.configure(text=t("btn.cancel_review"))
         self._abort_btn.configure(text=t("btn.cancel"))
         self._auto_open_main_cb.configure(text=t("btn.auto_open"))
 
