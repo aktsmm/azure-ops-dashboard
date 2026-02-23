@@ -77,6 +77,8 @@ sdk-enterprise-challenge/
 └── presentations/            # デモデック
 ```
 
+- Azure Ops Dashboard の実行手順・exe配布時の前提（Azure CLI等）は [azure-ops-dashboard/README.md](azure-ops-dashboard/README.md) を参照
+
 ---
 
 ## 提出要件チェックリスト
