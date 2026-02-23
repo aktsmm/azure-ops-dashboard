@@ -55,7 +55,7 @@ class TestCollectorDataclasses(unittest.TestCase):
 
 # ---------- drawio_writer tests ----------
 
-from drawio_writer import build_drawio_xml, now_stamp
+from drawio_writer import build_drawio_xml, now_stamp, LAYOUT_ORDER
 
 
 class TestDrawioWriter(unittest.TestCase):
@@ -82,6 +82,138 @@ class TestDrawioWriter(unittest.TestCase):
     def test_now_stamp_format(self) -> None:
         stamp = now_stamp()
         self.assertRegex(stamp, r"\d{8}-\d{6}")
+
+    def test_layout_order_publicip_before_vnet(self) -> None:
+        """PublicIP 列は VNet 列より左（インデックスが小さい）ことを検証する。"""
+        nodes = [
+            Node(azure_id="/subs/1/vnet1", name="vnet1",
+                 type="microsoft.network/virtualnetworks",
+                 resource_group="rg1", location="japaneast"),
+            Node(azure_id="/subs/1/pip1", name="pip1",
+                 type="microsoft.network/publicipaddresses",
+                 resource_group="rg1", location="japaneast"),
+        ]
+        cell_map = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
+        xml = build_drawio_xml(nodes=nodes, edges=[], azure_to_cell_id=cell_map,
+                               diagram_name="layout-test")
+        pip_pos = xml.index("publicipaddresses")
+        vnet_pos = xml.index("virtualnetworks")
+        self.assertLess(pip_pos, vnet_pos,
+                        "PublicIP ヘッダーは VNet ヘッダーより前に出力されるべき")
+
+    def test_layout_order_subnet_before_vnet(self) -> None:
+        """Subnet 列は VNet 列より左であることを検証する。"""
+        nodes = [
+            Node(azure_id="/subs/1/vnet1", name="vnet1",
+                 type="microsoft.network/virtualnetworks",
+                 resource_group="rg1", location="japaneast"),
+            Node(azure_id="/subs/1/vnet1/subnets/default", name="default",
+                 type="microsoft.network/virtualnetworks/subnets",
+                 resource_group="rg1", location="japaneast"),
+        ]
+        cell_map = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
+        xml = build_drawio_xml(nodes=nodes, edges=[], azure_to_cell_id=cell_map,
+                               diagram_name="subnet-layout-test")
+        # subnets ヘッダーは virtualnetworks ヘッダーの前にあるはず
+        subnet_header_pos = xml.index("subnets")
+        vnet_header_pos = xml.rindex("virtualnetworks")  # 最後の出現（subnets の後ろの vnet）
+        self.assertLess(subnet_header_pos, vnet_header_pos)
+
+    def test_layout_order_constant_exists(self) -> None:
+        """LAYOUT_ORDER が定義されており公開 IP と VNet を含む。"""
+        self.assertIn("publicipaddresses", LAYOUT_ORDER)
+        self.assertIn("virtualnetworks", LAYOUT_ORDER)
+        self.assertIn("networkinterfaces", LAYOUT_ORDER)
+        self.assertIn("virtualnetworks/subnets", LAYOUT_ORDER)
+
+
+import collector as _collector_module
+from collector import collect_network
+
+
+class TestSubnetCollection(unittest.TestCase):
+    """collect_network が Subnet ノード/エッジを追加することを確認。"""
+
+    def test_subnet_nodes_and_edges_added(self) -> None:
+        import json as _json
+
+        fake_vnet_id = (
+            "/subscriptions/sub1/resourcegroups/rg1"
+            "/providers/microsoft.network/virtualnetworks/vnet1"
+        )
+        fake_rows = [
+            {
+                "id": fake_vnet_id,
+                "name": "vnet1",
+                "type": "microsoft.network/virtualnetworks",
+                "resourceGroup": "rg1",
+                "location": "japaneast",
+                "properties": {},
+            }
+        ]
+        fake_subnet_id = fake_vnet_id + "/subnets/default"
+        fake_subnet_json = _json.dumps([
+            {"id": fake_subnet_id, "name": "default", "resourceGroup": "rg1"}
+        ])
+
+        def fake_az_graph_query(query, subscription=None, timeout_s=300):
+            return (0, _json.dumps({"data": fake_rows}), "", fake_rows)
+
+        def fake_run_command(args, timeout_s=300):
+            if "subnet" in args and "list" in args:
+                return (0, fake_subnet_json, "")
+            # ARG 呼び出しは _az_graph_query で横取りされるので通常到達しない
+            return (1, "", "unexpected")
+
+        with patch.object(_collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
+             patch.object(_collector_module, "_run_command", side_effect=fake_run_command):
+            nodes, edges, _meta = collect_network(
+                subscription="sub1", resource_group=None, limit=300
+            )
+
+        subnet_nodes = [n for n in nodes if n.type == "microsoft.network/virtualnetworks/subnets"]
+        self.assertEqual(len(subnet_nodes), 1, "Subnet ノードが1件追加されるべき")
+        self.assertEqual(subnet_nodes[0].name, "default")
+
+        contained_edges = [e for e in edges if e.kind == "contained-in"]
+        self.assertEqual(len(contained_edges), 1, "Subnet→VNet の contained-in エッジが1件あるべき")
+        self.assertIn("subnets/default", contained_edges[0].source)
+
+    def test_subnet_collection_failure_is_best_effort(self) -> None:
+        """Subnet 収集が失敗しても collect_network が例外を投げないことを確認。"""
+        import json as _json
+
+        fake_vnet_id = (
+            "/subscriptions/sub1/resourcegroups/rg1"
+            "/providers/microsoft.network/virtualnetworks/vnet2"
+        )
+        fake_rows = [
+            {
+                "id": fake_vnet_id,
+                "name": "vnet2",
+                "type": "microsoft.network/virtualnetworks",
+                "resourceGroup": "rg1",
+                "location": "japaneast",
+                "properties": {},
+            }
+        ]
+
+        def fake_az_graph_query(query, subscription=None, timeout_s=300):
+            return (0, _json.dumps({"data": fake_rows}), "", fake_rows)
+
+        def fake_run_command_fail(args, timeout_s=300):
+            # subnet list も含め常に失敗
+            return (1, "", "error: something went wrong")
+
+        with patch.object(_collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
+             patch.object(_collector_module, "_run_command", side_effect=fake_run_command_fail):
+            nodes, edges, _meta = collect_network(
+                subscription="sub1", resource_group=None, limit=300
+            )
+
+        # VNet ノードのみ存在し、例外なく完了する
+        self.assertEqual(len([n for n in nodes if "virtualnetworks" in n.type.lower()
+                              and "subnets" not in n.type.lower()]), 1)
 
 
 # ---------- exporter tests ----------

@@ -34,6 +34,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "label.export_format":      {"ja": "出力形式:",                     "en": "Export format:"},
     "label.language":           {"ja": "Language:",                     "en": "Language:"},
     "label.model":              {"ja": "Model:",                        "en": "Model:"},
+    "label.diff_not_found":     {"ja": "差分ファイルなし",                "en": "No diff file"},
 
     # --- ヒント ---
     "hint.optional":            {"ja": "(任意)",                        "en": "(optional)"},
@@ -59,6 +60,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "btn.cancel":               {"ja": "✖ Cancel",                     "en": "✖ Cancel"},
     "btn.refresh":              {"ja": "🔄 Refresh",                   "en": "🔄 Refresh"},
     "btn.open_file":            {"ja": "Open File",                     "en": "Open File"},
+    "btn.open_diff":            {"ja": "差分を表示",                      "en": "Show Diff"},
     "btn.copy_log":             {"ja": "Copy Log",                      "en": "Copy Log"},
     "btn.clear_log":            {"ja": "Clear",                         "en": "Clear"},
     "btn.az_login":             {"ja": "🔑 az login",                  "en": "🔑 az login"},

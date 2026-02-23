@@ -97,6 +97,7 @@ class App:
         self._activity_started_at: float | None = None
         self._elapsed_timer_id: str | None = None
         self._last_out_path: Path | None = None
+        self._last_diff_path: Path | None = None
         self._subs_cache: list[dict[str, str]] = []
         self._rgs_cache: list[str] = []
 
@@ -508,6 +509,17 @@ class App:
         )
         self._open_btn.pack(side=tk.LEFT, padx=(6, 0))
 
+        self._diff_btn = tk.Button(
+            btn_frame, text=t("btn.open_diff"),
+            command=self._on_open_diff,
+            bg="#3C3C3C", fg=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+            relief=tk.FLAT, padx=12, pady=6,
+            cursor="hand2",
+            state=tk.DISABLED,
+        )
+        self._diff_btn.pack(side=tk.LEFT, padx=(6, 0))
+
         self._copy_btn = tk.Button(
             btn_frame, text=t("btn.copy_log"),
             command=self._on_copy_log,
@@ -837,6 +849,17 @@ class App:
         self._view_desc_var.set(t(desc_key) if desc_key else "")
 
         is_report = view in ("security-report", "cost-report")
+
+        # diff はレポート用。レポート以外のビューでは常に無効化し、パスもクリア。
+        if not is_report:
+            self._last_diff_path = None
+            self._diff_btn.configure(state=tk.DISABLED)
+        else:
+            # reportビューでは diff が存在する場合のみ有効（言語切替などで再評価される）
+            if self._last_diff_path and self._last_diff_path.exists() and not self._working:
+                self._diff_btn.configure(state=tk.NORMAL)
+            else:
+                self._diff_btn.configure(state=tk.DISABLED)
 
         # ボタンラベル
         if is_report:
@@ -1250,6 +1273,7 @@ class App:
                 self._abort_btn.pack(side=tk.LEFT, before=self._refresh_btn)
                 self._refresh_btn.configure(state=tk.DISABLED)
                 self._open_btn.configure(state=tk.DISABLED)
+                self._diff_btn.configure(state=tk.DISABLED)
                 self._progress.start(12)
                 self._start_timer()
             else:
@@ -1506,6 +1530,11 @@ class App:
             limit = 300
 
         self._cancel_event.clear()
+
+        # 前回の差分ファイルは新規実行でクリア（誤って古いdiffを開かない）
+        self._last_diff_path = None
+        self._diff_btn.configure(state=tk.DISABLED)
+
         self._set_working(True)
         self._hide_review()
 
@@ -1890,12 +1919,18 @@ class App:
             self._set_status(t("status.log_copied"))
 
     # ------------------------------------------------------------------ #
-    # Open File
+    # Open File / Show Diff
     # ------------------------------------------------------------------ #
 
     def _on_open_file(self) -> None:
         if self._last_out_path and self._last_out_path.exists():
             self._open_file_with(self._last_out_path)
+
+    def _on_open_diff(self) -> None:
+        if self._last_diff_path and self._last_diff_path.exists():
+            self._open_file_with(self._last_diff_path)
+        else:
+            self._log(t("label.diff_not_found"), "warning")
 
     def _open_file_with(self, path: Path) -> None:
         """Open App 設定に応じてファイルを開く。"""
@@ -2145,6 +2180,8 @@ class App:
                     diff_md = generate_diff_report(prev, out_path)
                     diff_path = out_path.with_name(out_path.stem + "-diff.md")
                     write_text(diff_path, diff_md)
+                    self._last_diff_path = diff_path
+                    self._root.after(0, lambda: self._diff_btn.configure(state=tk.NORMAL))
                     self._log(t("log.diff_generated", path=str(diff_path.name)), "success")
             except Exception:
                 pass  # 差分生成は best-effort
@@ -2225,6 +2262,7 @@ class App:
         # ボタン
         self._refresh_btn.configure(text=t("btn.refresh"))
         self._open_btn.configure(text=t("btn.open_file"))
+        self._diff_btn.configure(text=t("btn.open_diff"))
         self._copy_btn.configure(text=t("btn.copy_log"))
         self._clear_log_btn.configure(text=t("btn.clear_log"))
         self._login_btn.configure(text=t("btn.az_login"))
