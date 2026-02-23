@@ -53,6 +53,10 @@ Focus: ${input:focus:特に重点を置く観点があれば指定（例: パフ
 - 修正する項目（multiSelect）
 - **「all fix」の場合は全項目を選択済みとして扱う**
 
+> フォールバック（`ask_questions` が使えない環境）: ユーザーにチャットで次のいずれかを返してもらう
+> - `all fix`
+> - `1,2,3`（番号列挙）
+
 > ⚠️ ここだけがユーザー入力を待つポイント。以降は完全自律。
 
 ### Phase 3: Autonomous Fix Loop
@@ -71,10 +75,11 @@ Focus: ${input:focus:特に重点を置く観点があれば指定（例: パフ
 ### Phase 4: Verify & Commit
 
 1. **import テスト**: `uv run python -c "import <module>; print('OK')"` で全モジュール確認
-2. **エラーチェック**: `get_errors` で全ファイル確認
-3. **失敗時**: エラーを修正して再テスト（最大 3 回リトライ）
-4. **git commit**: Conventional Commits 形式（`fix:` / `refactor:` / `chore:`）
-5. 修正サマリをテーブルで報告
+2. **エラーチェック**: `get_errors` で全ファイル確認（無い場合は `uv run python -m compileall -q .`）
+3. **テスト**: `uv run python -m unittest`（pytest がある場合は `pytest -q` でも可）
+4. **失敗時**: エラーを修正して再テスト（最大 3 回リトライ）
+5. **git commit**: Conventional Commits 形式（`fix:` / `refactor:` / `chore:`）
+6. 修正サマリをテーブルで報告
 
 ## Stop Conditions
 

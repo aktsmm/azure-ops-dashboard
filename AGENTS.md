@@ -38,3 +38,13 @@
 
 - **Evidence**: exe 再配布なしでテンプレート更新したいという運用要望
 - **Action**: `%APPDATA%\AppName\` にユーザー領域を設け、同名ファイルはユーザー側を優先読み込みする。
+
+### L4: Prompt はツール依存にフォールバックを用意する
+
+- **Evidence**: `ask_questions` 前提の GATE がツール未提供環境で詰まり、チャット入力（"all fix" / 番号列挙）に切り替えが必要だった
+- **Action**: prompts には「ツールが無い場合の入力方法（all fix / 1,2,3）」を必ず併記する
+
+### L5: 文字列置換で UI コードを壊しやすい → 構文チェックを最優先にする
+
+- **Evidence**: `main.py` のボタン生成ブロックが崩れ `IndentationError` / `SyntaxError (unmatched ')')` が発生した
+- **Action**: 構造のある編集は `apply_patch` を優先し、変更後に `compileall` + import テストで即検知する
