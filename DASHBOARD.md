@@ -1,6 +1,6 @@
 # 🚀 Challenge Dashboard
 
-> Last Updated: **2026-02-23** | Deadline: **2026-03-07 22:00 PST** | 残り **13日**
+> Last Updated: **2026-02-24** | Deadline: **2026-03-07 22:00 PST** | 残り **11 日**
 
 ---
 
@@ -12,25 +12,26 @@
 | Step 1: Env Builder CLI          | 🔧 実装中   | 45%  | az動作○、SDK統合・修復ループ未                 |
 | Step 2: Dictation                | 🟡 最小完成 | 80%  | STT+pyautogui動作、ホットキー未                |
 | Step 3: Voice Agent 統合（本命） | ⬜ 未着手   | 0%   | src/ は空                                      |
-| Azure Ops Dashboard              | ✅ 完成     | 100% | GUI・i18n・exe・テスト済・diff UI・Subnet view |
+| Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト36件 |
 | 提出物準備（docs/video/deck）    | ⬜ 未着手   | 0%   | 3/6以降着手予定                                |
 
 **🎯 総合: 約 40%** ／ **本命 (Voice Agent) 単体: 25%**
 
 ---
 
-## 🏃 現スプリント（2/23 週）
+## 🏃 現スプリント（2/24 週）
 
 ### NOW ― 今日やること
 
 - [ ] Step1: 自然言語→Bicep 生成（Copilot SDK 呼び出し）実装
-- [ ] Step1: 失敗修復ループ（エラー分類→SDK 修正→再デプロイ）実装
+- [ ] Step3: `src/app.py` 骨格（トレイ常駐 + モード切替）
 
 ### NEXT ― 今週中
 
-- [ ] Step3: `src/app.py` 骨格（トレイ常駐 + モード切替）
+- [ ] Step1: 失敗修復ループ（エラー分類→SDK 修正→再デプロイ）実装
 - [ ] Step3: `src/sdk/` Step0 移植
 - [ ] Step3: `src/speech/` Step2 移植（STT/TTS 疎通確認）
+- [ ] 提出物: README / デモシナリオ骨格
 
 ---
 
@@ -78,7 +79,7 @@
 
 ---
 
-### Azure Ops Dashboard ✅（ほぼ完成）
+### Azure Ops Dashboard ✅（完成・レビュー修正済）
 
 - [x] tkinter GUI（inventory / network / security / cost 4ビュー）
 - [x] Draw.io .drawio 生成（inventory / network）
@@ -91,9 +92,13 @@
 - [x] bundled + user override テンプレート（%APPDATA%）
 - [x] Service Principal ログイン対応（Secret 非保存）
 - [x] 収集スクリプト（collect-azure-env.ps1）
-- [x] ユニットテスト 20 件（Azure CLI / SDK 接続不要）
+- [x] ユニットテスト 36 件（Azure CLI / SDK 接続不要）
 - [x] 差分レポート（-diff.md）の UI 連携強化
 - [x] network view レイアウト改善（PublicIP / NIC / Subnet 固定並び）
+- [x] スレッド安全性改善（Lock 整理・Thread 起動遅延・cancel 伝搬）
+- [x] タイムアウト改善（drawio 60min / report 10min / 個別 timeout_s）
+- [x] API 整理（run_az_command ラッパー・run_integrated_report 公開）
+- [x] 複数ビュー統合レポート自動生成
 
 ---
 
@@ -114,7 +119,7 @@
 
 | 日付    | タスク                                    | 状態 |
 | ------- | ----------------------------------------- | ---- |
-| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | 🔧   |
+| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | �   |
 | 2/26    | Office Hours #2                           | ⬜   |
 | 3/1     | **Step3 Voice Agent MVP**                 | ⬜   |
 | 3/5     | Office Hours #3                           | ⬜   |

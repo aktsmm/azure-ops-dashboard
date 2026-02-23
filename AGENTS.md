@@ -46,3 +46,13 @@
 
 - **Evidence**: `main.py` のボタン生成ブロックが崩れ `IndentationError` / `SyntaxError (unmatched ')')` が発生した
 - **Action**: 構造のある編集は `apply_patch` を優先し、変更後に `compileall` + import テストで即検知する
+
+### L6: tkinter ワーカースレッドから StringVar.get() を呼ばない
+
+- **Evidence**: `self._model_var.get()` 等を bg thread から直接呼んでおり、CPython GIL に依存した「たまたま動く」状態だった
+- **Action**: `_on_collect()` (UI スレッド) で全 GUI 変数を `opts: dict` に取得し、ワーカーには dict 経由で渡す。ワーカー内に `self._*_var.get()` が残っていないことを grep で確認する
+
+### L7: asyncio.run_coroutine_threadsafe のタイムアウト時にコルーチンをキャンセルする
+
+- **Evidence**: `_run_async` で `future.result(timeout=...)` がタイムアウトすると裏のコルーチンが走り続けリソースリークする
+- **Action**: `except TimeoutError` で `future.cancel()` を呼ぶ。長時間セッション（drawio 60分等）では特に重要
