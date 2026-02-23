@@ -22,12 +22,16 @@ WINDOW_TITLE = "Azure Ops Dashboard"
 WINDOW_WIDTH = 720
 WINDOW_HEIGHT = 640
 WINDOW_BG = "#1e1e1e"
+PANEL_BG = "#252526"
 TEXT_FG = "#d4d4d4"
+MUTED_FG = "#808080"
 INPUT_BG = "#2d2d2d"
 ACCENT_COLOR = "#0078d4"
 SUCCESS_COLOR = "#4ec9b0"
 WARNING_COLOR = "#dcdcaa"
 ERROR_COLOR = "#f44747"
+BUTTON_BG = "#3C3C3C"
+BUTTON_FG = "white"
 FONT_FAMILY = "Consolas" if sys.platform == "win32" else "Menlo" if sys.platform == "darwin" else "Monospace"
 FONT_SIZE = 11
 

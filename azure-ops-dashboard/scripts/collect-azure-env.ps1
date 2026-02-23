@@ -31,7 +31,11 @@ function Now-Stamp() {
 function Run-Az([string[]]$args, [string]$outPath) {
   Write-Host ("[az] " + ($args -join " "))
   $json = & az @args 2>&1
+  $exit = $LASTEXITCODE
   $json | Out-File -FilePath $outPath -Encoding utf8
+  if ($exit -ne 0) {
+    throw "az command failed (exit=$exit). See: $outPath"
+  }
 }
 
 $out = Ensure-OutDir $OutDir

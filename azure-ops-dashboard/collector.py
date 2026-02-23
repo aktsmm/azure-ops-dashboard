@@ -43,6 +43,7 @@ class Edge:
 # ============================================================
 
 _AZ_EXE: str | None = None
+_ARG_MAX_LIMIT = 1000
 
 
 class AzNotFoundError(RuntimeError):
@@ -250,6 +251,7 @@ def collect_inventory(
     limit: int,
 ) -> tuple[list[Node], dict[str, Any]]:
     """ARGでリソース一覧を取得し、Nodeリストと実行メタを返す。"""
+    limit = max(1, min(int(limit), _ARG_MAX_LIMIT))
     where_clause = ""
     if resource_group:
         rg_escaped = resource_group.replace("'", "''")
@@ -303,31 +305,55 @@ def collect_network(
     limit: int,
 ) -> tuple[list[Node], list[Edge], dict[str, Any]]:
     """ARGでネットワーク関連リソースを取得し、Node/Edgeリストと実行メタを返す。"""
+    limit = max(1, min(int(limit), _ARG_MAX_LIMIT))
     where_clause = ""
     if resource_group:
         rg_escaped = resource_group.replace("'", "''")
         where_clause = f"| where resourceGroup =~ '{rg_escaped}'"
 
-    # VNet / Subnet / NSG / NIC / Public IP / LB / AppGW / VM
+    # VNet / NSG / NIC / Public IP / LB / AppGW / VM (+ common network components)
     net_types = [
         "microsoft.network/virtualnetworks",
+        "microsoft.network/virtualnetworkgateways",
+        "microsoft.network/localnetworkgateways",
+        "microsoft.network/bastionhosts",
+        "microsoft.network/natgateways",
+        "microsoft.network/azurefirewalls",
+        "microsoft.network/routetables",
+        "microsoft.network/virtualnetworkpeerings",
         "microsoft.network/networksecuritygroups",
         "microsoft.network/networkinterfaces",
         "microsoft.network/publicipaddresses",
         "microsoft.network/loadbalancers",
         "microsoft.network/applicationgateways",
+        "microsoft.network/privateendpoints",
         "microsoft.network/connections",
         "microsoft.network/networkwatchers",
         "microsoft.compute/virtualmachines",
     ]
     type_filter = ", ".join(f"'{t}'" for t in net_types)
 
+    # NOTE:
+    # - If the environment has many resources, a simple `order by type` + `limit` may drop VNets.
+    # - Also, VNets are often in a different RG than compute resources.
+    #   We resolve references later (best-effort) to pull in missing VNets/VMs/NSGs/PIPs.
     query = textwrap.dedent(f"""
         Resources
         {where_clause}
         | where type in~ ({type_filter})
+        | extend typeRank = case(
+            type =~ 'microsoft.network/virtualnetworks', 0,
+            type =~ 'microsoft.network/virtualnetworkgateways', 1,
+            type =~ 'microsoft.network/networkinterfaces', 2,
+            type =~ 'microsoft.network/publicipaddresses', 3,
+            type =~ 'microsoft.network/loadbalancers', 4,
+            type =~ 'microsoft.network/applicationgateways', 5,
+            type =~ 'microsoft.network/networksecuritygroups', 6,
+            type =~ 'microsoft.compute/virtualmachines', 7,
+            50
+        )
         | project id, name, type, resourceGroup, location, properties
-        | order by type asc, name asc
+        | order by typeRank asc, type asc, name asc
         | limit {limit}
     """).strip()
 
@@ -340,6 +366,16 @@ def collect_network(
     nodes: list[Node] = []
     edges: list[Edge] = []
     azure_ids: set[str] = set()
+    referenced_ids: set[str] = set()
+
+    def _add_edge(source_id: str, target_id: str, kind: str) -> None:
+        if not source_id or not target_id:
+            return
+        s = normalize_azure_id(source_id)
+        t = normalize_azure_id(target_id)
+        edges.append(Edge(source=s, target=t, kind=kind))
+        referenced_ids.add(s)
+        referenced_ids.add(t)
 
     for row in rows:
         azure_id = str(row.get("id") or "").strip()
@@ -366,42 +402,167 @@ def collect_network(
 
         lower_type = rtype.lower()
 
+        # VNet has subnets[]; use it as a fallback to link subnet->vnet even if az subnet list fails.
+        if lower_type == "microsoft.network/virtualnetworks":
+            for sn in (props.get("subnets") or []):
+                sid = (sn or {}).get("id")
+                if sid:
+                    _add_edge(sid, nid, "contained-in")
+
         # NIC → VM （virtualMachine.id）
         if lower_type == "microsoft.network/networkinterfaces":
             vm_ref = (props.get("virtualMachine") or {}).get("id")
             if vm_ref:
-                edges.append(Edge(
-                    source=nid,
-                    target=normalize_azure_id(vm_ref),
-                    kind="attached-to",
-                ))
+                _add_edge(nid, vm_ref, "attached-to")
             # NIC → NSG
             nsg_ref = (props.get("networkSecurityGroup") or {}).get("id")
             if nsg_ref:
-                edges.append(Edge(
-                    source=nid,
-                    target=normalize_azure_id(nsg_ref),
-                    kind="secured-by",
-                ))
+                _add_edge(nid, nsg_ref, "secured-by")
             # NIC → Subnet (ipConfigurations[].subnet.id)
             for ipconfig in props.get("ipConfigurations") or []:
                 ip_props = ipconfig.get("properties") or {}
                 subnet_ref = (ip_props.get("subnet") or {}).get("id")
                 if subnet_ref:
-                    # NIC → Subnet（直接参照。Subnetノード収集後にフィルタされる）
-                    edges.append(Edge(
-                        source=nid,
-                        target=normalize_azure_id(subnet_ref),
-                        kind="in-subnet",
-                    ))
+                    _add_edge(nid, subnet_ref, "in-subnet")
                 # NIC → Public IP
                 pip_ref = (ip_props.get("publicIPAddress") or {}).get("id")
                 if pip_ref:
-                    edges.append(Edge(
-                        source=normalize_azure_id(pip_ref),
-                        target=nid,
-                        kind="assigned-to",
-                    ))
+                    _add_edge(pip_ref, nid, "assigned-to")
+
+        # VM → NIC (networkProfile.networkInterfaces[].id)
+        if lower_type == "microsoft.compute/virtualmachines":
+            nprof = (props.get("networkProfile") or {})
+            for ni in nprof.get("networkInterfaces") or []:
+                rid = (ni or {}).get("id")
+                if rid:
+                    _add_edge(rid, nid, "attached-to")
+
+        # NSG → subnet/nic
+        if lower_type == "microsoft.network/networksecuritygroups":
+            for sn in (props.get("subnets") or []):
+                sid = (sn or {}).get("id")
+                if sid:
+                    _add_edge(nid, sid, "secured-by")
+            for ni in (props.get("networkInterfaces") or []):
+                rid = (ni or {}).get("id")
+                if rid:
+                    _add_edge(rid, nid, "secured-by")
+
+        # Private Endpoint → subnet / target resource (privateLinkServiceId)
+        if lower_type == "microsoft.network/privateendpoints":
+            subnet_ref = ((props.get("subnet") or {}).get("id"))
+            if subnet_ref:
+                _add_edge(nid, subnet_ref, "in-subnet")
+            for c in (props.get("privateLinkServiceConnections") or []):
+                cprops = (c or {}).get("properties") or {}
+                target = cprops.get("privateLinkServiceId")
+                if target:
+                    _add_edge(nid, target, "connects-to")
+
+        # NAT Gateway / Route Table associations → subnets
+        if lower_type in ("microsoft.network/natgateways", "microsoft.network/routetables"):
+            for sn in (props.get("subnets") or []):
+                sid = (sn or {}).get("id")
+                if sid:
+                    _add_edge(nid, sid, "associated-with")
+
+        # Bastion / Firewall / VNet Gateway / AppGW / LB frontend IPs → subnet or public IP
+        if lower_type in (
+            "microsoft.network/bastionhosts",
+            "microsoft.network/azurefirewalls",
+            "microsoft.network/virtualnetworkgateways",
+            "microsoft.network/applicationgateways",
+            "microsoft.network/loadbalancers",
+        ):
+            for ipcfg in (props.get("ipConfigurations") or []):
+                ip_props = (ipcfg or {}).get("properties") or {}
+                subnet_ref = ((ip_props.get("subnet") or {}).get("id"))
+                if subnet_ref:
+                    _add_edge(nid, subnet_ref, "in-subnet")
+                pip_ref = ((ip_props.get("publicIPAddress") or {}).get("id"))
+                if pip_ref:
+                    _add_edge(pip_ref, nid, "assigned-to")
+            for fe in (props.get("frontendIPConfigurations") or []):
+                fe_props = (fe or {}).get("properties") or {}
+                subnet_ref = ((fe_props.get("subnet") or {}).get("id"))
+                if subnet_ref:
+                    _add_edge(nid, subnet_ref, "in-subnet")
+                pip_ref = ((fe_props.get("publicIPAddress") or {}).get("id"))
+                if pip_ref:
+                    _add_edge(pip_ref, nid, "assigned-to")
+
+        # VNet peering: edge parent VNet → remote VNet
+        if lower_type == "microsoft.network/virtualnetworkpeerings":
+            remote = ((props.get("remoteVirtualNetwork") or {}).get("id"))
+            parent_vnet = None
+            marker = "/virtualnetworkpeerings/"
+            if marker in nid:
+                parent_vnet = nid.split(marker, 1)[0]
+            if parent_vnet and remote:
+                _add_edge(parent_vnet, remote, "peered-with")
+
+        # Connections: best-effort link to gateway ids
+        if lower_type == "microsoft.network/connections":
+            vng1 = ((props.get("virtualNetworkGateway1") or {}).get("id"))
+            vng2 = ((props.get("virtualNetworkGateway2") or {}).get("id"))
+            lng2 = ((props.get("localNetworkGateway2") or {}).get("id"))
+            if vng1 and vng2:
+                _add_edge(vng1, vng2, "connected-to")
+            if vng1 and lng2:
+                _add_edge(vng1, lng2, "connected-to")
+
+    # --- Resolve referenced resources across RG / limit truncation (best-effort) ---
+    # This helps when VNets/NSGs/VMs are in a different RG than the selected one.
+    max_refs = 60
+    ref_stats: dict[str, Any] = {
+        "referenced_total": len(referenced_ids),
+        "max_refs": max_refs,
+        "queried": 0,
+        "resolved": 0,
+        "still_missing": 0,
+    }
+    meta["ref_resolution"] = ref_stats
+
+    missing = [rid for rid in referenced_ids if rid not in azure_ids]
+    if missing:
+        to_query = missing[:max_refs]
+        ref_stats["queried"] = len(to_query)
+        id_filter = ", ".join(f"'{rid}'" for rid in to_query)
+        q2 = textwrap.dedent(f"""
+            Resources
+            | where id in~ ({id_filter})
+            | project id, name, type, resourceGroup, location, properties
+        """).strip()
+        code2, out2, err2, rows2 = _az_graph_query(query=q2, subscription=subscription)
+        meta["ref_resolution"]["query"] = q2
+        meta["ref_resolution"]["az_exit_code"] = code2
+        meta["ref_resolution"]["stdout"] = out2
+        meta["ref_resolution"]["stderr"] = err2
+
+        if code2 == 0:
+            for row in rows2:
+                azure_id = str(row.get("id") or "").strip()
+                name = str(row.get("name") or "").strip()
+                rtype = str(row.get("type") or "").strip()
+                rg2 = str(row.get("resourceGroup") or "").strip()
+                loc2 = row.get("location")
+                location2 = str(loc2).strip() if loc2 is not None else None
+                if not azure_id or not name or not rtype:
+                    continue
+                nid2 = normalize_azure_id(azure_id)
+                if nid2 in azure_ids:
+                    continue
+                nodes.append(Node(
+                    azure_id=nid2,
+                    name=name,
+                    type=rtype,
+                    resource_group=rg2,
+                    location=location2,
+                ))
+                azure_ids.add(nid2)
+                ref_stats["resolved"] += 1
+
+        ref_stats["still_missing"] = sum(1 for rid in missing[:max_refs] if rid not in azure_ids)
 
     # ノードにないターゲットへのエッジを除外（フィルタ前にSubnet収集を実行）
 
@@ -478,6 +639,45 @@ def collect_network(
     # ノードにないターゲットへのエッジを除外
     edges = [e for e in edges if e.target in azure_ids and e.source in azure_ids]
 
+    # --- Reduce noise for network diagram ---
+    # Keep core topology resources, plus any endpoints that are connected via edges.
+    core_types = {
+        "microsoft.network/virtualnetworks",
+        "microsoft.network/virtualnetworks/subnets",
+        "microsoft.network/networkinterfaces",
+        "microsoft.network/publicipaddresses",
+        "microsoft.network/networksecuritygroups",
+        "microsoft.network/loadbalancers",
+        "microsoft.network/applicationgateways",
+        "microsoft.network/privateendpoints",
+        "microsoft.network/natgateways",
+        "microsoft.network/bastionhosts",
+        "microsoft.network/azurefirewalls",
+        "microsoft.network/routetables",
+        "microsoft.network/virtualnetworkgateways",
+        "microsoft.network/localnetworkgateways",
+        "microsoft.network/virtualnetworkpeerings",
+        "microsoft.network/connections",
+        "microsoft.compute/virtualmachines",
+    }
+    connected_ids: set[str] = set()
+    for e in edges:
+        connected_ids.add(e.source)
+        connected_ids.add(e.target)
+
+    keep_ids: set[str] = set(connected_ids)
+    for n in nodes:
+        if n.type.lower() in core_types:
+            keep_ids.add(n.azure_id)
+
+    nodes = [n for n in nodes if n.azure_id in keep_ids]
+    edges = [e for e in edges if e.source in keep_ids and e.target in keep_ids]
+    meta["network_filter"] = {
+        "nodes_before": len(azure_ids),
+        "nodes_after": len(nodes),
+        "edges_after": len(edges),
+    }
+
     return nodes, edges, meta
 
 
@@ -496,9 +696,45 @@ def collect_diagram_view(
 
     将来的に view を増やす際、main.py の分岐を最小化するためのディスパッチ。
     """
+    limit = max(1, min(int(limit), _ARG_MAX_LIMIT))
     v = (view or "").strip().lower()
     if v == "network":
-        return collect_network(subscription=subscription, resource_group=resource_group, limit=limit)
+        # Network 図は topology を中心にしつつ、
+        # 「箱だけ」にならないよう inventory 側のノードもマージして可視化する。
+        net_nodes, net_edges, net_meta = collect_network(
+            subscription=subscription, resource_group=resource_group, limit=limit
+        )
+
+        # inventory は best-effort（失敗しても network 図生成自体は継続）
+        inv_nodes: list[Node] = []
+        inv_meta: dict[str, Any] | None = None
+        try:
+            inv_nodes, inv_meta = collect_inventory(
+                subscription=subscription, resource_group=resource_group, limit=limit
+            )
+        except Exception as e:
+            net_meta["inventory_merge"] = {"enabled": False, "error": str(e)}
+            return net_nodes, net_edges, net_meta
+
+        seen: set[str] = {n.azure_id for n in net_nodes}
+        added = 0
+        merged_nodes = list(net_nodes)
+        for n in inv_nodes:
+            if n.azure_id in seen:
+                continue
+            merged_nodes.append(n)
+            seen.add(n.azure_id)
+            added += 1
+
+        net_meta["inventory_merge"] = {
+            "enabled": True,
+            "network_nodes": len(net_nodes),
+            "inventory_nodes": len(inv_nodes),
+            "added": added,
+        }
+        if inv_meta is not None:
+            net_meta["inventory_meta"] = inv_meta
+        return merged_nodes, net_edges, net_meta
 
     # default: inventory
     nodes, meta = collect_inventory(subscription=subscription, resource_group=resource_group, limit=limit)

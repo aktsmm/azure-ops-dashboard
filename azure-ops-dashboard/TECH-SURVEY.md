@@ -1,4 +1,4 @@
-# Step10: Azure Env Diagrammer CLI — 技術調査（要約）
+# Step10: Azure Ops Dashboard（GUI）— 技術調査（要約）
 
 > 作成日: 2026-02-20
 

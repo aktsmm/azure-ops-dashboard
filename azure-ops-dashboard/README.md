@@ -1,196 +1,202 @@
-# Step10: Azure Ops Dashboard（GUIアプリ）
+Japanese: [README.ja.md](README.ja.md)
 
-> 作成日: 2026-02-20
+# Step10: Azure Ops Dashboard (GUI app)
 
-Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.drawio`）やセキュリティ／コストレポート（`.md` / `.docx` / `.pdf`）を生成する **tkinter GUIアプリ**。
+> Created: 2026-02-20
 
-**日本語 / English 切り替え対応** — UI・ログ・AIレポート出力言語をワンクリックで切替。
+A **tkinter GUI app** that reads an existing Azure environment and generates Draw.io diagrams (`.drawio`) plus security/cost reports (`.md` / `.docx` / `.pdf`).
 
-## 機能
+Supports **Japanese / English switching** — UI text, logs, and AI report output language can be toggled with one click.
 
-### 図生成（Diagram）
+## Features
 
-- Azure Resource Graph（`az graph query`）でリソース棚卸しを取得
-- `.drawio`（mxfile XML）を生成して、現状構成図（As-Is）を即出力
-- `inventory`（全体構成図）/ `network`（ネットワークトポロジー）の2ビュー
+### Diagram generation
 
-### レポート生成（Report）
+- Uses Azure Resource Graph (`az graph query`) to inventory resources
+- Generates `.drawio` (mxfile XML) for an As-Is diagram
+- Two views: `inventory` (overview) / `network` (network topology)
+- **Max Nodes note**: collection is best-effort; values above 1000 are clamped to 1000 to match Azure CLI/ARG limits.
 
-- **Security Report** — セキュアスコア、推奨事項、Defender状態、リスク分析
-- **Cost Report** — サービス別/RG別コスト、最適化推奨、Advisor連携
-- GitHub Copilot SDK（AI）によるレポート自動生成
-- **モデル動的選択** — 利用可能モデルをCopilot SDKから自動取得、UIで選択可能（既定: 最新Sonnet）
-- テンプレートカスタマイズ（セクション ON/OFF + カスタム指示）
-- Word (.docx) / PDF / **SVG (.drawio.svg)** エクスポート対応
-- **差分レポート** — 前回と今回のレポートを自動比較（diff.md 自動生成）
+### Report generation
 
-### GUI 機能
+- **Security report** — secure score, recommendations, Defender status, risk analysis
+- **Cost report** — cost by service/RG, optimization recommendations, Advisor integration
+- AI-generated reports via GitHub Copilot SDK
+- Docs enrichment (best-effort): Microsoft Learn Search API (`https://learn.microsoft.com/api/search`) + Microsoft Docs MCP (`https://learn.microsoft.com/api/mcp`)
+- **Dynamic model selection** — fetches available models and lets you pick one in the UI (default: latest Sonnet)
+- Template customization (section ON/OFF + custom instructions)
+- Export to Word (.docx) / PDF / **SVG (.drawio.svg)**
+- **Diff report** — automatically compares the previous and current report (outputs `*-diff.md`)
 
-- **Language 切替** → 日本語 / English（UIテキスト + AIレポート出力を即時切替）
-- **View 選択** → inventory / network / security-report / cost-report
-- **テンプレート管理** — プリセット選択 + チェックボックスでセクション制御 + 保存
-- **追加指示** — 保存済み指示をチェックで呼び出し + 自由入力欄
-- **出力フォルダ** — 設定済みならダイアログなしで自動保存
-- **Open with** — Auto / Draw.io / VS Code / OS default から選択
-- **自動オープン** — 生成完了後に自動でファイルを開く
-- **AI レビュー** — Collect 後にリソース構成レビュー → Proceed/Cancel
-- **Canvas プレビュー** — ログ下部に簡易構成図（パン/ズーム対応）
+### GUI features
 
-### クロスプラットフォーム
+- **Language** — Japanese / English (UI text + AI report language)
+- **View** — inventory / network / security-report / cost-report
+- **Template management** — choose a preset, toggle sections via checkboxes, and save
+- **Extra instructions** — load saved instructions + free text input
+- **Output folder** — if configured, saves without prompting
+- **Open with** — Auto / Draw.io / VS Code / OS default
+- **Auto-open** — open the generated file after completion
+- **AI review** — review the collected environment and Proceed/Cancel
+- **Canvas preview** — simple diagram preview under the logs (pan/zoom)
 
-- **Windows** — フル対応（exe 配布可）
-- **macOS** — GUI / az CLI / Copilot SDK / ファイルオープン(`open`) / Draw.io(.app)検出 対応
-- **Linux** — GUI / az CLI / Copilot SDK / ファイルオープン(`xdg-open`) 対応
+### Cross-platform
 
-## 前提
+- **Windows** — full support (packaging to .exe supported)
+- **macOS** — GUI / az CLI / Copilot SDK / open files (`open`) / detects Draw.io (.app)
+- **Linux** — GUI / az CLI / Copilot SDK / open files (`xdg-open`)
 
-- Python 3.11+（※ソース実行時。exe 配布で使う場合は Python 不要）
-- Azure CLI（`az`）が利用可能
-- `az login` 済み（ブラウザ対話）
-- または Service Principal でログイン済み（Reader 権限で運用したい場合）
-- ARG拡張: `az extension add --name resource-graph`
+## Prerequisites
 
-### 前提（exe 配布で使う場合）
+- Python 3.11+ (for source run; Python is not required when using a packaged .exe)
+- Azure CLI (`az`) available in PATH
+- Logged in via `az login` (interactive browser)
+- Or logged in via Service Principal (if you want to operate with Reader-only permissions)
+- ARG extension installed: `az extension add --name resource-graph`
 
-exe にしても **外部依存（Azure CLI など）は同梱されません**。そのため「exe さえあればどこでもOK」ではなく、下記が必要です。
+### Prerequisites (when using a packaged .exe)
 
-- Windows 10/11（x64）
-- Azure CLI がインストール済みで `az` が PATH から実行できること
-- `az login` 済みであること（または Service Principal ログイン）
-- ARG 拡張が入っていること: `az extension add --name resource-graph`
-- 対象 Subscription / RG に対して最低でも Reader 相当の権限があること
+Even when packaged, **external dependencies (Azure CLI, etc.) are NOT bundled**. You still need:
 
-#### Service Principal（例）
+- Windows 10/11 (x64)
+- Azure CLI installed and `az` executable available in PATH
+- `az login` completed (or Service Principal login)
+- ARG extension installed: `az extension add --name resource-graph`
+- At least Reader permissions on the target subscription / resource group
 
-Reader 権限のみ付与した Service Principal で実行したい場合は、以下のようにログインできます。
+#### Service Principal (example)
+
+If you want to run as a Service Principal with only Reader permissions:
 
 ```powershell
 az login --service-principal -u <APP_ID> -p <CLIENT_SECRET> --tenant <TENANT_ID>
 ```
 
-GUI からは `🔐 SP login` ボタンでも実行できます（Secret は保存しません）。
+You can also run this from the GUI via the `🔐 SP login` button (the secret is not stored).
 
-#### 収集コマンド（スクリプト）
+#### Collection script
 
-収集処理を明示的な Azure CLI コマンドとして実行・監査したい場合は、以下のスクリプトを利用できます。
+If you want to run and audit collection as explicit Azure CLI commands, you can use:
 
 ```powershell
 pwsh .\scripts\collect-azure-env.ps1 -SubscriptionId <SUB_ID> -ResourceGroup <RG> -Limit 300 -OutDir <OUTPUT_DIR>
 ```
 
-- AI 機能（レビュー/レポート）を使う場合:
-  - Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
-  - もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
-  - ネットワーク到達（社内Proxy/Firewall環境だと追加設定が必要な場合あり）
-- PDF 出力を使う場合: Microsoft Word または LibreOffice（`soffice` が実行できること）
+Note: the script fails fast if any `az` command returns a non-zero exit code (check the referenced output file path).
 
-### 配布メモ
+- To use AI features (review/report generation):
+  - Copilot CLI installed and `copilot auth login` completed (SDK uses Copilot CLI server mode)
+  - Or a token set via env vars (e.g., `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
+  - Network access (proxy/firewall environments may require extra setup)
+- To export PDF: Microsoft Word or LibreOffice (must be able to run `soffice`)
 
-- onedir で作った場合は `dist/AzureOpsDashboard/` 配下を **フォルダごと** 配布してください（exe 単体だと動きません）。
-- onefile は exe 1個になりますが、起動が遅くなる/誤検知されやすいことがあります。
+### Distribution notes
 
-### テンプレート/指示のアップデート（exe 再配布なし）
+- If you build with `onedir`, distribute the entire `dist/AzureOpsDashboard/` folder (the exe alone will not work).
+- `onefile` produces a single exe, but startup is slower and it can be flagged more easily.
 
-レポート用テンプレートや保存済み指示（インストラクション）は、ユーザー領域で **上書き**できます。
-exe を作り直さずに反映したい場合は、以下に JSON を配置してアプリを再起動してください。
+### Updating templates/instructions (without rebuilding the .exe)
 
-| OS      | パス                                     |
+Report templates and saved instructions can be **overridden** in the user area.
+To apply updates without rebuilding, place JSON files here and restart the app:
+
+| OS      | Path                                     |
 | ------- | ---------------------------------------- |
 | Windows | `%APPDATA%\AzureOpsDashboard\templates\` |
 | macOS   | `~/.AzureOpsDashboard/templates/`        |
 | Linux   | `~/.AzureOpsDashboard/templates/`        |
 
-- `security-*.json` / `cost-*.json`（テンプレート）
-- `saved-instructions.json`（保存済み追加指示）
+- `security-*.json` / `cost-*.json` (templates)
+- `saved-instructions.json` (saved extra instructions)
 
-同名ファイルがある場合は **ユーザー領域の方が優先**されます。
+If the same filename exists, **the user-area file takes precedence**.
 
-※ アプリ本体の挙動変更（コード更新）は exe 更新が必要です。
+Note: changing app behavior (code updates) requires rebuilding/updating the .exe.
 
-## 使い方
+## Usage
 
 ```powershell
-# azure-ops-dashboard フォルダ内で実行
+# From the azure-ops-dashboard folder
 uv run python .\main.py
 
-# リポジトリルートから実行する場合
+# Or from the repo root
 uv run python .\azure-ops-dashboard\main.py
 ```
 
-GUIウィンドウが起動するので:
+When the GUI window opens:
 
-1. **Language** を選択（日本語 / English）— 任意のタイミングで切替可
-2. **View** を選択（inventory / network / security-report / cost-report）
-3. Subscription / Resource Group を入力（任意）
-4. レポート系の場合: テンプレート選択 → セクション ON/OFF → 追加指示
-5. **▶ Collect** or **▶ Generate Report** ボタンを押す
-6. 図の場合: AI レビュー → Proceed で生成 → 自動オープン
-7. レポートの場合: AI 生成 → 自動保存 → 自動オープン
+1. Choose **Language** (Japanese / English) — you can switch anytime
+2. Choose **View** (inventory / network / security-report / cost-report)
+3. Enter Subscription / Resource Group (optional)
+4. For reports: choose a template → toggle sections → add extra instructions
+5. Click **▶ Collect** or **▶ Generate Report**
+6. For diagrams: AI review → Proceed → save + auto-open
+7. For reports: AI generation → save + auto-open
 
-## ファイル構成
+## Files
 
-| ファイル           | 説明                                                                 |
-| ------------------ | -------------------------------------------------------------------- |
-| `main.py`          | GUI アプリ本体（tkinter）                                            |
-| `gui_helpers.py`   | GUI 共通定数・ユーティリティ（main.py から分離）                     |
-| `collector.py`     | Azure データ収集（az graph query / Security / Cost / Advisor）       |
-| `drawio_writer.py` | .drawio XML 生成                                                     |
-| `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                             |
-| `exporter.py`      | Markdown → Word (.docx) / PDF 変換                                   |
-| `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）            |
-| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                        |
-| `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                      |
-| `tests.py`         | ユニットテスト（collector / drawio_writer / exporter / gui_helpers） |
-| `templates/`       | レポートテンプレート JSON + 保存済み指示                             |
+| File               | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| `main.py`          | Main GUI app (tkinter)                                             |
+| `gui_helpers.py`   | Shared GUI constants/utilities (split out from main.py)            |
+| `collector.py`     | Azure data collection (az graph query / Security / Cost / Advisor) |
+| `drawio_writer.py` | `.drawio` XML generator                                            |
+| `ai_reviewer.py`   | AI review/report generation (Copilot SDK)                          |
+| `exporter.py`      | Markdown → Word (.docx) / PDF export                               |
+| `i18n.py`          | i18n module (JA/EN dictionaries + runtime switch)                  |
+| `app_paths.py`     | Resource path abstraction (PyInstaller frozen support)             |
+| `docs_enricher.py` | Microsoft Docs MCP integration (reference enrichment)              |
+| `tests.py`         | Unit tests (collector / drawio_writer / exporter / gui_helpers)    |
+| `templates/`       | Report templates JSON + saved instructions                         |
 
-### テンプレート
+### Templates
 
-| ファイル                  | 種別     | 特徴                                |
-| ------------------------- | -------- | ----------------------------------- |
-| `security-standard.json`  | Security | 全セクション有効（標準）            |
-| `security-executive.json` | Security | 経営層向け（サマリ+アクションのみ） |
-| `cost-standard.json`      | Cost     | 全セクション有効（標準）            |
-| `cost-executive.json`     | Cost     | 経営層向け（サマリ+削減提案のみ）   |
-| `saved-instructions.json` | 共通     | 保存済み追加指示（5件プリセット）   |
+| File                      | Type     | Notes                                 |
+| ------------------------- | -------- | ------------------------------------- |
+| `security-standard.json`  | Security | All sections enabled (standard)       |
+| `security-executive.json` | Security | Executive summary + actions only      |
+| `cost-standard.json`      | Cost     | All sections enabled (standard)       |
+| `cost-executive.json`     | Cost     | Executive summary + savings proposals |
+| `saved-instructions.json` | Common   | Saved extra instructions (5 presets)  |
 
-## 出力
+## Outputs
 
-保存先フォルダに以下を生成:
+Generated in the output folder:
 
-- `*.drawio`（Draw.io 構成図）
-- `*.drawio.svg`（SVG エクスポート、オプション — Draw.io CLI 必要）
-- `*.md`（Markdown レポート）
-- `*-diff.md`（差分レポート — 前回レポートとの比較）
-- `*.docx`（Word レポート、オプション）
-- `*.pdf`（PDF レポート、オプション — Word/LibreOffice 必要）
-- `env.json`（nodes/edges と azureId→cellId マップ）
-- `collect.log.json`（実行コマンドとstdout/stderr）
+- `*.drawio` (Draw.io diagram)
+- `*.drawio.svg` (SVG export, optional — requires Draw.io CLI)
+- `*.md` (Markdown report)
+- `*-diff.md` (diff report — compares with previous run)
+- `*.docx` (Word report, optional)
+- `*.pdf` (PDF report, optional — requires Word/LibreOffice)
+- `env.json` (nodes/edges and azureId→cellId map)
+- `collect.log.json` (executed commands + stdout/stderr)
 
-## 設計/調査
+## Design / Survey
 
-- 設計（SSOT）: `DESIGN.md`
-- 技術調査（SSOT）: `TECH-SURVEY.md`
-- セッションログ: `output_sessions/`
+- Design (SSOT): `DESIGN.md`
+- Technical survey (SSOT): `TECH-SURVEY.md`
+- Session logs: `output_sessions/`
 
-## テスト
+## Tests
 
 ```powershell
-# azure-ops-dashboard フォルダ内で実行
+# From the azure-ops-dashboard folder
 uv run python -m unittest tests -v
 ```
 
-Azure CLI / Copilot SDK 接続なしでテスト可能（20件）。
+Tests can run without Azure CLI / Copilot SDK connectivity (20 tests).
 
-## 実行ファイル化（Windows .exe）
+## Packaging (Windows .exe)
 
-PyInstaller を使って exe を生成できます（Azure CLI `az` は別途インストールが必要です）。
+You can generate an exe with PyInstaller (Azure CLI `az` must be installed separately).
 
 ```powershell
-# onedir（おすすめ: 起動が速い / トラブルが少ない）
+# onedir (recommended: faster startup, fewer issues)
 pwsh .\build_exe.ps1 -Mode onedir
 
-# onefile（単一 exe）
+# onefile (single exe)
 pwsh .\build_exe.ps1 -Mode onefile
 ```
 
-- 生成物は `dist/` 配下に出ます（実行したフォルダの直下）。
+- Outputs are created under `dist/` (relative to the folder you run the build from).

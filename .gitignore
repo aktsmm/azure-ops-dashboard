@@ -8,3 +8,9 @@ skills/
 build/
 dist/
 *.spec
+
+# PyInstaller timestamped builds (build_exe.ps1)
+dist-build-*/
+
+# Editor / backup artifacts
+*.bak

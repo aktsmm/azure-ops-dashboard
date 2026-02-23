@@ -50,8 +50,9 @@ from app_paths import (
 )
 from gui_helpers import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
-    WINDOW_BG, TEXT_FG, INPUT_BG, ACCENT_COLOR,
+    WINDOW_BG, PANEL_BG, TEXT_FG, MUTED_FG, INPUT_BG, ACCENT_COLOR,
     SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
+    BUTTON_BG, BUTTON_FG,
     FONT_FAMILY, FONT_SIZE,
     write_text, write_json, open_native,
     cached_drawio_path, cached_vscode_path,
@@ -194,21 +195,78 @@ class App:
         )
         self._model_combo.grid(row=0, column=3, sticky="w", pady=3, ipady=2)
 
-        # --- Row 1: View ---
-        self._view_var = tk.StringVar(value="inventory")
+        # --- Row 1: Output targets (checkboxes) ---
         self._view_label = tk.Label(form, text=t("label.view"), bg=WINDOW_BG, fg=ACCENT_COLOR,
                  font=(FONT_FAMILY, FONT_SIZE, "bold"), anchor="e")
         self._view_label.grid(row=1, column=0, sticky="e", padx=(0, 6), pady=3)
-        self._view_combo = ttk.Combobox(form, textvariable=self._view_var, state="readonly",
-                                         values=["inventory", "network", "security-report", "cost-report"],
-                                         font=(FONT_FAMILY, FONT_SIZE))
-        self._view_combo.grid(row=1, column=1, sticky="ew", pady=3, ipady=2)
-        self._view_combo.bind("<<ComboboxSelected>>", self._on_view_changed)
 
-        # View 説明ラベル
-        self._view_desc_var = tk.StringVar(value=t("view.inventory"))
-        tk.Label(form, textvariable=self._view_desc_var, bg=WINDOW_BG, fg="#808080",
-                 font=(FONT_FAMILY, FONT_SIZE - 2)).grid(row=1, column=2, padx=(4, 0))
+        view_cb_frame = tk.Frame(form, bg=WINDOW_BG)
+        view_cb_frame.grid(row=1, column=1, columnspan=2, sticky="w", pady=3)
+
+        self._view_inventory_var = tk.BooleanVar(value=False)
+        self._view_network_var = tk.BooleanVar(value=True)
+        self._gen_security_var = tk.BooleanVar(value=False)
+        self._gen_cost_var = tk.BooleanVar(value=False)
+
+        self._view_inventory_cb = tk.Checkbutton(
+            view_cb_frame, text=t("opt.inventory_diagram"),
+            variable=self._view_inventory_var,
+            command=self._on_view_changed,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+        )
+        self._view_inventory_cb.pack(side=tk.LEFT, padx=(0, 6))
+
+        self._view_network_cb = tk.Checkbutton(
+            view_cb_frame, text=t("opt.network_diagram"),
+            variable=self._view_network_var,
+            command=self._on_view_changed,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+        )
+        self._view_network_cb.pack(side=tk.LEFT, padx=(0, 6))
+
+        self._gen_security_cb = tk.Checkbutton(
+            view_cb_frame, text=t("opt.security_report"),
+            variable=self._gen_security_var,
+            command=self._on_view_changed,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+        )
+        self._gen_security_cb.pack(side=tk.LEFT, padx=(0, 6))
+
+        self._gen_cost_cb = tk.Checkbutton(
+            view_cb_frame, text=t("opt.cost_report"),
+            variable=self._gen_cost_var,
+            command=self._on_view_changed,
+            bg=WINDOW_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG, activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 1),
+        )
+        self._gen_cost_cb.pack(side=tk.LEFT, padx=(0, 6))
+
+        # View 説明ラベル（動的に更新）
+        self._view_desc_var = tk.StringVar(value="")
+        tk.Label(view_cb_frame, textvariable=self._view_desc_var, bg=WINDOW_BG, fg=MUTED_FG,
+                 font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(8, 0))
+
+        # --- Row 1: AI-powered diagram layout (diagrams only, placed right of checkboxes) ---
+        self._ai_drawio_var = tk.BooleanVar(value=True)
+        self._ai_drawio_cb = tk.Checkbutton(
+            view_cb_frame,
+            text=t("opt.ai_drawio_layout"),
+            variable=self._ai_drawio_var,
+            bg=WINDOW_BG,
+            fg=TEXT_FG,
+            selectcolor=INPUT_BG,
+            activebackground=WINDOW_BG,
+            activeforeground=TEXT_FG,
+            font=(FONT_FAMILY, FONT_SIZE - 2),
+        )
+        self._ai_drawio_cb.pack(side=tk.RIGHT, padx=(6, 0))
 
         # --- Row 2: Subscription ---
         self._sub_var = tk.StringVar()
@@ -219,7 +277,7 @@ class App:
                                         font=(FONT_FAMILY, FONT_SIZE))
         self._sub_combo.grid(row=2, column=1, sticky="ew", pady=3, ipady=2)
         self._sub_combo.bind("<<ComboboxSelected>>", self._on_sub_selected)
-        self._sub_hint = tk.Label(form, text=t("hint.optional"), bg=WINDOW_BG, fg="#808080",
+        self._sub_hint = tk.Label(form, text=t("hint.optional"), bg=WINDOW_BG, fg=MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2))
         self._sub_hint.grid(row=2, column=2, padx=(4, 0))
 
@@ -231,7 +289,7 @@ class App:
         self._rg_combo = ttk.Combobox(form, textvariable=self._rg_var, state="normal",
                                        font=(FONT_FAMILY, FONT_SIZE))
         self._rg_combo.grid(row=3, column=1, sticky="ew", pady=3, ipady=2)
-        self._rg_hint = tk.Label(form, text=t("hint.recommended"), bg=WINDOW_BG, fg="#808080",
+        self._rg_hint = tk.Label(form, text=t("hint.recommended"), bg=WINDOW_BG, fg=MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2))
         self._rg_hint.grid(row=3, column=2, padx=(4, 0))
 
@@ -244,7 +302,7 @@ class App:
                  bg=INPUT_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
                  insertbackground=TEXT_FG, relief=tk.FLAT, borderwidth=0)
         self._limit_entry.grid(row=4, column=1, sticky="ew", pady=3, ipady=3)
-        self._limit_hint = tk.Label(form, text=t("hint.default_300"), bg=WINDOW_BG, fg="#808080",
+        self._limit_hint = tk.Label(form, text=t("hint.default_300"), bg=WINDOW_BG, fg=MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2))
         self._limit_hint.grid(row=4, column=2, padx=(4, 0))
 
@@ -262,12 +320,12 @@ class App:
                  ).grid(row=0, column=0, sticky="ew", ipady=3)
         tk.Button(outdir_frame, text="...",
                   command=self._on_browse_output_dir,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
                   relief=tk.FLAT, padx=8, cursor="hand2",
                   ).grid(row=0, column=1, padx=(4, 0))
         self._open_dir_btn = tk.Button(form, text="📂",
                   command=self._on_open_output_dir,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 1),
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._open_dir_btn.grid(row=5, column=2, padx=(4, 0))
 
@@ -288,34 +346,34 @@ class App:
         drawio_path = cached_drawio_path()
         hint_drawio = t("hint.drawio_detected") if drawio_path else t("hint.drawio_not_found")
         self._drawio_hint_label = tk.Label(form, text=hint_drawio, bg=WINDOW_BG,
-                 fg=SUCCESS_COLOR if drawio_path else "#808080",
+                 fg=SUCCESS_COLOR if drawio_path else MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2))
         self._drawio_hint_label.grid(row=6, column=2, padx=(4, 0))
 
         # ============================================================
         # レポート設定パネル（レポート系View選択時のみ表示）
         # ============================================================
-        self._report_panel = tk.Frame(self._root, bg="#252526", relief=tk.GROOVE, borderwidth=1)
+        self._report_panel = tk.Frame(self._root, bg=PANEL_BG, relief=tk.GROOVE, borderwidth=1)
         # pack は _on_view_changed で
 
         # --- ヘッダー行（常に表示 / クリックで本体を開閉） ---
-        self._report_header = tk.Frame(self._report_panel, bg="#252526")
+        self._report_header = tk.Frame(self._report_panel, bg=PANEL_BG)
         self._report_header.pack(fill=tk.X, padx=0, pady=0)
 
         self._report_collapsed = True  # 初期は折りたたみ
 
         self._toggle_btn = tk.Label(
-            self._report_header, text="▶", bg="#252526", fg=ACCENT_COLOR,
+            self._report_header, text="▶", bg=PANEL_BG, fg=ACCENT_COLOR,
             font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), cursor="hand2",
         )
         self._toggle_btn.pack(side=tk.LEFT, padx=(10, 2), pady=(4, 2))
         self._toggle_btn.bind("<Button-1>", lambda _: self._toggle_report_body())
 
         # --- Template 選択行（ヘッダー内） ---
-        tmpl_row = tk.Frame(self._report_header, bg="#252526")
+        tmpl_row = tk.Frame(self._report_header, bg=PANEL_BG)
         tmpl_row.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=(4, 2))
 
-        tk.Label(tmpl_row, text=t("label.template"), bg="#252526", fg=ACCENT_COLOR,
+        tk.Label(tmpl_row, text=t("label.template"), bg=PANEL_BG, fg=ACCENT_COLOR,
                  font=(FONT_FAMILY, FONT_SIZE - 1, "bold")).pack(side=tk.LEFT)
         self._template_var = tk.StringVar(value="Standard")
         self._template_combo = ttk.Combobox(tmpl_row, textvariable=self._template_var,
@@ -326,27 +384,29 @@ class App:
 
         self._template_desc_var = tk.StringVar(value="")
         tk.Label(tmpl_row, textvariable=self._template_desc_var,
-                 bg="#252526", fg="#808080",
+                 bg=PANEL_BG, fg=MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(8, 0))
 
         self._save_tmpl_btn = tk.Button(tmpl_row, text=t("btn.save_template"),
                   command=self._on_save_template,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._save_tmpl_btn.pack(side=tk.RIGHT)
 
         self._import_tmpl_btn = tk.Button(tmpl_row, text=t("btn.import_template"),
                   command=self._on_import_template,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
                   relief=tk.FLAT, padx=6, cursor="hand2")
         self._import_tmpl_btn.pack(side=tk.RIGHT, padx=(0, 4))
 
+        # (Report target checkboxes moved to View row — no longer needed here)
+
         # --- 折りたたみ本体（スクロール対応） ---
-        self._report_body_outer = tk.Frame(self._report_panel, bg="#252526")
+        self._report_body_outer = tk.Frame(self._report_panel, bg=PANEL_BG)
         # 初期は折りたたみなので pack しない
 
         self._report_canvas = tk.Canvas(
-            self._report_body_outer, bg="#252526", highlightthickness=0,
+            self._report_body_outer, bg=PANEL_BG, highlightthickness=0,
             height=140,  # 最大表示高さ
         )
         self._report_scrollbar = tk.Scrollbar(
@@ -357,7 +417,7 @@ class App:
         self._report_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self._report_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self._report_body = tk.Frame(self._report_canvas, bg="#252526")
+        self._report_body = tk.Frame(self._report_canvas, bg=PANEL_BG)
         self._report_canvas_window = self._report_canvas.create_window(
             (0, 0), window=self._report_body, anchor="nw",
         )
@@ -387,30 +447,30 @@ class App:
         self._bind_report_mousewheel = _bind_mousewheel_recursive
 
         # --- セクションチェックボックス（2列グリッド） ---
-        self._sections_frame = tk.Frame(self._report_body, bg="#252526")
+        self._sections_frame = tk.Frame(self._report_body, bg=PANEL_BG)
         self._sections_frame.pack(fill=tk.X, padx=10, pady=(2, 2))
         self._section_vars: dict[str, tk.BooleanVar] = {}
         self._section_widgets: list[tk.Checkbutton] = []
 
         # --- カスタム指示欄（保存済み指示チェック + 自由入力） ---
-        instr_frame = tk.Frame(self._report_body, bg="#252526")
+        instr_frame = tk.Frame(self._report_body, bg=PANEL_BG)
         instr_frame.pack(fill=tk.X, padx=10, pady=(2, 2))
 
-        self._instr_label = tk.Label(instr_frame, text=t("label.extra_instructions"), bg="#252526", fg=TEXT_FG,
+        self._instr_label = tk.Label(instr_frame, text=t("label.extra_instructions"), bg=PANEL_BG, fg=TEXT_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 1, "bold"), anchor="nw")
         self._instr_label.pack(anchor="w")
 
         # 保存済み指示チェックボックス行
-        self._saved_instr_frame = tk.Frame(instr_frame, bg="#252526")
+        self._saved_instr_frame = tk.Frame(instr_frame, bg=PANEL_BG)
         self._saved_instr_frame.pack(fill=tk.X, pady=(2, 2))
         self._saved_instr_vars: list[tuple[tk.BooleanVar, str]] = []
         self._saved_instr_widgets: list[tk.Checkbutton] = []
 
         # 自由入力欄
-        free_row = tk.Frame(instr_frame, bg="#252526")
+        free_row = tk.Frame(instr_frame, bg=PANEL_BG)
         free_row.pack(fill=tk.X, pady=(2, 2))
         free_row.columnconfigure(1, weight=1)
-        self._free_input_label = tk.Label(free_row, text=t("label.free_input"), bg="#252526", fg="#808080",
+        self._free_input_label = tk.Label(free_row, text=t("label.free_input"), bg=PANEL_BG, fg=MUTED_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 2), anchor="nw")
         self._free_input_label.grid(row=0, column=0, sticky="nw")
         self._custom_instruction = tk.Text(free_row, height=2,
@@ -419,40 +479,40 @@ class App:
                  wrap=tk.WORD)
         self._custom_instruction.grid(row=0, column=1, sticky="ew", padx=(6, 0), ipady=2)
 
-        free_btn_row = tk.Frame(free_row, bg="#252526")
+        free_btn_row = tk.Frame(free_row, bg=PANEL_BG)
         free_btn_row.grid(row=0, column=2, padx=(4, 0), sticky="n")
         self._save_instr_btn = tk.Button(free_btn_row, text=t("btn.save_instruction"),
                   command=self._on_save_instruction,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+              bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
                   relief=tk.FLAT, padx=4, cursor="hand2")
         self._save_instr_btn.pack(pady=(0, 2))
         self._del_instr_btn = tk.Button(free_btn_row, text=t("btn.delete_instruction"),
                   command=self._on_delete_instruction,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE - 2),
                   relief=tk.FLAT, padx=4, cursor="hand2")
         self._del_instr_btn.pack()
 
         # --- 出力形式 + 自動オープン ---
-        export_row = tk.Frame(self._report_body, bg="#252526")
+        export_row = tk.Frame(self._report_body, bg=PANEL_BG)
         export_row.pack(fill=tk.X, padx=10, pady=(2, 6))
 
-        self._export_label = tk.Label(export_row, text=t("label.export_format"), bg="#252526", fg=TEXT_FG,
+        self._export_label = tk.Label(export_row, text=t("label.export_format"), bg=PANEL_BG, fg=TEXT_FG,
                  font=(FONT_FAMILY, FONT_SIZE - 1))
         self._export_label.pack(side=tk.LEFT)
         self._export_md_var = tk.BooleanVar(value=True)
         tk.Checkbutton(export_row, text="Markdown", variable=self._export_md_var,
-                       bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
-                       activebackground="#252526", activeforeground=TEXT_FG,
+                       bg=PANEL_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+                       activebackground=PANEL_BG, activeforeground=TEXT_FG,
                        font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
         self._export_docx_var = tk.BooleanVar(value=False)
         tk.Checkbutton(export_row, text="Word (.docx)", variable=self._export_docx_var,
-                       bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
-                       activebackground="#252526", activeforeground=TEXT_FG,
+                       bg=PANEL_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+                       activebackground=PANEL_BG, activeforeground=TEXT_FG,
                        font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
         self._export_pdf_var = tk.BooleanVar(value=False)
         tk.Checkbutton(export_row, text="PDF", variable=self._export_pdf_var,
-                       bg="#252526", fg=TEXT_FG, selectcolor=INPUT_BG,
-                       activebackground="#252526", activeforeground=TEXT_FG,
+                       bg=PANEL_BG, fg=TEXT_FG, selectcolor=INPUT_BG,
+                       activebackground=PANEL_BG, activeforeground=TEXT_FG,
                        font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT, padx=(4, 0))
 
         # --- SVG エクスポート（drawio ビュー向け、Open App 行の近く） ---
@@ -469,11 +529,11 @@ class App:
         self._collect_btn = tk.Button(
             btn_frame, text=t("btn.collect"),
             command=self._on_collect,
-            bg=ACCENT_COLOR, fg="white",
+            bg=ACCENT_COLOR, fg=BUTTON_FG,
             font=(FONT_FAMILY, FONT_SIZE, "bold"),
             relief=tk.FLAT, padx=20, pady=6,
             cursor="hand2",
-            activebackground="#005a9e", activeforeground="white",
+            activebackground="#005a9e", activeforeground=BUTTON_FG,
             state=tk.DISABLED,  # preflight完了まで無効
         )
         self._collect_btn.pack(side=tk.LEFT)
@@ -481,7 +541,7 @@ class App:
         self._abort_btn = tk.Button(
             btn_frame, text=t("btn.cancel"),
             command=self._on_abort,
-            bg=ERROR_COLOR, fg="white",
+            bg=ERROR_COLOR, fg=BUTTON_FG,
             font=(FONT_FAMILY, FONT_SIZE, "bold"),
             relief=tk.FLAT, padx=20, pady=6,
             cursor="hand2",
@@ -491,7 +551,7 @@ class App:
         self._refresh_btn = tk.Button(
             btn_frame, text=t("btn.refresh"),
             command=self._on_refresh,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -501,7 +561,7 @@ class App:
         self._open_btn = tk.Button(
             btn_frame, text=t("btn.open_file"),
             command=self._on_open_file,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -512,7 +572,7 @@ class App:
         self._diff_btn = tk.Button(
             btn_frame, text=t("btn.open_diff"),
             command=self._on_open_diff,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -523,7 +583,7 @@ class App:
         self._copy_btn = tk.Button(
             btn_frame, text=t("btn.copy_log"),
             command=self._on_copy_log,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -533,7 +593,7 @@ class App:
         self._clear_log_btn = tk.Button(
             btn_frame, text=t("btn.clear_log"),
             command=self._on_clear_log,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -543,7 +603,7 @@ class App:
         self._login_btn = tk.Button(
             btn_frame, text=t("btn.az_login"),
             command=self._on_az_login,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -553,7 +613,7 @@ class App:
         self._sp_login_btn = tk.Button(
             btn_frame, text=t("btn.sp_login"),
             command=self._on_sp_login,
-            bg="#3C3C3C", fg=TEXT_FG,
+            bg=BUTTON_BG, fg=TEXT_FG,
             font=(FONT_FAMILY, FONT_SIZE - 1),
             relief=tk.FLAT, padx=12, pady=6,
             cursor="hand2",
@@ -605,7 +665,7 @@ class App:
         self._cancel_btn = tk.Button(
             review_btn_row, text=t("btn.cancel_review"),
             command=self._on_cancel,
-            bg=ERROR_COLOR, fg="white",
+            bg=ERROR_COLOR, fg=BUTTON_FG,
             font=(FONT_FAMILY, FONT_SIZE),
             relief=tk.FLAT, padx=20, pady=6,
             cursor="hand2",
@@ -631,7 +691,7 @@ class App:
 
         # --- Canvas プレビュー（初期非表示） ---
         self._preview_frame = tk.Frame(self._root, bg=WINDOW_BG)
-        self._canvas = tk.Canvas(self._preview_frame, bg="#252526", highlightthickness=0)
+        self._canvas = tk.Canvas(self._preview_frame, bg=PANEL_BG, highlightthickness=0)
         self._canvas.pack(fill=tk.BOTH, expand=True)
         # パン/ズーム
         self._canvas_offset_x = 0.0
@@ -643,7 +703,7 @@ class App:
         self._canvas.bind("<MouseWheel>", self._on_canvas_zoom)
 
         # --- ステータスバー（下部） ---
-        status_frame = tk.Frame(self._root, bg="#252526")
+        status_frame = tk.Frame(self._root, bg=PANEL_BG)
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
         self._progress = ttk.Progressbar(status_frame, mode="indeterminate", length=100, style="TProgressbar")
@@ -651,17 +711,17 @@ class App:
 
         self._step_var = tk.StringVar(value="")
         tk.Label(status_frame, textvariable=self._step_var,
-                 bg="#252526", fg=ACCENT_COLOR, anchor="w",
+                 bg=PANEL_BG, fg=ACCENT_COLOR, anchor="w",
                  font=(FONT_FAMILY, FONT_SIZE - 2)).pack(side=tk.LEFT)
 
         self._status_var = tk.StringVar(value=t("status.ready"))
         tk.Label(status_frame, textvariable=self._status_var,
-                 bg="#252526", fg=TEXT_FG, anchor="w",
+                 bg=PANEL_BG, fg=TEXT_FG, anchor="w",
                  font=(FONT_FAMILY, FONT_SIZE - 2), padx=8).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self._elapsed_var = tk.StringVar(value="")
         tk.Label(status_frame, textvariable=self._elapsed_var,
-                 bg="#252526", fg=TEXT_FG, anchor="e",
+                 bg=PANEL_BG, fg=TEXT_FG, anchor="e",
                  font=(FONT_FAMILY, FONT_SIZE - 2), padx=8).pack(side=tk.RIGHT)
 
     # ------------------------------------------------------------------ #
@@ -681,7 +741,10 @@ class App:
         """全フォーム設定を settings.json に一括保存する。"""
         data = load_all_settings()
         data["output_dir"] = self._output_dir_var.get()
-        data["view"] = self._view_var.get()
+        data["view_inventory"] = "1" if self._view_inventory_var.get() else "0"
+        data["view_network"] = "1" if self._view_network_var.get() else "0"
+        data["view_security"] = "1" if self._gen_security_var.get() else "0"
+        data["view_cost"] = "1" if self._gen_cost_var.get() else "0"
         data["limit"] = self._limit_var.get()
         data["open_with"] = self._open_app_var.get()
         data["auto_open"] = "1" if self._auto_open_var.get() else "0"
@@ -700,11 +763,24 @@ class App:
         if saved_dir and Path(saved_dir).is_dir():
             self._output_dir_var.set(saved_dir)
 
-        # View
+        # View checkboxes
+        for key, var in [("view_inventory", self._view_inventory_var),
+                         ("view_network", self._view_network_var),
+                         ("view_security", self._gen_security_var),
+                         ("view_cost", self._gen_cost_var)]:
+            saved = load_setting(key, "")
+            if saved in ("0", "1"):
+                var.set(saved == "1")
+
+        # Legacy: old "view" key migration
         saved_view = load_setting("view", "")
         if saved_view and saved_view in ("inventory", "network", "security-report", "cost-report"):
-            self._view_var.set(saved_view)
-            self._on_view_changed()
+            # Migrate old format → checkboxes (one-time)
+            self._view_inventory_var.set(saved_view == "inventory")
+            self._view_network_var.set(saved_view == "network")
+            self._gen_security_var.set(saved_view == "security-report")
+            self._gen_cost_var.set(saved_view == "cost-report")
+        self._on_view_changed()
 
         # Max Nodes
         saved_limit = load_setting("limit", "")
@@ -832,43 +908,85 @@ class App:
             self._report_collapsed = True
 
     # ------------------------------------------------------------------ #
-    # View 切り替え
+    # View 切り替え（チェックボックス方式）
     # ------------------------------------------------------------------ #
 
-    _VIEW_DESC_KEYS = {
-        "inventory": "view.inventory",
-        "network": "view.network",
-        "security-report": "view.security_report",
-        "cost-report": "view.cost_report",
-    }
+    def _has_diagram_selected(self) -> bool:
+        return self._view_inventory_var.get() or self._view_network_var.get()
+
+    def _has_report_selected(self) -> bool:
+        return self._gen_security_var.get() or self._gen_cost_var.get()
+
+    def _selected_diagram_views(self) -> list[str]:
+        views: list[str] = []
+        if self._view_inventory_var.get():
+            views.append("inventory")
+        if self._view_network_var.get():
+            views.append("network")
+        return views
+
+    def _selected_report_views(self, fallback_view: str = "") -> list[str]:
+        """Security/Cost の選択状態から report view のリストを返す。"""
+        views: list[str] = []
+        if self._gen_security_var.get():
+            views.append("security-report")
+        if self._gen_cost_var.get():
+            views.append("cost-report")
+        return views or ([fallback_view] if fallback_view else [])
+
+    def _primary_view(self) -> str:
+        """後方互換: 内部ロジック用に代表的な view 文字列を返す。"""
+        if self._has_report_selected() and not self._has_diagram_selected():
+            return "security-report" if self._gen_security_var.get() else "cost-report"
+        if self._has_diagram_selected() and not self._has_report_selected():
+            return "network" if self._view_network_var.get() else "inventory"
+        # mixed or nothing
+        return "network" if self._view_network_var.get() else "inventory"
 
     def _on_view_changed(self, _event: tk.Event | None = None) -> None:
-        """View 選択変更時にボタンラベル、説明、フォーム表示を更新。"""
-        view = self._view_var.get().strip()
-        desc_key = self._VIEW_DESC_KEYS.get(view, "")
-        self._view_desc_var.set(t(desc_key) if desc_key else "")
+        """View チェックボックス変更時にボタンラベル、説明、フォーム表示を更新。"""
+        has_diagram = self._has_diagram_selected()
+        has_report = self._has_report_selected()
 
-        is_report = view in ("security-report", "cost-report")
+        # 説明ラベル
+        if has_diagram and has_report:
+            self._view_desc_var.set(t("view.mixed"))
+        elif has_diagram:
+            self._view_desc_var.set(t("view.diagram_only"))
+        elif has_report:
+            self._view_desc_var.set(t("view.report_only"))
+        else:
+            self._view_desc_var.set(t("view.nothing"))
 
-        # diff はレポート用。レポート以外のビューでは常に無効化し、パスもクリア。
-        if not is_report:
+        # AI 図生成は diagram 選択時のみ有効
+        try:
+            self._ai_drawio_cb.configure(state=tk.NORMAL if has_diagram else tk.DISABLED)
+        except Exception:
+            pass
+
+        # diff はレポート用
+        if not has_report:
             self._last_diff_path = None
             self._diff_btn.configure(state=tk.DISABLED)
         else:
-            # reportビューでは diff が存在する場合のみ有効（言語切替などで再評価される）
             if self._last_diff_path and self._last_diff_path.exists() and not self._working:
                 self._diff_btn.configure(state=tk.NORMAL)
             else:
                 self._diff_btn.configure(state=tk.DISABLED)
 
         # ボタンラベル
-        if is_report:
+        if has_diagram and has_report:
+            self._collect_btn.configure(text=t("btn.generate"))
+        elif has_report:
             self._collect_btn.configure(text=t("btn.generate_report"))
-        else:
+        elif has_diagram:
             self._collect_btn.configure(text=t("btn.collect"))
+        else:
+            self._collect_btn.configure(text=t("btn.generate"))
 
-        # RG / MaxNodes を動的に有効/無効化
-        if is_report:
+        # RG / MaxNodes — レポートのみの場合は無効化
+        report_only = has_report and not has_diagram
+        if report_only:
             self._rg_combo.configure(state="disabled")
             self._rg_label.configure(fg="#555555")
             self._rg_hint.configure(text=t("hint.not_used_report"))
@@ -884,10 +1002,10 @@ class App:
             self._limit_hint.configure(text=t("hint.default_300"))
 
         # テンプレートパネル表示/非表示
-        if is_report:
+        if has_report:
             self._report_panel.pack(fill=tk.X, padx=12, pady=(0, 4),
                                      before=self._log_area)
-            report_type = "security" if view == "security-report" else "cost"
+            report_type = "security" if self._gen_security_var.get() else "cost"
             self._load_templates_for_type(report_type)
         else:
             self._report_panel.pack_forget()
@@ -943,8 +1061,8 @@ class App:
             var = tk.BooleanVar(value=False)
             self._saved_instr_vars.append((var, instruction))
             cb = tk.Checkbutton(self._saved_instr_frame, text=label,
-                                variable=var, bg="#252526", fg=TEXT_FG,
-                                selectcolor=INPUT_BG, activebackground="#252526",
+                                variable=var, bg=PANEL_BG, fg=TEXT_FG,
+                                selectcolor=INPUT_BG, activebackground=PANEL_BG,
                                 activeforeground=TEXT_FG,
                                 font=(FONT_FAMILY, FONT_SIZE - 2),
                                 anchor="w")
@@ -987,8 +1105,8 @@ class App:
             self._section_vars[key] = var
             label = sec.get(f"label_{lang}", sec.get("label", key))
             cb = tk.Checkbutton(self._sections_frame, text=label,
-                                variable=var, bg="#252526", fg=TEXT_FG,
-                                selectcolor=INPUT_BG, activebackground="#252526",
+                                variable=var, bg=PANEL_BG, fg=TEXT_FG,
+                                selectcolor=INPUT_BG, activebackground=PANEL_BG,
                                 activeforeground=TEXT_FG,
                                 font=(FONT_FAMILY, FONT_SIZE - 2),
                                 anchor="w")
@@ -1370,10 +1488,7 @@ class App:
                 }
                 if sys.platform == "win32":
                     kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-                    kwargs["shell"] = True
-                    cmd: str | list[str] = "az login"
-                else:
-                    cmd = ["az", "login"]
+                cmd: list[str] = ["az", "login"]
                 result = subprocess.run(cmd, **kwargs)
                 if result.returncode == 0:
                     self._log(t("log.az_login_success"), "success")
@@ -1463,15 +1578,10 @@ class App:
                     }
                     if sys.platform == "win32":
                         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-                        kwargs["shell"] = True
-                        cmd: str | list[str] = (
-                            f"az login --service-principal -u {client_id} -p {secret} --tenant {tenant_id}"
-                        )
-                    else:
-                        cmd = [
-                            "az", "login", "--service-principal",
-                            "-u", client_id, "-p", secret, "--tenant", tenant_id,
-                        ]
+                    cmd: list[str] = [
+                        "az", "login", "--service-principal",
+                        "-u", client_id, "-p", secret, "--tenant", tenant_id,
+                    ]
                     result = subprocess.run(cmd, **kwargs)
                     if result.returncode == 0:
                         self._log(t("log.sp_login_success"), "success")
@@ -1493,10 +1603,10 @@ class App:
             threading.Thread(target=_do_login, daemon=True).start()
 
         tk.Button(btns, text=t("btn.login"), command=_login,
-                  bg=ACCENT_COLOR, fg="white", font=(FONT_FAMILY, FONT_SIZE, "bold"),
+                  bg=ACCENT_COLOR, fg=BUTTON_FG, font=(FONT_FAMILY, FONT_SIZE, "bold"),
                   relief=tk.FLAT, padx=16, pady=6, cursor="hand2").pack(side=tk.LEFT)
         tk.Button(btns, text=t("btn.cancel_small"), command=_close,
-                  bg="#3C3C3C", fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
+                  bg=BUTTON_BG, fg=TEXT_FG, font=(FONT_FAMILY, FONT_SIZE),
                   relief=tk.FLAT, padx=16, pady=6, cursor="hand2").pack(side=tk.LEFT, padx=(8, 0))
 
         dlg.bind("<Escape>", lambda _e: _close())
@@ -1523,11 +1633,28 @@ class App:
         sub = self._extract_sub_id()
         rg_raw = self._rg_var.get().strip()
         rg = None if (not rg_raw or rg_raw == t("hint.all_rgs")) else rg_raw
-        view = self._view_var.get().strip()
         try:
             limit = int(self._limit_var.get().strip())
         except ValueError:
             limit = 300
+
+        # Azure Resource Graph の取得上限に合わせてクランプ
+        requested_limit = limit
+        if limit < 1:
+            limit = 1
+        if limit > 1000:
+            limit = 1000
+            self._log(t("log.limit_clamped", requested=requested_limit, applied=limit), "warning")
+
+        diagram_views = self._selected_diagram_views()
+        report_views = self._selected_report_views()
+
+        if not diagram_views and not report_views:
+            self._log(t("view.nothing"), "warning")
+            return
+
+        # 後方互換: worker に渡す代表 view
+        view = self._primary_view()
 
         self._cancel_event.clear()
 
@@ -1553,232 +1680,440 @@ class App:
         self._root.after(0, _clear_log)
 
         self._log("=" * 50, "accent")
-        self._log(f"  View: {view}", "accent")
+        targets = [v for v in diagram_views] + [v for v in report_views]
+        self._log(f"  Targets: {', '.join(targets)}", "accent")
         if sub:
             self._log(f"  Subscription: {sub}")
         if rg:
             self._log(f"  Resource Group: {rg}")
-        self._log(f"  Limit: {limit}")
+        if diagram_views:
+            self._log(f"  Limit: {limit}")
 
         threading.Thread(
             target=self._worker_collect,
-            args=(sub, rg, limit, view),
+            args=(sub, rg, limit, view, report_views, diagram_views),
             daemon=True,
         ).start()
 
-    def _worker_collect(self, sub: str | None, rg: str | None, limit: int, view: str = "inventory") -> None:
+    def _worker_collect(self, sub: str | None, rg: str | None, limit: int, view: str = "inventory",
+                        report_views: list[str] | None = None,
+                        diagram_views: list[str] | None = None) -> None:
         """収集ワーカー。完了後にレビュー画面を表示して待つ。"""
         try:
-            # レポートビューの場合は別フローへ
-            if view in ("security-report", "cost-report"):
-                self._worker_report(sub, rg, limit, view)
+            # レポートのみの場合は別フローへ
+            if report_views and not diagram_views:
+                if len(report_views) > 1:
+                    self._log(t("log.multi_report_start", count=len(report_views)), "info")
+                self._worker_reports(sub, rg, limit, report_views)
                 return
 
-            # Step 1: Collect
-            self._set_step("Step 1/5: Collect")
-            self._set_status(t("status.running_query"))
-            self._log(t("log.query_running", view=view), "info")
-
-            nodes, collected_edges, meta = collect_diagram_view(
-                view=view,
-                subscription=sub,
-                resource_group=rg,
-                limit=limit,
-            )
-            if view == "network":
-                self._log(t("log.net_resources_found", nodes=len(nodes), edges=len(collected_edges)), "success")
-            else:
-                self._log(t("log.resources_found", count=len(nodes)), "success")
-
-            if self._cancel_event.is_set():
-                self._log(t("log.cancelled"), "warning")
-                return
-
-            # type別サマリ
-            summary = type_summary(nodes)
-            for rtype, count in sorted(summary.items()):
-                short = rtype.split("/")[-1] if "/" in rtype else rtype
-                self._log(f"    {short}: {count}", "info")
-
-            if limit <= len(nodes):
-                self._log(t("log.limit_reached", limit=limit), "warning")
-
-            # レビュー表示して Proceed/Cancel 待ち
-            self._pending_nodes = nodes
-            self._pending_meta = meta
-
-            # --- AI レビュー（Copilot SDK） ---
-            self._set_step("Step 2/5: AI Review")
-            self._set_status(t("status.reviewing"))
-            self._log("─" * 40, "accent")
-            self._log(t("log.ai_review_start"), "info")
-
-            # サマリテキスト作成
-            summary_lines = []
-            if sub:
-                summary_lines.append(f"Subscription: {sub}")
-            if rg:
-                summary_lines.append(f"Resource Group: {rg}")
-            summary_lines.append(f"View: {view}")
-            summary_lines.append(f"Total resources: {len(nodes)}")
-            summary_lines.append("")
-            for rtype, count in sorted(summary.items()):
-                short = rtype.split("/")[-1] if "/" in rtype else rtype
-                summary_lines.append(f"  {short}: {count}")
-            summary_lines.append("")
-            summary_lines.append("Resources:")
-            for node in nodes[:100]:  # 多すぎる場合は100件まで
-                summary_lines.append(f"  - {node.name} ({node.type})")
-            if len(nodes) > 100:
-                summary_lines.append(f"  ... and {len(nodes) - 100} more")
-            resource_text = "\n".join(summary_lines)
-
-            ai_review_result: str | None = None
-            try:
-                from ai_reviewer import run_ai_review
-                ai_review_result = run_ai_review(
-                    resource_text=resource_text,
-                    on_delta=lambda d: self._log_append_delta(d),
-                    on_status=lambda s: self._log(s, "info"),
-                    model_id=self._model_var.get().strip() or None,
-                )
-            except Exception as e:
-                self._log(t("log.ai_review_skip", err=str(e)), "warning")
-
-            self._log("", "info")  # 改行
-            self._log("─" * 40, "accent")
-
-            if self._cancel_event.is_set():
-                self._log(t("log.cancelled"), "warning")
-                return
-
-            review_text = (
-                f"{len(nodes)} resources | "
-                f"{len(summary)} types | "
-                f"Sub: {sub or '(default)'} | "
-                f"RG: {rg or '(all)'}"
-            )
-            self._show_review(review_text)
-            self._set_step("Review")
-            self._set_status(t("status.review_prompt"))
-
-            # ブロッキング待ち（ワーカースレッド上）
-            self._review_event.clear()
-            self._review_event.wait()
-
-            if not self._review_proceed or self._cancel_event.is_set():
-                self._log(t("log.cancelled"), "warning")
-                self._set_status(t("status.cancelled"))
-                return
-
-            self._hide_review()
-
-            # Step 2: 保存先決定（Output Dir設定済みなら自動、未設定ならダイアログ）
-            initial_dir = self._output_dir_var.get().strip()
-            default_name = self._make_filename("env", sub, rg, ".drawio")
-
-            if initial_dir and Path(initial_dir).is_dir():
-                # 自動保存
-                out_path = Path(initial_dir) / default_name
-                self._log(t("log.auto_save", path=str(out_path)), "info")
-            else:
-                # ダイアログ
-                out_path_holder: list[str] = []
-                done_event = threading.Event()
-
-                def _ask_save() -> None:
-                    p = filedialog.asksaveasfilename(
-                        title=t("dlg.save_drawio"),
-                        defaultextension=".drawio",
-                        filetypes=[("Draw.io XML", "*.drawio"), ("All files", "*.*")],
-                        initialfile=default_name,
-                        initialdir=str(Path.home() / "Documents"),
-                    )
-                    if p:
-                        out_path_holder.append(p)
-                    done_event.set()
-
-                self._root.after(0, _ask_save)
-                done_event.wait()
-
-                if not out_path_holder:
-                    self._log(t("log.save_not_selected"), "warning")
-                    self._set_status(t("status.cancelled"))
+            # 図の生成（1つ以上の diagram view）
+            diagram_list = diagram_views or [view]
+            first_diagram = True
+            for dv in diagram_list:
+                if self._cancel_event.is_set():
+                    self._log(t("log.cancelled"), "warning")
                     return
-                out_path = Path(out_path_holder[0])
+                if not first_diagram:
+                    self._log("─" * 40, "accent")
+                first_diagram = False
+                self._worker_single_diagram(sub, rg, limit, dv)
 
-            # Step 3: Normalize
-            self._set_step("Step 3/5: Normalize")
-            self._set_status(t("status.normalizing"))
-            azure_to_cell_id = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
-            edges: list[Edge] = collected_edges
-
-            # Step 4: Build XML
-            self._set_step("Step 4/5: Build XML")
-            self._set_status(t("status.generating_xml"))
-            self._log(t("log.generating_xml"))
-            xml = build_drawio_xml(
-                nodes=nodes, edges=edges,
-                azure_to_cell_id=azure_to_cell_id,
-                diagram_name=f"{view}-{now_stamp()}",
-            )
-
-            # Step 5: Save
-            self._set_step("Step 5/5: Save")
-            self._set_status(t("status.saving"))
-            write_text(out_path, xml)
-            self._log(f"  → {out_path}", "success")
-
-            out_dir = out_path.parent
-            env_payload = {
-                "generatedAt": datetime.now().isoformat(timespec="seconds"),
-                "view": view,
-                "subscription": sub,
-                "resourceGroup": rg,
-                "nodes": [
-                    {"id": n.azure_id, "name": n.name, "type": n.type,
-                     "resourceGroup": n.resource_group, "location": n.location}
-                    for n in nodes
-                ],
-                "edges": [
-                    {"source": e.source, "target": e.target, "kind": e.kind}
-                    for e in edges
-                ],
-                "azureIdToCellId": azure_to_cell_id,
-            }
-            write_json(out_dir / "env.json", env_payload)
-            self._log(f"  → {out_dir / 'env.json'}", "success")
-
-            write_json(out_dir / "collect.log.json", {"tool": "az graph query", "meta": meta})
-
-            # SVG エクスポート
-            if self._export_svg_var.get():
-                svg_result = export_drawio_svg(out_path)
-                if svg_result:
-                    self._log(f"  → {svg_result}", "success")
-                else:
-                    self._log(t("log.svg_export_skip"), "warning")
-
-            # Done + Preview
-            self._set_step("Done")
-            self._log(t("log.done"), "success")
-            self._set_status(f"Done — {out_path}")
-
-            self._last_out_path = out_path
-            self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
-
-            # Canvas プレビュー
-            self._draw_preview(nodes, edges, azure_to_cell_id)
-
-            # 自動オープン
-            if self._auto_open_var.get() and out_path.exists():
-                self._root.after(500, lambda p=out_path: self._open_file_with(p))
+            # 図が終わったらレポートも（同時選択時）
+            if report_views:
+                self._log("─" * 40, "accent")
+                self._log(t("log.multi_report_start", count=len(report_views)), "info")
+                self._worker_reports(sub, rg, limit, report_views)
 
         except Exception as e:
             self._log(f"ERROR: {e}", "error")
             self._set_status(t("status.error"))
         finally:
             self._set_working(False)
+
+    def _worker_single_diagram(self, sub: str | None, rg: str | None, limit: int, view: str) -> None:
+        """単一の diagram view を収集→生成する（_worker_collect から呼ばれる）。"""
+        self._log(f"  📊 Diagram: {view}", "accent")
+
+        # Step 1: Collect
+        self._set_step("Step 1/5: Collect")
+        self._set_status(t("status.running_query"))
+        self._log(t("log.query_running", view=view), "info")
+
+        nodes, collected_edges, meta = collect_diagram_view(
+            view=view,
+            subscription=sub,
+            resource_group=rg,
+            limit=limit,
+        )
+        if view == "network":
+            self._log(t("log.net_resources_found", nodes=len(nodes), edges=len(collected_edges)), "success")
+        else:
+            self._log(t("log.resources_found", count=len(nodes)), "success")
+
+        if self._cancel_event.is_set():
+            self._log(t("log.cancelled"), "warning")
+            return
+
+        # type別サマリ
+        summary = type_summary(nodes)
+        for rtype, count in sorted(summary.items()):
+            short = rtype.split("/")[-1] if "/" in rtype else rtype
+            self._log(f"    {short}: {count}", "info")
+
+        if limit <= len(nodes):
+            self._log(t("log.limit_reached", limit=limit), "warning")
+
+        # レビュー表示して Proceed/Cancel 待ち
+        self._pending_nodes = nodes
+        self._pending_meta = meta
+
+        # --- AI レビュー（Copilot SDK） ---
+        self._set_step("Step 2/5: AI Review")
+        self._set_status(t("status.reviewing"))
+        self._log("─" * 40, "accent")
+        self._log(t("log.ai_review_start"), "info")
+
+        # サマリテキスト作成
+        summary_lines = []
+        if sub:
+            summary_lines.append(f"Subscription: {sub}")
+        if rg:
+            summary_lines.append(f"Resource Group: {rg}")
+        summary_lines.append(f"View: {view}")
+        summary_lines.append(f"Total resources: {len(nodes)}")
+        summary_lines.append("")
+        for rtype, count in sorted(summary.items()):
+            short = rtype.split("/")[-1] if "/" in rtype else rtype
+            summary_lines.append(f"  {short}: {count}")
+        summary_lines.append("")
+        summary_lines.append("Resources:")
+        for node in nodes[:100]:  # 多すぎる場合は100件まで
+            summary_lines.append(f"  - {node.name} ({node.type})")
+        if len(nodes) > 100:
+            summary_lines.append(f"  ... and {len(nodes) - 100} more")
+        resource_text = "\n".join(summary_lines)
+
+        ai_review_result: str | None = None
+        try:
+            from ai_reviewer import run_ai_review
+            ai_review_result = run_ai_review(
+                resource_text=resource_text,
+                on_delta=lambda d: self._log_append_delta(d),
+                on_status=lambda s: self._log(s, "info"),
+                model_id=self._model_var.get().strip() or None,
+            )
+        except Exception as e:
+            self._log(t("log.ai_review_skip", err=str(e)), "warning")
+
+        self._log("", "info")  # 改行
+        self._log("─" * 40, "accent")
+
+        if self._cancel_event.is_set():
+            self._log(t("log.cancelled"), "warning")
+            return
+
+        review_text = (
+            f"{len(nodes)} resources | "
+            f"{len(summary)} types | "
+            f"Sub: {sub or '(default)'} | "
+            f"RG: {rg or '(all)'}"
+        )
+        self._show_review(review_text)
+        self._set_step("Review")
+        self._set_status(t("status.review_prompt"))
+
+        # ブロッキング待ち（ワーカースレッド上）
+        self._review_event.clear()
+        self._review_event.wait()
+
+        if not self._review_proceed or self._cancel_event.is_set():
+            self._log(t("log.cancelled"), "warning")
+            self._set_status(t("status.cancelled"))
+            return
+
+        self._hide_review()
+
+        # Step 2: 保存先決定（Output Dir設定済みなら自動、未設定ならダイアログ）
+        initial_dir = self._output_dir_var.get().strip()
+        default_name = self._make_filename("env", sub, rg, ".drawio")
+
+        if initial_dir and Path(initial_dir).is_dir():
+            # 自動保存
+            out_path = Path(initial_dir) / default_name
+            self._log(t("log.auto_save", path=str(out_path)), "info")
+        else:
+            # ダイアログ
+            out_path_holder: list[str] = []
+            done_event = threading.Event()
+
+            def _ask_save() -> None:
+                p = filedialog.asksaveasfilename(
+                    title=t("dlg.save_drawio"),
+                    defaultextension=".drawio",
+                    filetypes=[("Draw.io XML", "*.drawio"), ("All files", "*.*")],
+                    initialfile=default_name,
+                    initialdir=str(Path.home() / "Documents"),
+                )
+                if p:
+                    out_path_holder.append(p)
+                done_event.set()
+
+            self._root.after(0, _ask_save)
+            done_event.wait()
+
+            if not out_path_holder:
+                self._log(t("log.save_not_selected"), "warning")
+                self._set_status(t("status.cancelled"))
+                return
+            out_path = Path(out_path_holder[0])
+
+        # Step 3: Normalize
+        self._set_step("Step 3/5: Normalize")
+        self._set_status(t("status.normalizing"))
+        azure_to_cell_id = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
+        edges: list[Edge] = collected_edges
+
+        # Step 4: Build XML
+        self._set_step("Step 4/5: Build XML")
+        diagram_name = f"{view}-{now_stamp()}"
+        xml: str | None = None
+
+        # AI mode (preferred)
+        if self._ai_drawio_var.get():
+            try:
+                from ai_reviewer import run_drawio_generation
+
+                self._set_status(t("status.ai_generating_xml"))
+
+                nodes_for_ai = [
+                    {
+                        "id": n.azure_id,
+                        "cellId": azure_to_cell_id.get(n.azure_id),
+                        "name": n.name,
+                        "type": n.type,
+                        "resourceGroup": n.resource_group,
+                        "location": n.location,
+                    }
+                    for n in nodes
+                ]
+
+                edges_for_ai: list[dict[str, Any]] = []
+                for e in edges:
+                    src = azure_to_cell_id.get(e.source)
+                    tgt = azure_to_cell_id.get(e.target)
+                    if not src or not tgt:
+                        continue
+                    edges_for_ai.append({
+                        "source": e.source,
+                        "target": e.target,
+                        "kind": e.kind,
+                        "sourceCellId": src,
+                        "targetCellId": tgt,
+                    })
+
+                diagram_request: dict[str, Any] = {
+                    "diagramName": diagram_name,
+                    "view": view,
+                    "subscription": sub,
+                    "resourceGroup": rg,
+                    "nodes": nodes_for_ai,
+                    "edges": edges_for_ai,
+                    "rules": {
+                        "requireAzure2Icons": True,
+                        "preferContainers": True,
+                    },
+                }
+
+                ai_xml = run_drawio_generation(
+                    diagram_request,
+                    on_status=lambda s: self._log(s, "info"),
+                    model_id=self._model_var.get().strip() or None,
+                )
+                if ai_xml:
+                    xml = ai_xml
+                else:
+                    self._log(t("log.ai_drawio_fallback"), "warning")
+            except Exception:
+                self._log(t("log.ai_drawio_fallback"), "warning")
+
+        # Deterministic fallback
+        if not xml:
+            self._set_status(t("status.generating_xml"))
+            self._log(t("log.generating_xml"))
+            xml = build_drawio_xml(
+                nodes=nodes, edges=edges,
+                azure_to_cell_id=azure_to_cell_id,
+                diagram_name=diagram_name,
+            )
+
+        # Step 5: Save
+        self._set_step("Step 5/5: Save")
+        self._set_status(t("status.saving"))
+        write_text(out_path, xml)
+        self._log(f"  → {out_path}", "success")
+
+        out_dir = out_path.parent
+        env_payload = {
+            "generatedAt": datetime.now().isoformat(timespec="seconds"),
+            "view": view,
+            "subscription": sub,
+            "resourceGroup": rg,
+            "nodes": [
+                {"id": n.azure_id, "name": n.name, "type": n.type,
+                 "resourceGroup": n.resource_group, "location": n.location}
+                for n in nodes
+            ],
+            "edges": [
+                {"source": e.source, "target": e.target, "kind": e.kind}
+                for e in edges
+            ],
+            "azureIdToCellId": azure_to_cell_id,
+        }
+        write_json(out_dir / "env.json", env_payload)
+        self._log(f"  → {out_dir / 'env.json'}", "success")
+
+        write_json(out_dir / "collect.log.json", {"tool": "az graph query", "meta": meta})
+
+        # SVG エクスポート
+        if self._export_svg_var.get():
+            svg_result = export_drawio_svg(out_path)
+            if svg_result:
+                self._log(f"  → {svg_result}", "success")
+            else:
+                self._log(t("log.svg_export_skip"), "warning")
+
+        # Done + Preview
+        self._set_step("Done")
+        self._log(t("log.done"), "success")
+        self._set_status(f"Done — {out_path}")
+
+        self._last_out_path = out_path
+        self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
+
+        # Canvas プレビュー
+        self._draw_preview(nodes, edges, azure_to_cell_id)
+
+        # 自動オープン
+        if self._auto_open_var.get() and out_path.exists():
+            self._root.after(500, lambda p=out_path: self._open_file_with(p))
+
+    @staticmethod
+    def _pick_standard_template(report_type: str) -> dict | None:
+        from ai_reviewer import list_templates
+        templates = list_templates(report_type)
+        if not templates:
+            return None
+        for tmpl in templates:
+            if str(tmpl.get("template_name", "")).strip().lower() == "standard":
+                return tmpl
+        return templates[0]
+
+    def _worker_reports(self, sub: str | None, rg: str | None, limit: int, views: list[str]) -> None:
+        total = len(views)
+        generated_reports: list[tuple[str, Path]] = []  # (report_type, path)
+
+        for idx, view in enumerate(views, start=1):
+            if self._cancel_event.is_set():
+                return
+
+            # 複数生成時は常に Standard テンプレ（既定セクション）を使用
+            template_override: dict | None = None
+            if total > 1:
+                report_type = "security" if view == "security-report" else "cost"
+                template_override = self._pick_standard_template(report_type)
+                self._log(t("log.multi_report_template", name=report_type), "info")
+
+            if total > 1:
+                name = "security" if view == "security-report" else "cost"
+                self._log(t("log.multi_report_item", index=idx, total=total, name=name), "accent")
+
+            result_path = self._worker_report(sub, rg, limit, view, template_override=template_override)
+            if result_path:
+                rtype = "security" if view == "security-report" else "cost"
+                generated_reports.append((rtype, result_path))
+
+        # 複数レポートが2件以上生成された場合 → サマリレポートを自動生成
+        if len(generated_reports) >= 2 and not self._cancel_event.is_set():
+            self._generate_summary_report(sub, generated_reports)
+
+    def _generate_summary_report(
+        self,
+        sub: str | None,
+        generated_reports: list[tuple[str, Path]],
+    ) -> None:
+        """複数レポートのエグゼクティブサマリを生成・保存する。"""
+        try:
+            self._set_step(t("step.summary"))
+            self._set_status(t("status.generating_summary"))
+            self._log("═" * 50, "accent")
+            self._log(t("log.summary_start", count=len(generated_reports)), "info")
+
+            # 各レポートの本文を読み込み
+            report_contents: list[tuple[str, str]] = []
+            for rtype, path in generated_reports:
+                try:
+                    content = path.read_text(encoding="utf-8")
+                    report_contents.append((rtype, content))
+                    self._log(t("log.summary_read", type=rtype, path=path.name), "info")
+                except Exception as e:
+                    self._log(f"  Skip {rtype}: {e}", "warning")
+
+            if len(report_contents) < 2:
+                self._log(t("log.summary_skip_few"), "warning")
+                return
+
+            sub_display = self._sub_var.get().strip()
+            if not sub_display or sub_display == t("hint.all_subscriptions"):
+                sub_display = sub or ""
+
+            self._log(t("log.summary_ai_gen"), "info")
+            self._log("─" * 40, "accent")
+
+            from ai_reviewer import run_summary_report
+            summary_result = run_summary_report(
+                report_contents=report_contents,
+                on_delta=lambda d: self._log_append_delta(d),
+                on_status=lambda s: self._log(s, "info"),
+                model_id=self._model_var.get().strip() or None,
+                subscription_info=sub_display,
+            )
+
+            self._log("", "info")
+            self._log("─" * 40, "accent")
+
+            if not summary_result:
+                self._log(t("log.summary_failed"), "warning")
+                return
+
+            # 保存先は最初のレポートと同じディレクトリ
+            out_dir = generated_reports[0][1].parent
+            rg_raw = self._rg_var.get().strip()
+            rg = None if (not rg_raw or rg_raw == t("hint.all_rgs")) else rg_raw
+            summary_name = self._make_filename("summary-report", sub, rg, ".md")
+            summary_path = out_dir / summary_name
+            write_text(summary_path, summary_result)
+            self._last_out_path = summary_path
+            self._log(f"  → {summary_path}", "success")
+
+            # Word 出力（オプション）
+            if self._export_docx_var.get():
+                try:
+                    from exporter import md_to_docx
+                    docx_path = summary_path.with_suffix(".docx")
+                    md_to_docx(summary_result, docx_path)
+                    self._log(t("log.word_output", path=str(docx_path)), "success")
+                except Exception as e:
+                    self._log(t("log.word_error", err=str(e)), "warning")
+
+            self._root.after(0, lambda: self._open_btn.configure(state=tk.NORMAL))
+            self._log(t("log.summary_done"), "success")
+
+            if self._auto_open_var.get() and summary_path.exists():
+                self._root.after(500, lambda p=summary_path: self._open_file_with(p))
+
+        except Exception as e:
+            self._log(f"Summary ERROR: {e}", "error")
 
     # ------------------------------------------------------------------ #
     # レビュー
@@ -1865,7 +2200,7 @@ class App:
                 py = y0 + row * (cell_h + y_gap)
                 positions[node.azure_id] = (px, py)
 
-                color = type_colors.get(node.type, "#3C3C3C")
+                color = type_colors.get(node.type, BUTTON_BG)
                 display_name = node.name[:14] + "…" if len(node.name) > 14 else node.name
                 short_type = node.type.split("/")[-1] if "/" in node.type else node.type
 
@@ -1876,7 +2211,7 @@ class App:
                 self._canvas.create_text(
                     px + cell_w / 2, py + cell_h / 2,
                     text=f"{display_name}\n{short_type}",
-                    fill="white", font=(FONT_FAMILY, 6),
+                    fill=BUTTON_FG, font=(FONT_FAMILY, 6),
                     anchor="center",
                 )
 
@@ -1974,11 +2309,12 @@ class App:
     # レポート生成ワーカー (security-report / cost-report)
     # ------------------------------------------------------------------ #
 
-    def _worker_report(self, sub: str | None, rg: str | None, limit: int, view: str) -> None:
-        """Security / Cost レポート生成ワーカー。"""
+    def _worker_report(self, sub: str | None, rg: str | None, limit: int, view: str,
+                       template_override: dict | None = None) -> Path | None:
+        """Security / Cost レポート生成ワーカー。成功時は保存パスを返す。"""
         try:
             # テンプレートとカスタム指示をUIスレッドで取得
-            template = self._get_current_template_with_overrides()
+            template = template_override if template_override is not None else self._get_current_template_with_overrides()
             custom_instruction = self._get_custom_instruction()
 
             # サブスクリプション表示名（AIがレポートタイトルに使う）
@@ -2151,6 +2487,7 @@ class App:
 
             # レポート入力（収集データ/テンプレ/指示）を隣に保存（再生成・監査用）
             try:
+                from ai_reviewer import get_last_run_debug
                 input_payload: dict[str, Any] = {
                     "generatedAt": datetime.now().isoformat(timespec="seconds"),
                     "view": view,
@@ -2161,6 +2498,7 @@ class App:
                     "custom_instruction": custom_instruction,
                     "resource_types": resource_types,
                     "resource_text": resource_text,
+                    "ai_debug": get_last_run_debug(),
                 }
                 if view == "security-report":
                     input_payload["security_data"] = security_data
@@ -2216,11 +2554,12 @@ class App:
             if self._auto_open_var.get() and out_path.exists():
                 self._root.after(500, lambda p=out_path: self._open_file_with(p))
 
+            return out_path
+
         except Exception as e:
             self._log(f"ERROR: {e}", "error")
             self._set_status(t("status.error"))
-        finally:
-            self._set_working(False)
+            return None
 
     # ------------------------------------------------------------------ #
     # 言語切替ハンドラ
@@ -2232,9 +2571,8 @@ class App:
         set_language(lang)
         self._refresh_ui_texts()
         # テンプレートパネルのセクション名・指示ラベルを再描画
-        view = self._view_var.get().strip()
-        if view in ("security-report", "cost-report"):
-            report_type = "security" if view == "security-report" else "cost"
+        if self._has_report_selected():
+            report_type = "security" if self._gen_security_var.get() else "cost"
             self._load_templates_for_type(report_type)
 
     def _refresh_ui_texts(self) -> None:
@@ -2253,6 +2591,9 @@ class App:
         self._limit_label.configure(text=t("label.max_nodes"))
         self._outdir_label.configure(text=t("label.output_dir"))
         self._openwith_label.configure(text=t("label.open_with"))
+
+        # Diagram options
+        self._ai_drawio_cb.configure(text=t("opt.ai_drawio_layout"))
 
         # Draw.io 検出ヒント
         drawio_path = cached_drawio_path()
@@ -2279,6 +2620,12 @@ class App:
         self._del_instr_btn.configure(text=t("btn.delete_instruction"))
         self._export_label.configure(text=t("label.export_format"))
         self._save_tmpl_btn.configure(text=t("btn.save_template"))
+        self._import_tmpl_btn.configure(text=t("btn.import_template"))
+        # View チェックボックス
+        self._view_inventory_cb.configure(text=t("opt.inventory_diagram"))
+        self._view_network_cb.configure(text=t("opt.network_diagram"))
+        self._gen_security_cb.configure(text=t("opt.security_report"))
+        self._gen_cost_cb.configure(text=t("opt.cost_report"))
 
         # View依存（再トリガ）
         self._on_view_changed()
