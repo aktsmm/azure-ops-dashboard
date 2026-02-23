@@ -13,7 +13,8 @@ import sys
 import textwrap
 from collections import Counter
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from i18n import get_language
 
@@ -89,15 +90,71 @@ def _run_command(args: list[str], timeout_s: int = 300) -> tuple[int, str, str]:
     try:
         completed = subprocess.run(args, **kwargs)
     except subprocess.TimeoutExpired as e:
+        def _safe_text(v: object) -> str:
+            if v is None:
+                return ""
+            if isinstance(v, str):
+                return v
+            if isinstance(v, bytes):
+                return v.decode("utf-8", errors="replace")
+            try:
+                return str(v)
+            except Exception:
+                return ""
+
+        stderr = _safe_text(getattr(e, "stderr", None))
+        exe_name = ""
+        try:
+            exe_name = Path(str(args[0])).name if args else ""
+        except Exception:
+            exe_name = str(args[0]) if args else ""
+
+        hint_raw = [exe_name, *(args[1:3] if len(args) >= 3 else args[1:2])]
+        hint_parts = [_safe_text(v).strip() for v in hint_raw]
+        hint_parts = [s for s in hint_parts if s]
+        cmd_hint = " ".join(hint_parts)
+        details_parts: list[str] = []
+        if cmd_hint:
+            details_parts.append(f"Command: {cmd_hint} ...")
+        if stderr.strip():
+            details_parts.append("--- stderr (partial) ---\n" + stderr.strip()[:800])
+        details = ("\n\n" + "\n".join(details_parts)) if details_parts else ""
+
+        # NOTE: _run_command は汎用のため、ヒント文は az graph query に限定し、他は一般的な案内にする。
+        is_graph_query = len(args) >= 3 and str(args[1]).lower() == "graph" and str(args[2]).lower() == "query"
         en = get_language() == "en"
         raise RuntimeError(
-            (f"Command timed out after {timeout_s} seconds.\n"
-             f"→ Specify a Resource Group to narrow the scope, or verify the resource-graph extension."
-             if en else
-             f"コマンドが {timeout_s} 秒でタイムアウトしました。\n"
-             f"→ RG を指定して範囲を絞るか、resource-graph 拡張を確認してください。")
+            (
+                (
+                    f"Command timed out after {timeout_s} seconds.\n"
+                    + (
+                        "→ Specify a Resource Group to narrow the scope, or verify the resource-graph extension."
+                        if is_graph_query
+                        else "→ Retry later, or narrow the scope/inputs to reduce execution time."
+                    )
+                    + f"{details}"
+                )
+                if en
+                else (
+                    f"コマンドが {timeout_s} 秒でタイムアウトしました。\n"
+                    + (
+                        "→ RG を指定して範囲を絞るか、resource-graph 拡張を確認してください。"
+                        if is_graph_query
+                        else "→ 時間をおいて再試行するか、入力/範囲を絞って実行時間を短くしてください。"
+                    )
+                    + f"{details}"
+                )
+            )
         ) from e
     return completed.returncode, completed.stdout, completed.stderr
+
+
+def run_az_command(argv: list[str], *, timeout_s: int = 300) -> tuple[int, str, str]:
+    """az CLI を実行して (returncode, stdout, stderr) を返す。
+
+    main.py など UI 側からの az login/az rest の共通実行にも使う。
+    """
+    return _run_command([_get_az_exe(), *argv], timeout_s=timeout_s)
 
 
 def _classify_az_error(stderr: str) -> RuntimeError:
@@ -109,7 +166,20 @@ def _classify_az_error(stderr: str) -> RuntimeError:
                if en else
                "Azure にログインしていません。\n→ `az login` を実行してください。")
         return AzNotLoggedInError(msg)
-    if "not an installed extension" in lower or "resource-graph" in lower:
+    # NOTE: "resource-graph" という単語の存在だけで拡張未導入と断定すると誤分類しやすい。
+    # 具体的なインストール指示/典型エラーフレーズがある場合に限定する。
+    if (
+        "az extension add --name resource-graph" in lower
+        or (
+            "resource-graph" in lower
+            and (
+                "not an installed extension" in lower
+                or "requires the extension" in lower
+                or "is not installed" in lower
+                or "the command requires the extension" in lower
+            )
+        )
+    ):
         msg = ("resource-graph extension not installed.\n→ Run `az extension add --name resource-graph`."
                if en else
                "resource-graph 拡張がインストールされていません。\n→ `az extension add --name resource-graph` を実行してください。")
@@ -303,8 +373,13 @@ def collect_network(
     subscription: str | None,
     resource_group: str | None,
     limit: int,
+    *,
+    on_progress: Callable[[str], None] | None = None,
 ) -> tuple[list[Node], list[Edge], dict[str, Any]]:
-    """ARGでネットワーク関連リソースを取得し、Node/Edgeリストと実行メタを返す。"""
+    """ARGでネットワーク関連リソースを取得し、Node/Edgeリストと実行メタを返す。
+
+    on_progress: 各 VNet の Subnet 収集前に呼ばれる。CancelledError を raise すると中断。
+    """
     limit = max(1, min(int(limit), _ARG_MAX_LIMIT))
     where_clause = ""
     if resource_group:
@@ -581,6 +656,9 @@ def collect_network(
 
     for vnet in vnet_nodes[:max_vnets]:
         try:
+            # キャンセルチェック (review #4)
+            if on_progress is not None:
+                on_progress(f"Subnet: {vnet.name} ({subnet_stats['vnets_attempted'] + 1}/{min(len(vnet_nodes), max_vnets)})")
             subnet_stats["vnets_attempted"] += 1
             az_exe = _get_az_exe()
 
@@ -632,8 +710,18 @@ def collect_network(
                 subnet_stats["subnets_added"] += 1
                 # Subnet → VNet エッジ
                 edges.append(Edge(source=sid, target=vnet.azure_id, kind="contained-in"))
-        except Exception:
+        except Exception as exc:
             subnet_stats["vnets_failed"] += 1
+            # best-effort でも診断できるように、少数だけエラーを記録する
+            try:
+                errs = subnet_stats.setdefault("errors", [])
+                if isinstance(errs, list) and len(errs) < 5:
+                    errs.append({
+                        "vnet": vnet.azure_id,
+                        "error": f"{type(exc).__name__}: {exc}"[:300],
+                    })
+            except Exception:
+                pass
             continue  # Subnet 収集は best-effort
 
     # ノードにないターゲットへのエッジを除外
@@ -691,6 +779,7 @@ def collect_diagram_view(
     subscription: str | None,
     resource_group: str | None,
     limit: int,
+    on_progress: Callable[[str], None] | None = None,
 ) -> tuple[list[Node], list[Edge], dict[str, Any]]:
     """diagram 系 view の収集を統一的に呼び出す。
 
@@ -702,7 +791,8 @@ def collect_diagram_view(
         # Network 図は topology を中心にしつつ、
         # 「箱だけ」にならないよう inventory 側のノードもマージして可視化する。
         net_nodes, net_edges, net_meta = collect_network(
-            subscription=subscription, resource_group=resource_group, limit=limit
+            subscription=subscription, resource_group=resource_group, limit=limit,
+            on_progress=on_progress,
         )
 
         # inventory は best-effort（失敗しても network 図生成自体は継続）

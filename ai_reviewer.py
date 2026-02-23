@@ -1,4 +1,4 @@
-﻿"""Step10: Azure Ops Dashboard — AI レビュー & レポート (GitHub Copilot SDK)
+"""Step10: Azure Ops Dashboard — AI レビュー & レポート (GitHub Copilot SDK)
 
 Collect したリソース一覧を Copilot SDK に送り、
 構成のレビュー結果や各種レポート（日本語）をストリーミングで返す。
@@ -8,7 +8,7 @@ Collect したリソース一覧を Copilot SDK に送り、
 from __future__ import annotations
 
 import asyncio
-import importlib
+import concurrent.futures
 import json
 import sys
 import threading
@@ -16,6 +16,13 @@ import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+_COPILOT_IMPORT_ERROR: str | None = None
+try:
+    from copilot import CopilotClient  # type: ignore
+except Exception as exc:
+    CopilotClient = None  # type: ignore[assignment]
+    _COPILOT_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
 
 from app_paths import (
     bundled_templates_dir,
@@ -52,134 +59,167 @@ def _system_prompt_drawio() -> str:
 
     if get_language() == "en":
         return f"""\
-You are an expert draw.io (diagrams.net) diagram generator.
+You are an expert draw.io (diagrams.net) diagram generator for Azure environments.
 
-The user will provide Azure resources and relationships as JSON.
-Your task is to output a SINGLE valid draw.io mxfile XML.
+The user will provide PREPROCESSED Azure resources and relationships as JSON.
+Note: Noise resources have been filtered and similar resources grouped BEFORE you receive the data.
+Your task is to output a SINGLE valid draw.io mxfile XML — compact, readable, and professional.
 
-CRITICAL OUTPUT RULES:
+═══ CRITICAL OUTPUT RULES ═══
 - Output ONLY XML. No Markdown. No code fences. No explanations.
 - The output must contain exactly one <mxfile> root element.
 
-DO NOT OUTPUT AN EMPTY DIAGRAM:
-- You must create vertex nodes for the provided input nodes (use their cellId).
+═══ DO NOT OUTPUT AN EMPTY DIAGRAM ═══
+- You must create vertex nodes for ALL provided input nodes (use their cellId).
 - Do not output placeholder comments like "content cells here".
 
-CRITICAL XML STRUCTURE RULES:
+═══ XML STRUCTURE ═══
 - Include <mxCell id=\"0\"/> and <mxCell id=\"1\" parent=\"0\"/>.
-- Nodes must be <mxCell vertex=\"1\"> with a child <mxGeometry ... as=\"geometry\"/>.
-- Edges must be <mxCell edge=\"1\" source=... target=...> and refer to existing node ids.
+- Nodes: <mxCell vertex=\"1\"> with child <mxGeometry ... as=\"geometry\"/>.
+- Edges: <mxCell edge=\"1\" source=... target=...> referring to existing node ids.
 - All mxCell ids must be UNIQUE.
 
-ID RULES (VERY IMPORTANT):
-- For each input node, use its "cellId" as the mxCell id.
-- For each input edge, use source="sourceCellId" and target="targetCellId".
+═══ ID RULES (VERY IMPORTANT) ═══
+- For input nodes: use node.cellId as the mxCell id.
+- For input edges: use source="sourceCellId" target="targetCellId".
 - Do not invent ids for resources.
-- You may create additional ids for containers/titles only; ensure they do not collide with node ids.
+- Container/title ids must not collide with node ids (use "c_" or "t_" prefix).
 
-ICON RULES:
-- Use Azure icons with style 'shape=image;aspect=fixed;image=img/lib/azure2/.../*.svg;...'.
-- NEVER use mxgraph.azure.* shapes (e.g., shape=mxgraph.azure.virtual_network). This output will be rejected.
-- NEVER use remote image URLs (http/https).
-- Map Azure resource types to icons using the following mapping when possible:
+═══ ICON RULES ═══
+- Azure icons: style='shape=image;aspect=fixed;image=img/lib/azure2/.../*.svg;...'
+- NEVER use mxgraph.azure.* shapes → REJECTED.
+- NEVER use http/https image URLs.
+- Type→icon mapping:
 ```json
 {icons_json}
 ```
 
-LAYOUT RULES (CRITICAL — make it readable):
-- Use swimlane containers (style="swimlane;...") to group resources hierarchically:
-  Region → Resource Group → VNet → Subnet (nest in this order when present).
-- Container sizing guide:
-  - Leaf nodes (icons): width=50, height=50
-  - Subnet containers: height=auto, pad 20px around children
-  - VNet containers: wider, pad 30px
-  - Resource Group containers: widest, pad 40px
-- Place VMs, NICs, and Private Endpoints INSIDE their Subnet container (set parent=subnetContainerId).
-- Place Public IPs, NSGs, and Route Tables adjacent to their associated VNet/Subnet but outside the container.
-- Arrange containers in a 2-column or 3-column grid when there are multiple VNets/Subnets.
-  Avoid placing everything in a single vertical stack.
-- For similar resources sharing a prefix (e.g., disco-bot-*, web-app-*):
-  Group them into a single container with a summary label showing the count.
-  Show at most 5 representative items and add "+ N more" as a label.
-- Shorten labels: keep stable prefix, truncate middle if > 25 chars.
-  Example: "my-very-long-resource-name-prod-01" → "my-very-long-...-01"
-- Keep total canvas width under 2000px and height under 3000px.
-- Use rounded=1;whiteSpace=wrap; in node styles for cleaner look.
+═══ LAYOUT (CRITICAL — this is the most important section) ═══
 
-EDGE RULES:
-- Use orthogonal routing: edgeStyle=orthogonalEdgeStyle;rounded=1;
-- For VNet peering edges, use dashed style: dashed=1;
-- For subnet-to-resource connections, omit edges if the resource is already inside the container
-  (containment implies the relationship).
+HIERARCHY (use swimlane containers, style="swimlane;..."):
+  1. Azure (outermost) → 2. Region → 3. Resource Group → 4. VNet → 5. Subnet
+  Omit levels with only 1 child (inline into parent).
 
-DATA FIDELITY:
+CONTAINER SIZING:
+  - Leaf nodes (icons): width=50 height=50
+  - "+N more" summary labels: width=120 height=30, fontSize=10, italic
+  - Subnet: pad 20px; VNet: pad 30px; RG: pad 40px
+
+MULTI-COLUMN GRID:
+  - Arrange containers/nodes in 2-4 column grids (NOT a single vertical stack).
+  - For regions: place side-by-side if content is small, stack if large.
+  - Small regions (≤3 nodes): 200px wide. Large regions: up to 800px wide.
+
+RESOURCE GROUP GROUPING:
+  - Group nodes by resourceGroup within each region.
+  - Use a dashed-border container (dashed=1) for each RG.
+  - Label: "RG: <name>" with fontSize=11.
+
+SIMILAR-RESOURCE GROUPS (nodes with name like "prefix... (+N more)"):
+  - These are already grouped by preprocessing. Display the summary node as-is.
+  - Place the summary node next to the representative nodes in a compact row.
+
+LABELS:
+  - Truncate labels over 22 chars: keep first 10 + "..." + last 8.
+  - Example: "DefaultWorkspace-832c4080-..." → "DefaultWor...080-..."
+  - Use verticalLabelPosition=bottom for icon nodes.
+
+CANVAS SIZING:
+  - Target: width ≤ 1600px, height ≤ 2000px (compact!).
+  - Adjust dynamically: ~100px per node height, ~200px per node width.
+  - If nodes > 40: use smaller icons (width=40 height=40) and tighter spacing.
+
+═══ EDGE RULES ═══
+- Orthogonal routing: edgeStyle=orthogonalEdgeStyle;rounded=1;
+- VNet peering: dashed=1;strokeWidth=2;strokeColor=#0078D4;
+- Containment edges (in-subnet, contained-in): OMIT (parent relationship suffices).
+- If resource is inside its container, do NOT draw an edge to it.
+
+═══ DATA FIDELITY ═══
 - Do not invent resources or relationships.
-- If relationships are missing, you may omit edges rather than guessing.
+- If relationships are missing, omit edges rather than guessing.
 """
 
     return f"""\
-あなたは draw.io (diagrams.net) の図を生成する専門家です。
+あなたは Azure 環境の draw.io (diagrams.net) 図を生成する専門家です。
 
-ユーザーから Azure リソースと関係性が JSON で提供されます。
-あなたのタスクは、1つの正しい draw.io mxfile XML を出力することです。
+ユーザーから**前処理済み**の Azure リソースと関係性が JSON で提供されます。
+注意: ノイズリソースは除去済み、類似リソースはグループ化済みです。
+あなたのタスクは、コンパクトで見やすいプロフェッショナルな mxfile XML を1つ出力することです。
 
-【最重要: 出力ルール】
+═══ 最重要: 出力ルール ═══
 - 出力は XML のみ。Markdown禁止。コードフェンス禁止。説明文禁止。
 - 出力は <mxfile> ルート要素を1つだけ含むこと。
 
-【空図の禁止】
-- 入力ノード（node.cellId）に対応する vertex ノードを必ず生成すること。
+═══ 空図の禁止 ═══
+- 入力ノード全ての cellId に対応する vertex を必ず生成すること。
 - 「content cells here」等のプレースホルダコメントは禁止。
 
-【最重要: XML 構造】
+═══ XML 構造 ═══
 - <mxCell id=\"0\"/> と <mxCell id=\"1\" parent=\"0\"/> を必ず含める。
-- ノードは <mxCell vertex=\"1\"> + 子に <mxGeometry ... as=\"geometry\"/>。
-- エッジは <mxCell edge=\"1\" source=... target=...> とし、必ず既存のノード id を参照。
-- mxCell の id は必ずユニーク。
+- ノード: <mxCell vertex=\"1\"> + 子に <mxGeometry ... as=\"geometry\"/>。
+- エッジ: <mxCell edge=\"1\" source=... target=...>、既存ノード id を参照。
+- mxCell id は全てユニーク。
 
-【ID ルール（最重要）】
-- 入力ノードの mxCell id は、必ず node.cellId を使用する。
-- 入力エッジは source="sourceCellId" / target="targetCellId" を使用する。
-- リソース用の id を捏造しない。
-- 追加で作るコンテナ/タイトル用の id は、node.cellId と衝突しないようにユニークにする。
+═══ ID ルール（最重要） ═══
+- 入力ノード: node.cellId を mxCell id として使用。
+- 入力エッジ: source="sourceCellId" / target="targetCellId"。
+- リソース id を捏造しない。
+- コンテナ/タイトル id は "c_" / "t_" プレフィックスで node.cellId と衝突回避。
 
-【アイコン】
-- Azure アイコンは style に 'shape=image;aspect=fixed;image=img/lib/azure2/.../*.svg;...' を使用する。
-- shape=mxgraph.azure.* は禁止（例: shape=mxgraph.azure.virtual_network）。この出力は不合格。
-- http/https のリモート画像URLは禁止。
-- 可能な限り、以下のタイプ→アイコン対応表に従うこと:
+═══ アイコン ═══
+- style に 'shape=image;aspect=fixed;image=img/lib/azure2/.../*.svg;...' を使用。
+- shape=mxgraph.azure.* は禁止 → 不合格。
+- http/https リモート画像URL 禁止。
+- タイプ→アイコン対応表:
 ```json
 {icons_json}
 ```
 
-【レイアウト（最重要 — 見やすい図にする）】
-- swimlane コンテナ (style="swimlane;...") でリソースを階層的にグループ化:
-  Region → Resource Group → VNet → Subnet （存在する場合、この順にネスト）。
-- コンテナサイズの目安:
-  - リーフノード（アイコン）: width=50, height=50
-  - Subnet コンテナ: 子要素に 20px パディング
-  - VNet コンテナ: 30px パディング
-  - Resource Group コンテナ: 40px パディング
-- VM / NIC / Private Endpoint は所属する Subnet コンテナの内部に配置（parent=subnetContainerId）。
-- Public IP / NSG / Route Table は関連する VNet/Subnet の近くに、コンテナ外部に配置。
-- VNet/Subnet が複数ある場合は 2列 or 3列のグリッドに配置。
-  縦一列に全て並べるのは避ける。
-- 同じプレフィックスを持つ類似リソース（例: disco-bot-*, web-app-*）:
-  1つのコンテナにグループ化し、件数付きのサマリーラベルを表示。
-  代表5件のみ表示し、残りは "+ N more" ラベルにする。
-- ラベル: 25文字超は省略。安定するプレフィックスを保持。
-  例: "my-very-long-resource-name-prod-01" → "my-very-long-...-01"
-- キャンバス全体: 幅 2000px 以内、高さ 3000px 以内。
-- ノード style に rounded=1;whiteSpace=wrap; を使い見た目を整える。
+═══ レイアウト（最重要 — この図の品質を決める） ═══
 
-【エッジ】
-- 直行ルーティング使用: edgeStyle=orthogonalEdgeStyle;rounded=1;
-- VNet peering は破線: dashed=1;
-- Subnet→リソースの接続は、リソースがコンテナ内にあればエッジ不要（包含で関係を表現）。
+【階層構造】swimlane コンテナ使用:
+  1. Azure（最外枠）→ 2. Region → 3. Resource Group → 4. VNet → 5. Subnet
+  子が1つだけの階層はスキップ（親にインライン展開）。
 
-【データ忠実性】
+【コンテナサイズ】
+  - リーフノード（アイコン）: width=50 height=50
+  - "+N more" サマリ: width=120 height=30, fontSize=10, italic
+  - Subnet: 20px余白; VNet: 30px余白; RG: 40px余白
+
+【グリッド配置（縦一列禁止）】
+  - コンテナ/ノードは 2～4列のグリッドに配置する。
+  - 小さいリージョン（≤3ノード）: 幅200px。大きいリージョン: 最大800px。
+  - リージョン同士: 内容が小さければ横並び、大きければ縦方向に配置。
+
+【リソースグループによるグルーピング】
+  - 各リージョン内でノードを resourceGroup ごとにまとめる。
+  - 破線コンテナ (dashed=1) で RG を囲む。
+  - ラベル: "RG: <名前>" fontSize=11。
+
+【類似リソースグループ】（名前が "prefix... (+N more)" のノード）:
+  - 前処理でグループ化済み。サマリノードはそのまま表示。
+  - 代表ノードの横にコンパクトに並べる。
+
+【ラベル短縮】
+  - 22文字超: 先頭10文字 + "..." + 末尾8文字。
+  - 例: "DefaultWorkspace-832c4080-..." → "DefaultWor...080-..."
+  - アイコンノードは verticalLabelPosition=bottom。
+
+【キャンバスサイズ（コンパクトに！）】
+  - 目標: 幅 ≤ 1600px、高さ ≤ 2000px。
+  - ノード数に応じて動的調整: ～100px/ノード高、～200px/ノード幅。
+  - ノード > 40 の場合: 小アイコン (width=40 height=40) + 間隔を詰める。
+
+═══ エッジ ═══
+- 直行ルーティング: edgeStyle=orthogonalEdgeStyle;rounded=1;
+- VNet peering: dashed=1;strokeWidth=2;strokeColor=#0078D4;
+- 包含エッジ (in-subnet, contained-in): 省略（parent関係で表現済み）。
+- リソースがコンテナ内にある場合、それへのエッジは引かない。
+
+═══ データ忠実性 ═══
 - リソースや関係性を捏造しない。
-- 関係性が不足している場合、推測で線を引かず、エッジを省略してよい。
+- 関係性不足の場合、推測でエッジを引かず省略する。
 """
 
 
@@ -344,10 +384,6 @@ def get_last_run_debug() -> dict[str, Any] | None:
 # ============================================================
 # テンプレート管理
 # ============================================================
-
-TEMPLATES_DIR = bundled_templates_dir()
-
-
 def list_templates(report_type: str) -> list[dict[str, Any]]:
     """指定レポート種別のテンプレート一覧を返す。"""
     ensure_user_dirs()
@@ -480,6 +516,11 @@ MODEL = "gpt-4.1"
 MAX_RETRY = 2
 RETRY_BACKOFF = 2.0
 SEND_TIMEOUT = 180  # sec（MCP ツール呼び出し分を考慮して延長）
+
+# 図（draw.io XML）の生成は時間がかかりやすいので、別枠で長めに待つ。
+DRAWIO_SEND_TIMEOUT = 60 * 60  # 60 min
+REPORT_SEND_TIMEOUT = 600  # 10 min — MCP ツール利用を考慮
+HEARTBEAT_INTERVAL = 5 * 60  # 5 min
 
 
 def choose_default_model_id(model_ids: list[str]) -> str:
@@ -974,21 +1015,28 @@ async def _get_or_create_client(
     log = on_status or (lambda s: None)
 
     # 高速パス: ロック取得前にスナップショットチェック（threading.Lock は瞬時に解放）
+    cached_client: Any | None = None
     with _bg_lock:
-        if _cached_client and _cached_client_started:
-            log("Copilot SDK: キャッシュ済みクライアントを再利用")
-            return _cached_client
+        if _cached_client is not None and _cached_client_started:
+            cached_client = _cached_client
+    if cached_client is not None:
+        # NOTE: on_status は任意の実装（GUIログ等）になり得るため、ロック外で呼ぶ。
+        log("Copilot SDK: キャッシュ済みクライアントを再利用")
+        return cached_client
 
     lock = _get_client_create_lock()
     async with lock:
         # ダブルチェック: 並行タスクが先に作成した場合
+        cached_client = None
         with _bg_lock:
-            if _cached_client and _cached_client_started:
-                log("Copilot SDK: キャッシュ済みクライアントを再利用")
-                return _cached_client
+            if _cached_client is not None and _cached_client_started:
+                cached_client = _cached_client
+        if cached_client is not None:
+            log("Copilot SDK: キャッシュ済みクライアントを再利用")
+            return cached_client
 
         log("Copilot SDK に接続中...")
-        client_opts: dict[str, Any] = {
+        client_opts: Any = {
             "auto_restart": True,
         }
         cli = copilot_cli_path()
@@ -996,12 +1044,17 @@ async def _get_or_create_client(
             client_opts["cli_path"] = cli
             log(f"CLI path: {cli}")
 
-        copilot_mod = importlib.import_module("copilot")
-        CopilotClient = getattr(copilot_mod, "CopilotClient", None)
         if CopilotClient is None:
-            raise RuntimeError("Copilot SDK is not available (CopilotClient not found)")
+            details = _COPILOT_IMPORT_ERROR or "unknown import error"
+            log(f"⚠ Copilot SDK が利用できません: {details}")
+            # frozen exe では、同梱ディレクトリ名が 'copilot' と衝突すると ImportError になりやすい。
+            raise RuntimeError(
+                f"Copilot SDK is not available.\n"
+                f"→ Run: uv pip install copilot-sdk\n"
+                f"Import error: {details}"
+            )
 
-        new_client = CopilotClient(client_opts)
+        new_client = CopilotClient(options=client_opts)
         await new_client.start()
 
         with _bg_lock:
@@ -1086,6 +1139,8 @@ class AIReviewer:
         *,
         model_id: str | None = None,
         append_language_instruction: bool = True,
+        timeout_s: float | None = None,
+        heartbeat_s: float | None = None,
     ) -> str | None:
         """汎用: 任意のプロンプトとシステムプロンプトで生成。
 
@@ -1149,6 +1204,9 @@ class AIReviewer:
             reasoning_notified = False
 
             def _handler(event: Any) -> None:
+                # done後に遅延イベントが到着しても安全にスキップする (review #7)
+                if done.is_set():
+                    return
                 etype = event.type.value if hasattr(event.type, "value") else str(event.type)
 
                 # Capture session info about tool availability (best-effort)
@@ -1212,11 +1270,34 @@ class AIReviewer:
             self._on_status("AI 処理実行中...")
             await session.send({"prompt": prompt})
 
-            # タイムアウト付きで idle 待ち
+            # タイムアウト付きで idle 待ち（長時間タスクは heartbeat で進捗表示）
+            effective_timeout = float(timeout_s) if timeout_s is not None else float(SEND_TIMEOUT)
+            hb = float(heartbeat_s) if heartbeat_s is not None else 0.0
             try:
-                await asyncio.wait_for(done.wait(), timeout=SEND_TIMEOUT)
+                if hb > 0:
+                    while True:
+                        elapsed = time.monotonic() - started
+                        remaining = effective_timeout - elapsed
+                        if remaining <= 0:
+                            raise asyncio.TimeoutError
+                        chunk = hb if remaining > hb else remaining
+                        try:
+                            await asyncio.wait_for(done.wait(), timeout=chunk)
+                            break
+                        except asyncio.TimeoutError:
+                            elapsed2 = time.monotonic() - started
+                            mins = int(elapsed2 // 60)
+                            if get_language() == "en":
+                                self._on_status(f"AI still running... (elapsed {mins} min)")
+                            else:
+                                self._on_status(f"AI 処理実行中...（経過 {mins}分）")
+                else:
+                    await asyncio.wait_for(done.wait(), timeout=effective_timeout)
             except asyncio.TimeoutError:
-                self._on_status(f"AI 処理タイムアウト（{SEND_TIMEOUT}秒）")
+                if get_language() == "en":
+                    self._on_status(f"AI timed out ({effective_timeout:g}s)")
+                else:
+                    self._on_status(f"AI 処理タイムアウト（{effective_timeout:g}秒）")
 
             result = "".join(collected) if collected else None
 
@@ -1404,7 +1485,78 @@ def run_summary_report(
         parts.append(f"## {rtype.upper()} Report\n\n{content}\n\n---\n\n")
 
     prompt = "".join(parts)
-    return _run_async(reviewer.generate(prompt, system_prompt, model_id=model_id))
+    return _run_async(
+        reviewer.generate(prompt, system_prompt, model_id=model_id),
+        timeout_s=REPORT_SEND_TIMEOUT + 30,
+    )
+
+
+def run_integrated_report(
+    *,
+    diagram_summaries: list[dict[str, Any]],
+    report_contents: list[tuple[str, str]],
+    on_delta: Optional[Callable[[str], None]] = None,
+    on_status: Optional[Callable[[str], None]] = None,
+    model_id: str | None = None,
+    subscription_info: str = "",
+    resource_group: str = "",
+) -> str | None:
+    """複数ビュー（図/レポート）を横断した統合レポートを生成する。"""
+    reviewer = AIReviewer(on_delta=on_delta, on_status=on_status, model_id=model_id)
+
+    en = get_language() == "en"
+    if en:
+        system_prompt = (
+            "You are an Azure operations expert.\n"
+            "The user generated multiple outputs from an Azure environment: diagrams and/or reports.\n"
+            "Your task is to produce ONE integrated report in Markdown that:\n"
+            "1. Summarizes environment overview from diagram summaries\n"
+            "2. Summarizes key findings from each report (security/cost)\n"
+            "3. Adds cross-domain insights (security vs cost vs architecture)\n"
+            "4. Provides a unified priority action list (Top 5) with effort labels\n"
+            "Do not repeat the full reports. Be specific to the provided data.\n"
+            "Do not mention internal tools, tool availability, or any tool errors.\n"
+        )
+    else:
+        system_prompt = (
+            "あなたは Azure 運用の専門家です。\n"
+            "ユーザーが Azure 環境から複数の出力（図サマリ / セキュリティ / コスト等）を生成しました。\n"
+            "Markdown で『統合レポート』を1本作ってください。要件:\n"
+            "1. 図サマリから環境概要（構成/規模）を要約\n"
+            "2. 各レポート（security/cost）の重要所見を要約\n"
+            "3. 横断的な洞察（セキュリティ×コスト×アーキテクチャ）を追加\n"
+            "4. 優先アクション Top 5（工数目安: Quick win / Strategic）\n"
+            "全文の貼り直しは避け、要約中心で具体的に。\n"
+            "内部ツールの有無・アクセス可否・ツールエラー等には一切触れないでください。\n"
+        )
+
+    parts: list[str] = []
+    if subscription_info:
+        label = "Target Subscription" if en else "対象サブスクリプション"
+        parts.append(f"**{label}**: {subscription_info}\n")
+    if resource_group:
+        label = "Target Resource Group" if en else "対象リソースグループ"
+        parts.append(f"**{label}**: {resource_group}\n")
+    if parts:
+        parts.append("\n")
+
+    header = "Generate an integrated Azure operations report from the following inputs." if en else "以下の入力から Azure 運用の統合レポートを生成してください。"
+    parts.append(header + "\n\n")
+
+    if diagram_summaries:
+        title = "Diagram Summaries" if en else "図サマリ"
+        parts.append(f"## {title}\n")
+        parts.append("```json\n" + json.dumps(diagram_summaries, ensure_ascii=False) + "\n```\n\n")
+
+    for rtype, content in report_contents:
+        parts.append(f"## {rtype.upper()} Report\n\n{content}\n\n---\n\n")
+
+    prompt = "".join(parts)
+    return _run_async(
+        reviewer.generate(prompt, system_prompt, model_id=model_id,
+                         timeout_s=REPORT_SEND_TIMEOUT),
+        timeout_s=REPORT_SEND_TIMEOUT + 30,
+    )
 
 
 def run_drawio_generation(
@@ -1484,7 +1636,10 @@ def run_drawio_generation(
                 system_prompt,
                 model_id=model_id,
                 append_language_instruction=False,
-            )
+                timeout_s=DRAWIO_SEND_TIMEOUT,
+                heartbeat_s=HEARTBEAT_INTERVAL,
+            ),
+            timeout_s=DRAWIO_SEND_TIMEOUT + 30,
         )
         if not result:
             last_issues = ["Empty model output"]
@@ -1603,7 +1758,11 @@ def _run_report(
         parts.append(docs_block)
 
     prompt = "".join(parts)
-    return _run_async(reviewer.generate(prompt, system_prompt, model_id=model_id))
+    return _run_async(
+        reviewer.generate(prompt, system_prompt, model_id=model_id,
+                         timeout_s=REPORT_SEND_TIMEOUT),
+        timeout_s=REPORT_SEND_TIMEOUT + 30,
+    )
 
 
 def list_available_model_ids_sync(
@@ -1620,11 +1779,28 @@ def list_available_model_ids_sync(
         client = await _get_or_create_client(on_status=on_status)
         return await _list_model_ids_async(client)
 
+    future: concurrent.futures.Future[list[str]] | None = None
     try:
         loop = _get_bg_loop()
         future = asyncio.run_coroutine_threadsafe(_inner(), loop)
         return list(future.result(timeout=timeout))
-    except Exception:
+    except concurrent.futures.TimeoutError:
+        if on_status:
+            on_status(f"Copilot SDK: モデル一覧取得が {timeout:g}s を超過しました")
+        if future is not None:
+            try:
+                future.cancel()
+            except Exception:
+                pass
+        return []
+    except Exception as exc:
+        if on_status:
+            on_status(f"Copilot SDK: モデル一覧取得エラー: {type(exc).__name__}: {exc}")
+        if future is not None:
+            try:
+                future.cancel()
+            except Exception:
+                pass
         return []
 
 
@@ -1648,15 +1824,38 @@ def _get_bg_loop() -> asyncio.AbstractEventLoop:
     with _bg_lock:
         if _bg_loop is not None and not _bg_loop.is_closed():
             return _bg_loop
-        _bg_loop = asyncio.new_event_loop()
-        _bg_thread = threading.Thread(
-            target=_bg_loop.run_forever, daemon=True, name="copilot-event-loop"
-        )
-        _bg_thread.start()
-        return _bg_loop
+        loop = asyncio.new_event_loop()
+
+        loop_ready = threading.Event()
+
+        def _run() -> None:
+            asyncio.set_event_loop(loop)
+            # Signal readiness only after the loop has started and can process callbacks.
+            loop.call_soon(loop_ready.set)
+            loop.run_forever()
+
+            try:
+                loop.close()
+            except Exception:
+                pass
+
+        thread = threading.Thread(target=_run, daemon=True, name="copilot-event-loop")
+        thread.start()
+
+        # ループが起動しない場合、この後の run_coroutine_threadsafe が永久待ちになり得る。
+        if not loop_ready.wait(timeout=5):
+            try:
+                loop.call_soon_threadsafe(loop.stop)
+            except Exception:
+                pass
+            raise RuntimeError("Copilot background event loop failed to start within 5 seconds")
+
+        _bg_loop = loop
+        _bg_thread = thread
+        return loop
 
 
-def _run_async(coro: Any) -> Any:
+def _run_async(coro: Any, timeout_s: float | None = None) -> Any:
     """コルーチンを永続イベントループ上で同期的に実行する。
 
     バックグラウンドスレッド（tkinter ワーカー）から呼ぶ前提。
@@ -1664,4 +1863,10 @@ def _run_async(coro: Any) -> Any:
     """
     loop = _get_bg_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=SEND_TIMEOUT + 30)
+    timeout = timeout_s if timeout_s is not None else (SEND_TIMEOUT + 30)
+    try:
+        return future.result(timeout=timeout)
+    except (TimeoutError, concurrent.futures.TimeoutError):
+        # タイムアウト時はコルーチンをキャンセルしてリソースリークを防ぐ
+        future.cancel()
+        raise
