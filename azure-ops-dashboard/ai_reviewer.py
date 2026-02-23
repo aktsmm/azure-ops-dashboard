@@ -474,6 +474,8 @@ def build_template_instruction(template: dict[str, Any], custom_instruction: str
 # 定数
 # ============================================================
 
+# フォールバック用モデルID。SDK からモデル一覧を取得できない場合に使用する。
+# 実行時の優先選択は choose_default_model_id() で claude-sonnet 最新版を優先する。
 MODEL = "gpt-4.1"
 MAX_RETRY = 2
 RETRY_BACKOFF = 2.0
@@ -965,13 +967,21 @@ async def _get_or_create_client(
     """CopilotClient をキャッシュして返す。
 
     連続レポート生成時に毎回接続→停止のオーバーヘッドを排除する。
-    _bg_lock で _cached_client へのアクセスを保護する。
+    asyncio.Lock で直列化し、_bg_lock（threading.Lock）は async 外の
+    短いスナップショット参照にのみ使用してイベントループのブロックを防ぐ。
     """
     global _cached_client, _cached_client_started
     log = on_status or (lambda s: None)
 
+    # 高速パス: ロック取得前にスナップショットチェック（threading.Lock は瞬時に解放）
+    with _bg_lock:
+        if _cached_client and _cached_client_started:
+            log("Copilot SDK: キャッシュ済みクライアントを再利用")
+            return _cached_client
+
     lock = _get_client_create_lock()
     async with lock:
+        # ダブルチェック: 並行タスクが先に作成した場合
         with _bg_lock:
             if _cached_client and _cached_client_started:
                 log("Copilot SDK: キャッシュ済みクライアントを再利用")
