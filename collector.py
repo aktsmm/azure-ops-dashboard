@@ -388,12 +388,11 @@ def collect_network(
                 ip_props = ipconfig.get("properties") or {}
                 subnet_ref = (ip_props.get("subnet") or {}).get("id")
                 if subnet_ref:
-                    # Subnet は VNet の子リソースなので VNetへのエッジにする
-                    vnet_id = "/".join(normalize_azure_id(subnet_ref).split("/")[:-2])
+                    # NIC → Subnet（直接参照。Subnetノード収集後にフィルタされる）
                     edges.append(Edge(
                         source=nid,
-                        target=vnet_id,
-                        kind="in-vnet",
+                        target=normalize_azure_id(subnet_ref),
+                        kind="in-subnet",
                     ))
                 # NIC → Public IP
                 pip_ref = (ip_props.get("publicIPAddress") or {}).get("id")
@@ -403,6 +402,78 @@ def collect_network(
                         target=nid,
                         kind="assigned-to",
                     ))
+
+    # ノードにないターゲットへのエッジを除外（フィルタ前にSubnet収集を実行）
+
+    # --- Subnet 収集（az network vnet subnet list を各VNet実行） ---
+    vnet_nodes = [n for n in nodes if n.type.lower() == "microsoft.network/virtualnetworks"]
+    max_vnets = 30
+    subnet_stats: dict[str, Any] = {
+        "vnets_total": len(vnet_nodes),
+        "vnets_attempted": 0,
+        "vnets_skipped": 0,
+        "vnets_failed": 0,
+        "subnets_added": 0,
+        "max_vnets": max_vnets,
+    }
+    meta["subnet_collection"] = subnet_stats
+
+    for vnet in vnet_nodes[:max_vnets]:
+        try:
+            subnet_stats["vnets_attempted"] += 1
+            az_exe = _get_az_exe()
+
+            # "All subscriptions" (subscription=None) でも subnet list が正しく動くように
+            # VNet の Azure ID から subscriptionId を推定して指定する。
+            sub_id = subscription
+            if not sub_id:
+                parts = vnet.azure_id.split("/")
+                try:
+                    idx = parts.index("subscriptions")
+                    sub_id = parts[idx + 1] if idx + 1 < len(parts) else None
+                except ValueError:
+                    sub_id = None
+            if not sub_id:
+                subnet_stats["vnets_skipped"] += 1
+                continue
+
+            args = [
+                az_exe, "network", "vnet", "subnet", "list",
+                "--resource-group", vnet.resource_group,
+                "--vnet-name", vnet.name,
+                "--output", "json",
+            ]
+            args += ["--subscription", sub_id]
+            code_s, out_s, _err_s = _run_command(args, timeout_s=20)
+            if code_s != 0:
+                subnet_stats["vnets_failed"] += 1
+                continue
+            subnets_raw = json.loads(out_s)
+            if not isinstance(subnets_raw, list):
+                subnet_stats["vnets_failed"] += 1
+                continue
+            for s in subnets_raw:
+                sid = normalize_azure_id(str(s.get("id") or ""))
+                sname = str(s.get("name") or "")
+                srg = str(s.get("resourceGroup") or vnet.resource_group)
+                if not sid or not sname:
+                    continue
+                if sid in azure_ids:
+                    continue  # 重複スキップ
+                nodes.append(Node(
+                    azure_id=sid,
+                    name=sname,
+                    type="microsoft.network/virtualnetworks/subnets",
+                    resource_group=srg,
+                    location=vnet.location,
+                ))
+                azure_ids.add(sid)
+                subnet_stats["subnets_added"] += 1
+                # Subnet → VNet エッジ
+                edges.append(Edge(source=sid, target=vnet.azure_id, kind="contained-in"))
+        except Exception:
+            subnet_stats["vnets_failed"] += 1
+            continue  # Subnet 収集は best-effort
 
     # ノードにないターゲットへのエッジを除外
     edges = [e for e in edges if e.target in azure_ids and e.source in azure_ids]

@@ -29,6 +29,7 @@ _TYPE_ICONS: dict[str, str] = {
     "microsoft.compute/restorepointcollections": "img/lib/azure2/compute/Disks.svg",
     # Network
     "microsoft.network/virtualnetworks": "img/lib/azure2/networking/Virtual_Networks.svg",
+    "microsoft.network/virtualnetworks/subnets": "img/lib/azure2/networking/Virtual_Networks.svg",
     "microsoft.network/networkinterfaces": "img/lib/azure2/networking/Network_Interfaces.svg",
     "microsoft.network/publicipaddresses": "img/lib/azure2/networking/Public_IP_Addresses.svg",
     "microsoft.network/networksecuritygroups": "img/lib/azure2/networking/Network_Security_Groups.svg",
@@ -76,6 +77,27 @@ _TYPE_ICONS: dict[str, str] = {
     "microsoft.devops/pipelines": "img/lib/azure2/devops/Azure_DevOps.svg",
     "microsoft.devtestlab/labs": "img/lib/azure2/devops/DevTest_Labs.svg",
 }
+
+# レイアウト列順（左→右）。ここに含まれないtypeは末尾に追加。
+LAYOUT_ORDER: list[str] = [
+    "publicipaddresses",
+    "loadbalancers",
+    "applicationgateways",
+    "networkinterfaces",
+    "virtualnetworks/subnets",
+    "virtualnetworks",
+    "networksecuritygroups",
+    "virtualmachines",
+    "disks",
+    "storageaccounts",
+    "sites",
+    "serverfarms",
+    "connections",
+    "networkwatchers",
+]
+
+# backward-compat（テスト/外部参照向け）
+_LAYOUT_ORDER = LAYOUT_ORDER
 
 # フォールバック色（アイコンがないtype用）
 _FALLBACK_PALETTE = [
@@ -160,9 +182,9 @@ def build_drawio_xml(
     diagram = ET.SubElement(mxfile, "diagram", {"name": diagram_name, "id": uuid.uuid4().hex})
 
     # キャンバスサイズ（ノード数に応じて拡大）
-    n_types = len({n.type for n in nodes})
+    n_types = len({n.type.lower() for n in nodes})
     max_in_col = max(
-        (sum(1 for n in nodes if n.type == t) for t in {n.type for n in nodes}),
+        (sum(1 for n in nodes if n.type.lower() == t) for t in {n.type.lower() for n in nodes}),
         default=1,
     )
     canvas_w = max(1600, n_types * 140)
@@ -188,10 +210,39 @@ def build_drawio_xml(
     y_gap = 50                       # 行間（推奨40-60px）
     header_h = 30
 
+    # LAYOUT_ORDER に基づいてtype→列インデックスを事前に割り当て（大小文字揺れを吸収）
+    def _type_sort_key(type_key: str) -> tuple[int, str]:
+        suffix = type_key.split("/", 2)[-1] if "/" in type_key else type_key
+        for rank, key in enumerate(LAYOUT_ORDER):
+            if type_key.endswith(key) or suffix == key:
+                return (rank, type_key)
+        return (len(LAYOUT_ORDER), type_key)
+
+    unique_type_keys: list[str] = list(dict.fromkeys(n.type.lower() for n in nodes))
+    sorted_type_keys = sorted(unique_type_keys, key=_type_sort_key)
+
     type_to_col: dict[str, int] = {}
-    col_next = 0
+    col_widths: dict[int, int] = {}
+    for col_idx, type_key in enumerate(sorted_type_keys):
+        has_icon_t = type_key in _TYPE_ICONS
+        w_t = icon_w if has_icon_t else fallback_w
+        type_to_col[type_key] = col_idx
+        col_widths[col_idx] = w_t
+        # 列ヘッダー（type名）
+        short_header = type_key.split("/")[-1] if "/" in type_key else type_key
+        hx = _col_x(x0, col_idx, col_widths, x_gap)
+        hid = f"h{col_idx}"
+        hcell = ET.SubElement(root, "mxCell", {
+            "id": hid, "value": short_header, "style": _header_style(),
+            "vertex": "1", "parent": "1",
+        })
+        ET.SubElement(hcell, "mxGeometry", {
+            "x": str(hx - 20), "y": str(y0 - header_h - 12),
+            "width": str(max(w_t + 40, 140)), "height": str(header_h),
+            "as": "geometry",
+        })
+
     placed_in_col: dict[int, int] = {}
-    col_widths: dict[int, int] = {}  # 列ごとに使用する幅
 
     for node in nodes:
         lower_type = node.type.lower()
@@ -199,26 +250,7 @@ def build_drawio_xml(
         w = icon_w if has_icon else fallback_w
         h = icon_h if has_icon else fallback_h
 
-        col = type_to_col.get(node.type)
-        if col is None:
-            col = col_next
-            type_to_col[node.type] = col
-            col_widths[col] = w
-            col_next += 1
-
-            # 列ヘッダー（type名）
-            short_header = node.type.split("/")[-1] if "/" in node.type else node.type
-            hx = _col_x(x0, col, col_widths, x_gap)
-            hid = f"h{col}"
-            hcell = ET.SubElement(root, "mxCell", {
-                "id": hid, "value": short_header, "style": _header_style(),
-                "vertex": "1", "parent": "1",
-            })
-            ET.SubElement(hcell, "mxGeometry", {
-                "x": str(hx - 20), "y": str(y0 - header_h - 12),
-                "width": str(max(w + 40, 140)), "height": str(header_h),
-                "as": "geometry",
-            })
+        col = type_to_col[lower_type]
 
         row = placed_in_col.get(col, 0)
         placed_in_col[col] = row + 1
@@ -233,7 +265,10 @@ def build_drawio_xml(
 
         if has_icon:
             # Azure公式アイコン: 名前はラベル下に表示
-            label = node.name
+            if lower_type == "microsoft.network/virtualnetworks/subnets":
+                label = f"{node.name} (subnet)"
+            else:
+                label = node.name
         else:
             # フォールバック矩形
             short_type = node.type.split("/")[-1] if "/" in node.type else node.type
