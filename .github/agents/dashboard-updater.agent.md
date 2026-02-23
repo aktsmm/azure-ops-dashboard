@@ -41,7 +41,7 @@ tools: [read_file, replace_string_in_file, run_in_terminal, file_search, grep_se
 | ファイル | 確認ポイント |
 |---------|------------|
 | `step00-chat-cli/main.py` | SDK接続・トレイ・ホットキー実装済か |
-| `step01-env-builder/main.py` | Copilot SDK 呼び出し（Bicep生成）実装済か |
+| `step01-env-builder/main.py` | `az deployment group what-if/create` 実行 + `out/<timestamp>/`（spec/result/log）出力があるか |
 | `step02-dictation/main.py` | STT + pyautogui 実装済か |
 | `step03-voice-agent/src/` | 実装ファイルの有無（空 → 0%） |
 | `azure-ops-dashboard/tests.py` | テスト件数 |

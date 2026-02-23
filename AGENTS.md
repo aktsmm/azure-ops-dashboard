@@ -16,9 +16,7 @@
 
 ## Agents
 
-| Agent | Path | Description |
-|-------|------|-------------|
-| [dashboard-updater](.github/agents/dashboard-updater.agent.md) | `.github/agents/` | プロジェクト実装状態をスキャンし `DASHBOARD.md` を最新状態に更新する。セッション開始時・終了時に `@dashboard-updater` で呼び出す。 |
+- [dashboard-updater](.github/agents/dashboard-updater.agent.md)（`.github/agents/`）: プロジェクト実装状態をスキャンし `DASHBOARD.md` を最新状態に更新する
 
 ## Learnings (Retrospective)
 

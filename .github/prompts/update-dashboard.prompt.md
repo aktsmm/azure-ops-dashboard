@@ -15,38 +15,12 @@ description: "プロジェクトの実装状態をスキャンして DASHBOARD.m
 
 ## 手順
 
-### Step 1: 実装状態の把握
+SSOT は dashboard-updater エージェント定義です。手順の詳細はそちらを参照してください:
 
-以下を読んで現在の実装状態を把握する（並列実行推奨）:
+- `.github/agents/dashboard-updater.agent.md`
 
-1. `step00-chat-cli/main.py` — SDK 接続・トレイ・ホットキーの有無
-2. `step01-env-builder/main.py` — SDK 呼び出し（bicep_generate 等）の有無
-3. `step02-dictation/main.py` — STT + pyautogui の有無
-4. `step03-voice-agent/src/` — 実装ファイルの有無（空なら 0%）
-5. `azure-ops-dashboard/tests.py` — テスト件数を確認
-6. `output_sessions/` の最新 1〜2 ファイル — 直近の作業内容
-7. `presentations/` — 提出資料の有無
-
-### Step 2: 日付・残り日数を計算
-
-- 本日の日付を取得（`Get-Date -Format "yyyy-MM-dd"` 等）
-- 締め切り: 2026-03-07 → 残り日数を計算
-
-### Step 3: DASHBOARD.md を更新
-
-以下のセクションを実態に合わせて書き換える:
-
-1. `Last Updated` の日付と残り日数
-2. 全体進捗テーブルの各行（ステータス絵文字 / 進捗 % / 備考）
-3. `総合` パーセント（各 Step の進捗を重み付け平均）
-4. **現スプリント** の NOW / NEXT（未完了のうち最優先 3〜5 件）
-5. 全タスク詳細のチェックボックス（完了済みは [x]、未完了は [ ]）
-6. マイルストーンのステータス絵文字
-7. リスク・ブロッカー（新たなブロッカーがあれば追記）
-
-### Step 4: 変更報告
-
-更新した内容を 3〜5 行で簡潔に報告する。
+このプロンプトは「何を達成するか（DASHBOARD 更新）」と「判断基準」のみを定義します。
+実行手順・Fail Fast・Done Criteria はエージェント定義に従ってください。
 
 ## Non-Goals
 
