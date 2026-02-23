@@ -8,9 +8,9 @@ Azure Ops Dashboard で AI レポート生成に使用されるプロンプト�
 
 | 層 | 内容 | ソース |
 |---|---|---|
-| **System Prompt** | Azure インフラレビュー専門家。5観点で500字以内に要約 | `_system_prompt_review()` — `ai_reviewer.py` L270 |
-| **言語指示** | `ai.output_language` — 末尾に「日本語/英語で出力」を追記 | `ai_reviewer.py` L600-602 |
-| **User Prompt** | 「以下のAzureリソース一覧をレビューしてください」+ テキスト | `ai_reviewer.py` L577-588 |
+| **System Prompt** | Azure インフラレビュー専門家。5観点で500字以内に要約 | `ai_reviewer.py` — `_system_prompt_review()` |
+| **言語指示** | `ai.output_language` — 末尾に「日本語/英語で出力」を追記 | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
+| **User Prompt** | 「以下のAzureリソース一覧をレビューしてください」+ テキスト | `ai_reviewer.py` — `AIReviewer.review()` |
 
 ### System Prompt 概要（日本語モード）
 
@@ -34,13 +34,13 @@ Azure Ops Dashboard で AI レポート生成に使用されるプロンプト�
 
 | 層 | 内容 | ソース |
 |---|---|---|
-| **System Prompt (base)** | Azure セキュリティ監査専門家 | `_system_prompt_security_base()` — `ai_reviewer.py` L366 |
-| **+ CAF ガイダンス** | 準拠FW / 環境固有分析 / Docs検索 / 深刻度分類 | `_caf_security_guidance()` — `ai_reviewer.py` L303 |
-| **+ テンプレート指示** | セクション ON/OFF + 出力オプション | `build_template_instruction()` — `ai_reviewer.py` L143 |
-| **+ カスタム指示** | フリーテキスト + 保存済み指示 | 同上 L196-198 |
-| **+ 言語指示** | system prompt 末尾に追記 | `ai_reviewer.py` L600-602 |
-| **User Prompt** | サブスク名 → 依頼文 → セキュリティデータ → リソース一覧 → Docs参照 | `_run_report()` — `ai_reviewer.py` L828-864 |
-| **Docs 検索** | `Azure security best practices` + タイプ別 (max 3) | `security_search_queries()` — `docs_enricher.py` L338 |
+| **System Prompt (base)** | Azure セキュリティ監査専門家 | `ai_reviewer.py` — `_system_prompt_security_base()` |
+| **+ CAF ガイダンス** | 準拠FW / 環境固有分析 / Docs検索 / 深刻度分類 | `ai_reviewer.py` — `_caf_security_guidance()` |
+| **+ テンプレート指示** | セクション ON/OFF + 出力オプション | `ai_reviewer.py` — `build_template_instruction()` |
+| **+ カスタム指示** | フリーテキスト + 保存済み指示 | `main.py`（UI） + `ai_reviewer.py`（合成） |
+| **+ 言語指示** | system prompt 末尾に追記 | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
+| **User Prompt** | サブスク名 → 依頼文 → セキュリティデータ → リソース一覧 → Docs参照 | `ai_reviewer.py` — `_run_report()` |
+| **Docs 検索** | `Azure security best practices` + タイプ別 (max 3) | `docs_enricher.py` — `security_search_queries()` |
 
 ### レポートのレビューゲート（保存前）
 
@@ -82,12 +82,12 @@ Azure Security Center / Microsoft Defender for Cloud のデータと、
 
 | 層 | 内容 | ソース |
 |---|---|---|
-| **System Prompt (base)** | Azure コスト最適化専門家 | `_system_prompt_cost_base()` — `ai_reviewer.py` L455 |
-| **+ CAF ガイダンス** | 準拠FW / コスト上位リソース / 金額付き | `_caf_cost_guidance()` — `ai_reviewer.py` L390 |
-| **+ テンプレート指示** | セクション ON/OFF + オプション + 通貨記号 | `build_template_instruction()` |
-| **+ カスタム指示** | 同上 | |
-| **User Prompt** | サブスク名 → 依頼文 → コストデータ → Advisor推奨 → Docs参照 | `_run_report()` |
-| **Docs 検索** | `Azure cost optimization best practices` + タイプ別 (max 3) | `cost_search_queries()` — `docs_enricher.py` L352 |
+| **System Prompt (base)** | Azure コスト最適化専門家 | `ai_reviewer.py` — `_system_prompt_cost_base()` |
+| **+ CAF ガイダンス** | 準拠FW / コスト上位リソース / 金額付き | `ai_reviewer.py` — `_caf_cost_guidance()` |
+| **+ テンプレート指示** | セクション ON/OFF + オプション + 通貨記号 | `ai_reviewer.py` — `build_template_instruction()` |
+| **+ カスタム指示** | 同上 | `main.py`（UI） + `ai_reviewer.py`（合成） |
+| **User Prompt** | サブスク名 → 依頼文 → コストデータ → Advisor推奨 → Docs参照 | `ai_reviewer.py` — `_run_report()` |
+| **Docs 検索** | `Azure cost optimization best practices` + タイプ別 (max 3) | `docs_enricher.py` — `cost_search_queries()` |
 
 ### レポートのレビューゲート（保存前）
 
