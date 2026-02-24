@@ -147,13 +147,13 @@ uv pip install -e .
 uv pip install -e ".[ai]"
 
 # 起動
-uv run python main.py
+uv run python src/app.py
 ```
 
 > **⚠ Windows PATH に関する注意**: `uv` がグローバル Python を `~/.local/bin/` にインストールしている場合、`Activate.ps1` を実行しても `.venv\Scripts\python.exe` より先にグローバル Python が使われることがあります。その場合は **venv の Python を明示的に指定**してください:
 >
 > ```powershell
-> .venv\Scripts\python.exe main.py
+> .venv\Scripts\python.exe src\app.py
 > ```
 >
 > `python -c "import sys; print(sys.executable)"` で `.venv\Scripts\python.exe` を指していなければ、Copilot SDK 等の venv パッケージが見つからずエラーになります。

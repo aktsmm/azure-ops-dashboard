@@ -25,12 +25,13 @@ import argparse
 import sys
 from pathlib import Path
 
-# Allow importing from the app root (azure-ops-dashboard/)
+# Allow importing from the src layout (azure-ops-dashboard/src)
 _APP_ROOT = Path(__file__).resolve().parents[1]
-if str(_APP_ROOT) not in sys.path:
-    sys.path.insert(0, str(_APP_ROOT))
+_SRC = _APP_ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from drawio_validate import Issue, validate_drawio  # noqa: E402
+from azure_ops_dashboard.drawio_validate import Issue, validate_drawio  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -27,7 +27,7 @@ from typing import Any
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, simpledialog, ttk
 
-from collector import (
+from .collector import (
     Node,
     Edge,
     cell_id_for_azure_id,
@@ -43,14 +43,14 @@ from collector import (
     run_az_command,
     type_summary,
 )
-from drawio_writer import build_drawio_xml, now_stamp, preprocess_nodes
+from .drawio_writer import build_drawio_xml, now_stamp, preprocess_nodes
 
-from app_paths import (
+from .app_paths import (
     ensure_user_dirs, load_all_settings, load_setting, save_all_settings,
     save_setting, saved_instructions_path, user_saved_instructions_path, settings_path, user_templates_dir,
     bundled_templates_dir,
 )
-from gui_helpers import (
+from .gui_helpers import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
     WINDOW_BG, PANEL_BG, TEXT_FG, MUTED_FG, INPUT_BG, ACCENT_COLOR,
     SUCCESS_COLOR, WARNING_COLOR, ERROR_COLOR,
@@ -60,7 +60,7 @@ from gui_helpers import (
     cached_drawio_path, cached_vscode_path,
     export_drawio_svg, _subprocess_no_window,
 )
-from i18n import t, set_language, get_language, on_language_changed, load_saved_language
+from .i18n import t, set_language, get_language, on_language_changed, load_saved_language
 
 
 # ============================================================
@@ -787,7 +787,7 @@ class App:
     def _bg_load_models(self) -> None:
         """Copilot SDK から利用可能モデル一覧を取得してUIに反映する。"""
         try:
-            from ai_reviewer import list_available_model_ids_sync, choose_default_model_id, MODEL
+            from .ai_reviewer import list_available_model_ids_sync, choose_default_model_id, MODEL
 
             self._log(t("log.loading_models"), "info")
             timeout_sec = 45 if getattr(sys, "_MEIPASS", None) else 15
@@ -987,7 +987,7 @@ class App:
 
     def _load_templates_for_type(self, report_type: str) -> None:
         """テンプレート一覧をロードしてComboboxに設定。"""
-        from ai_reviewer import list_templates
+        from .ai_reviewer import list_templates
         templates = list_templates(report_type)
         self._templates_cache = templates
         names = [tmpl.get("template_name", "Unknown") for tmpl in templates]
@@ -1252,7 +1252,7 @@ class App:
             initialfile=f"{report_type}-{safe_name}.json",
         )
         if p:
-            from ai_reviewer import save_template
+            from .ai_reviewer import save_template
             tmpl["template_name"] = name
             # _pathは保存対象から除外
             tmpl.pop("_path", None)
@@ -1856,7 +1856,7 @@ class App:
 
         ai_review_result: str | None = None
         try:
-            from ai_reviewer import run_ai_review
+            from .ai_reviewer import run_ai_review
             ai_review_result = run_ai_review(
                 resource_text=resource_text,
                 on_delta=lambda d: self._log_append_delta(d),
@@ -1939,7 +1939,7 @@ class App:
         # AI mode (preferred)
         if opts.get("ai_drawio"):
             try:
-                from ai_reviewer import run_drawio_generation
+                from .ai_reviewer import run_drawio_generation
 
                 self._set_status(t("status.ai_generating_xml"))
 
@@ -2093,7 +2093,7 @@ class App:
 
     @staticmethod
     def _pick_standard_template(report_type: str) -> dict | None:
-        from ai_reviewer import list_templates
+        from .ai_reviewer import list_templates
         templates = list_templates(report_type)
         if not templates:
             return None
@@ -2221,7 +2221,7 @@ class App:
 
             integrated_result: str | None = None
             try:
-                from ai_reviewer import run_integrated_report
+                from .ai_reviewer import run_integrated_report
                 rg_display = opts.get("rg_display", "") if opts else ""
 
                 integrated_result = run_integrated_report(
@@ -2267,7 +2267,7 @@ class App:
             out_path = out_dir / out_name
             # 未使用脚注などをベストエフォートでクリーンアップ
             try:
-                from exporter import remove_unused_footnote_definitions, validate_markdown
+                from .exporter import remove_unused_footnote_definitions, validate_markdown
 
                 integrated_result, removed = remove_unused_footnote_definitions(integrated_result)
                 if removed:
@@ -2295,7 +2295,7 @@ class App:
             # Word 出力（オプション）
             if opts.get("export_docx") if opts else False:
                 try:
-                    from exporter import md_to_docx
+                    from .exporter import md_to_docx
                     docx_path = out_path.with_suffix(".docx")
                     md_to_docx(integrated_result, docx_path)
                     self._log(t("log.word_output", path=str(docx_path)), "success")
@@ -2377,7 +2377,7 @@ class App:
     def _draw_preview(self, nodes: list[Node], edges: list[Edge],
                       azure_to_cell_id: dict[str, str]) -> None:
         """ログエリアの下にCanvasで簡易描画。色はdrawio_writerと同じ。"""
-        from drawio_writer import get_type_icon, color_for_type
+        from .drawio_writer import get_type_icon, color_for_type
 
         def _do() -> None:
             self._canvas.delete("all")
@@ -2663,7 +2663,7 @@ class App:
 
                 self._log(t("log.sec_ai_gen"), "info")
                 try:
-                    from ai_reviewer import run_security_report
+                    from .ai_reviewer import run_security_report
                     report_result = run_security_report(
                         security_data=security_data,
                         resource_text=resource_text,
@@ -2705,7 +2705,7 @@ class App:
 
                 self._log(t("log.cost_ai_gen"), "info")
                 try:
-                    from ai_reviewer import run_cost_report
+                    from .ai_reviewer import run_cost_report
                     report_result = run_cost_report(
                         cost_data=cost_data,
                         advisor_data=advisor_data,
@@ -2769,7 +2769,7 @@ class App:
             write_text(out_path, report_result)
             # 未使用脚注などをベストエフォートでクリーンアップ（保存後の diff/再現性は維持）
             try:
-                from exporter import remove_unused_footnote_definitions
+                from .exporter import remove_unused_footnote_definitions
 
                 cleaned, removed = remove_unused_footnote_definitions(report_result)
                 if removed and cleaned.strip() != report_result.strip():
@@ -2788,7 +2788,7 @@ class App:
 
             # Markdown バリデーション（機械チェック）
             try:
-                from exporter import validate_markdown
+                from .exporter import validate_markdown
                 md_warnings = validate_markdown(report_result)
                 if md_warnings:
                     self._log("⚠ Markdown validation:", "warning")
@@ -2801,7 +2801,7 @@ class App:
 
             # レポート入力（収集データ/テンプレ/指示）を隣に保存（再生成・監査用）
             try:
-                from ai_reviewer import get_last_run_debug
+                from .ai_reviewer import get_last_run_debug
                 input_payload: dict[str, Any] = {
                     "generatedAt": datetime.now().isoformat(timespec="seconds"),
                     "view": view,
@@ -2826,7 +2826,7 @@ class App:
 
             # 差分レポート（前回が存在すれば自動生成）
             try:
-                from exporter import find_previous_report, generate_diff_report
+                from .exporter import find_previous_report, generate_diff_report
                 prev = find_previous_report(out_path.parent, report_type, out_path.name)
                 if prev:
                     diff_md = generate_diff_report(prev, out_path)
@@ -2841,7 +2841,7 @@ class App:
             # 追加出力形式
             if opts.get("export_docx") if opts else False:
                 try:
-                    from exporter import md_to_docx
+                    from .exporter import md_to_docx
                     docx_path = out_path.with_suffix(".docx")
                     md_to_docx(report_result, docx_path)
                     self._log(t("log.word_output", path=str(docx_path)), "success")
@@ -2850,7 +2850,7 @@ class App:
 
             if opts.get("export_pdf") if opts else False:
                 try:
-                    from exporter import md_to_pdf
+                    from .exporter import md_to_pdf
                     pdf_path = out_path.with_suffix(".pdf")
                     result = md_to_pdf(report_result, pdf_path)
                     if result:
@@ -2954,7 +2954,7 @@ class App:
             self._save_all_settings()
             # CopilotClient + イベントループをシャットダウン
             try:
-                from ai_reviewer import shutdown_sync
+                from .ai_reviewer import shutdown_sync
                 shutdown_sync()
             except Exception:
                 pass

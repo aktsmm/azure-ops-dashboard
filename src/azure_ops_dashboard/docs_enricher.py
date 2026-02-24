@@ -18,7 +18,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from i18n import get_language
+from .i18n import get_language
 
 
 @dataclass(frozen=True)

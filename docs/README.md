@@ -19,12 +19,11 @@ See the full list in the main README: [../README.md](../README.md)
 ## Setup
 
 - Create venv + install: `uv venv && uv pip install -e ".[ai]"`
-- Run: `uv run python main.py`
+- Run: `uv run python src/app.py`
 
 This repo also includes a small entry-point shim under `/src`:
 
 - `python src/app.py`
-- or `python -m src.app`
 
 ## Deployment / Packaging
 

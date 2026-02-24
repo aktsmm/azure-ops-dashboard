@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from i18n import get_language
+from .i18n import get_language
 
 
 # ============================================================

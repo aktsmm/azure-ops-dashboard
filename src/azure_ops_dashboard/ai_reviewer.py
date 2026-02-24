@@ -24,18 +24,18 @@ except Exception as exc:
     CopilotClient = None  # type: ignore[assignment]
     _COPILOT_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
 
-from app_paths import (
+from .app_paths import (
     bundled_templates_dir,
     copilot_cli_path,
     ensure_user_dirs,
     template_search_dirs,
 )
-from docs_enricher import (
+from .docs_enricher import (
     cost_search_queries,
     enrich_with_docs,
     security_search_queries,
 )
-from i18n import t as _t, get_language
+from .i18n import t as _t, get_language
 
 
 _TOOL_INPUT_BLOCK_RE = re.compile(
@@ -381,7 +381,7 @@ def _system_prompt_drawio() -> str:
     # 失敗しても図生成自体は可能なので、import は遅延 + ベストエフォート。
     icons: dict[str, str] = {}
     try:
-        import drawio_writer
+        from . import drawio_writer
 
         icons = dict(getattr(drawio_writer, "_TYPE_ICONS", {}) or {})
     except Exception:
@@ -1971,7 +1971,7 @@ def run_drawio_generation(
     - バリデーションERRORが出た場合は最大 *max_attempts* 回リトライ。
     - すべて失敗した場合は None。
     """
-    from drawio_validate import Issue, validate_drawio_xml
+    from .drawio_validate import Issue, validate_drawio_xml
 
     import xml.etree.ElementTree as ET
 
