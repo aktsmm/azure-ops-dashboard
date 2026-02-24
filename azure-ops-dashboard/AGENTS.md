@@ -59,7 +59,7 @@ main.py            ← GUI entry point (tkinter, threading)
 - `from __future__ import annotations` in every module
 - Frozen dataclasses for data models (`Node`, `Edge`, `DocReference`)
 - i18n: use `t("key")` from `i18n.py` — never hardcode UI strings
-- Tests: `python -m unittest tests -v` (32 tests, no Azure/SDK connectivity needed)
+- Tests: `python -m unittest tests -v` (39 tests, no Azure/SDK connectivity needed)
 
 ## Common Tasks
 
