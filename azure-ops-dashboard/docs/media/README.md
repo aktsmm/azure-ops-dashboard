@@ -12,7 +12,7 @@
 
 | ファイル                | 用途                                            |
 | ----------------------- | ----------------------------------------------- |
-| `demo-full.mp4`         | SDK Challenge 提出用デモ動画 (3分以内)          |
+| `demo-full.mp4`         | SDK Challenge 提出用デモ動画 (※リポには格納しない) |
 | `demo-collect.gif`      | README 掲載用: Collect → Draw.io 図生成         |
 | `demo-report.gif`       | README 掲載用: AI レポート生成 (ストリーミング) |
 | `screenshot-gui.png`    | README / プレゼン用: GUI 全体                   |

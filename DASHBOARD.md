@@ -12,7 +12,7 @@
 | Step 1: Env Builder CLI          | 🔧 実装中   | 45%  | az動作○、SDK統合・修復ループ未                                                |
 | Step 2: Dictation                | 🟡 最小完成 | 80%  | STT+pyautogui動作、ホットキー未                                               |
 | Step 3: Voice Agent 統合（本命） | ⬜ 未着手   | 0%   | src/ は空                                                                     |
-| Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト36件 |
+| Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト39件 |
 | 提出物準備（docs/video/deck）    | ✅ 提出済   | 100% | 2/24 提出完了（PPTX 2スライド + 動画 + SDK Feedback）                         |
 
 **🎯 総合: 約 40%** ／ **本命 (Voice Agent) 単体: 25%**
@@ -93,7 +93,7 @@
 - [x] bundled + user override テンプレート（%APPDATA%）
 - [x] Service Principal ログイン対応（Secret 非保存）
 - [x] 収集スクリプト（collect-azure-env.ps1）
-- [x] ユニットテスト 36 件（Azure CLI / SDK 接続不要）
+- [x] ユニットテスト 39 件（Azure CLI / SDK 接続不要）
 - [x] 差分レポート（-diff.md）の UI 連携強化
 - [x] network view レイアウト改善（PublicIP / NIC / Subnet 固定並び）
 - [x] スレッド安全性改善（Lock 整理・Thread 起動遅延・cancel 伝搬）
@@ -120,7 +120,7 @@
 
 | 日付    | タスク                                    | 状態      |
 | ------- | ----------------------------------------- | --------- |
-| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | �         |
+| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | ⬜        |
 | 2/26    | Office Hours #2                           | ⬜        |
 | 3/1     | **Step3 Voice Agent MVP**                 | ⬜        |
 | 3/5     | Office Hours #3                           | ⬜        |
@@ -135,7 +135,7 @@
 | ---------------------------------- | ------ | ----------------------------------------- |
 | Step3 統合が 0% のまま進む         | 🔴 高  | 2/24 から先行着手。Step1 完成後すぐ移行   |
 | Azure Speech キー/リージョン未設定 | 🟡 中  | 早めに `AZURE_SPEECH_KEY` 確認・設定      |
-| デモ動画/デック未着手              | 🟡 中  | 3/5 以降に集中。シナリオは今から固める    |
+| 提出物（Azure Ops Dashboard）      | 🟢 解消 | 2/24 に提出完了（動画/デック/README）     |
 | Step1 SDK統合が長引く              | 🟠 中  | 2/24 中に方針決定。長引けば保険提出に切替 |
 
 ---

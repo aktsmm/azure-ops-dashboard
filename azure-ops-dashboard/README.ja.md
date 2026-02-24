@@ -12,7 +12,7 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 | ------------------------------------------------ | ----------------------------------------------------- |
 | ![GUI Screenshot](docs/media/screenshot-gui.png) | ![Cost Report](docs/media/screenshot-cost-report.png) |
 
-**デモ動画** (3 min): [docs/media/demo-full.mp4](docs/media/demo-full.mp4)
+**デモ動画** (3 min): 別途提出（このリポジトリには格納しません）
 
 ## 機能
 
@@ -64,7 +64,7 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 
 ### AI 機能（レビュー / レポート生成）
 
-- GitHub Copilot SDK（`pip install github-copilot-sdk` または `uv pip install -e ".[ai]"`）
+- GitHub Copilot SDK（`uv pip install github-copilot-sdk` または `uv pip install -e ".[ai]"`）
 - Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
 - もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
 - ネットワーク到達（社内 Proxy/Firewall 環境だと追加設定が必要な場合あり）
@@ -73,7 +73,7 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 
 - **Word (.docx)**: `python-docx` 同梱（自動インストール）
 - **PDF**: Microsoft Word（Windows、COM/comtypes 経由）または LibreOffice（`soffice` コマンド、全 OS）
-  - Windows での PDF 変換には `pip install comtypes` も必要
+  - Windows での PDF 変換には `uv pip install comtypes` も必要
 - **SVG (.drawio.svg)**: Draw.io デスクトップアプリ（CLI として SVG エクスポートに使用）
 
 ### 権限

@@ -42,4 +42,3 @@ RAI notes are documented in the main README: [../README.md#responsible-ai-rai-no
 ## Other docs
 
 - Media assets: [media/](media/)
-- Submission draft (internal): [submission-draft.md](submission-draft.md)
