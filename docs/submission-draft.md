@@ -15,7 +15,7 @@ The tool connects to Azure Resource Graph to inventory resources, then produces 
 
 Key capabilities: template customization (section ON/OFF, custom instructions), Japanese/English runtime switching, Word/PDF/SVG export, and PyInstaller single-exe packaging. The solution targets enterprise IT operations teams who need quick Azure environment visualization and actionable insights without juggling multiple portals, CLI commands, and manual documentation.
 
-32 unit tests run without Azure CLI or SDK connectivity. Cross-platform: Windows (full + exe), macOS, Linux.
+39 unit tests run without Azure CLI or SDK connectivity. Cross-platform: Windows (full + exe), macOS, Linux.
 
 ---
 
@@ -47,11 +47,11 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 | 要件                                      | 現状                            | 対応                                         |
 | ----------------------------------------- | ------------------------------- | -------------------------------------------- |
-| `/src` or `/app` (working code)           | ルート直下に `.py` ファイル配置 | ルートを `/app` 扱いとする or README で説明  |
-| `/docs` (README, arch diagram, RAI notes) | `README.md` + `DESIGN.md` あり  | **アーキテクチャ図** と **RAI notes** を追加 |
-| `AGENTS.md`                               | なし（親リポにはある）          | **新規作成**                                 |
-| `mcp.json`                                | なし                            | **新規作成**（Microsoft Learn MCP 設定）     |
-| `/presentations/AzureOpsDashboard.pptx`   | なし                            | **新規作成**                                 |
+| `/src` or `/app` (working code)           | ルート直下に `.py` ファイル配置 | ✅ README で説明済み（flat layout）           |
+| `/docs` (README, arch diagram, RAI notes) | ✅ README.md + DESIGN.md + architecture.drawio + RAI notes | ✅ 完了 |
+| `AGENTS.md`                               | ✅ 作成済み (90行)              | ✅ 完了                                      |
+| `mcp.json`                                | ✅ 作成済み (Microsoft Learn MCP) | ✅ 完了                                    |
+| `/presentations/AzureOpsDashboard.pptx`   | ✅ AzureOpsDashboard_v7.pptx    | ✅ 完了                                      |
 
 ---
 
@@ -97,7 +97,7 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 | ------------------------------------------------------ | ------- | ------ | -------------------------------------------------------------------- |
 | Enterprise applicability, reusability & business value | 35      | **30** | Azure 環境可視化は全エンタープライズ共通課題。テンプレート再利用可能 |
 | Integration with Azure/MS solutions                    | 25      | **22** | Resource Graph, Security Center, Cost Management, Advisor, Learn API |
-| Operational readiness                                  | 15      | **12** | PyInstaller exe / README / 32 tests / CI 未整備                      |
+| Operational readiness                                  | 15      | **12** | PyInstaller exe / README / 39 tests / CI 未整備                      |
 | Security, governance & RAI                             | 15      | **11** | Reader 権限のみ / SP login / secret 非保存 / RAI notes 追加予定      |
 | Storytelling & clarity                                 | 15      | **12** | README 充実 / デモ動画 + デック作成予定                              |
 | **小計**                                               | **105** | **87** |                                                                      |
@@ -119,25 +119,26 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 ### 必須 (提出に必要)
 
-- [ ] GitHub に `aktsmm/azure-ops-dashboard` リポジトリを作成 & push
-- [ ] **デモ動画** (3分以内) を撮影 → YouTube / Stream にアップ
-- [ ] **プレゼンデック** (1-2 slides) `/presentations/AzureOpsDashboard.pptx` 作成
-- [ ] **AGENTS.md** を azure-ops-dashboard に新規作成
-- [ ] **mcp.json** を作成（Microsoft Learn MCP 設定）
-- [ ] **アーキテクチャ図** (.drawio or .png) を /docs に追加
-- [ ] **RAI notes** を /docs/README に追加
+- [x] GitHub に `aktsmm/azure-ops-dashboard` リポジトリを作成 & push
+- [ ] **デモ動画** (3分以内) を YouTube / Stream にアップし URL 取得
+- [x] **プレゼンデック** (1-2 slides) `/presentations/AzureOpsDashboard_v7.pptx` 作成
+- [x] **AGENTS.md** を azure-ops-dashboard に作成
+- [x] **mcp.json** を作成（Microsoft Learn MCP 設定）
+- [x] **アーキテクチャ図** (`docs/architecture.drawio`) を追加
+- [x] **RAI notes** を README.md 末尾に追加
 - [ ] SharePoint フォームで提出
 
 ### ボーナス
 
-- [ ] SDK product feedback を SDK チーム channel に投稿 + スクリーンショット
+- [x] SDK product feedback を SDK チーム channel に投稿 (2026-02-24)
+- [ ] SDK feedback スクリーンショットを `/docs/media/` に保存
 - [ ] 社内利用検証ドキュメント作成
 - [ ] Work IQ 統合検討
 
 ### その他
 
-- [ ] リポジトリ構成を要件に合わせて調整 (`/src` or `/app` 問題)
-- [ ] README の英語版をエンハンス (problem → solution, deployment, RAI)
+- [x] リポジトリ構成を README で説明済み (flat layout)
+- [x] README の英語版をエンハンス (problem → solution, deployment, RAI)
 
 ---
 

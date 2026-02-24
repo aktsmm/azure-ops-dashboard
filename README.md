@@ -243,7 +243,7 @@ Generated in the output folder:
 uv run python -m unittest tests -v
 ```
 
-Tests can run without Azure CLI / Copilot SDK connectivity (36 tests).
+Tests can run without Azure CLI / Copilot SDK connectivity (39 tests).
 
 ## Packaging (Windows .exe)
 
