@@ -108,8 +108,7 @@ class TestDrawioWriter(unittest.TestCase):
         # PublicIP アイコンが出力されていること
         self.assertIn("Public_IP_Addresses", xml)
         # LAYOUT_ORDER で publicipaddresses が virtualnetworks より前
-        from azure_ops_dashboard.drawio_writer import LAYOUT_ORDER as LO
-        self.assertLess(LO.index("publicipaddresses"), LO.index("virtualnetworks"))
+        self.assertLess(LAYOUT_ORDER.index("publicipaddresses"), LAYOUT_ORDER.index("virtualnetworks"))
 
     def test_layout_order_subnet_before_vnet(self) -> None:
         """Subnet が VNet コンテナ内に配置されることを検証する。"""
@@ -127,8 +126,7 @@ class TestDrawioWriter(unittest.TestCase):
         self.assertIn("default", xml)
         self.assertIn("vnet1", xml)
         # LAYOUT_ORDER で virtualnetworks/subnets が virtualnetworks より前
-        from azure_ops_dashboard.drawio_writer import LAYOUT_ORDER as LO
-        self.assertLess(LO.index("virtualnetworks/subnets"), LO.index("virtualnetworks"))
+        self.assertLess(LAYOUT_ORDER.index("virtualnetworks/subnets"), LAYOUT_ORDER.index("virtualnetworks"))
 
     def test_layout_order_constant_exists(self) -> None:
         """LAYOUT_ORDER が定義されており公開 IP と VNet を含む。"""
@@ -138,7 +136,7 @@ class TestDrawioWriter(unittest.TestCase):
         self.assertIn("virtualnetworks/subnets", LAYOUT_ORDER)
 
 
-import azure_ops_dashboard.collector as _collector_module
+import azure_ops_dashboard.collector as collector_module
 from azure_ops_dashboard.collector import collect_network
 
 
@@ -176,8 +174,8 @@ class TestSubnetCollection(unittest.TestCase):
             # ARG 呼び出しは _az_graph_query で横取りされるので通常到達しない
             return (1, "", "unexpected")
 
-        with patch.object(_collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
-             patch.object(_collector_module, "_run_command", side_effect=fake_run_command):
+        with patch.object(collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
+             patch.object(collector_module, "_run_command", side_effect=fake_run_command):
             nodes, edges, _meta = collect_network(
                 subscription="sub1", resource_group=None, limit=300
             )
@@ -216,8 +214,8 @@ class TestSubnetCollection(unittest.TestCase):
             # subnet list も含め常に失敗
             return (1, "", "error: something went wrong")
 
-        with patch.object(_collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
-             patch.object(_collector_module, "_run_command", side_effect=fake_run_command_fail):
+        with patch.object(collector_module, "_az_graph_query", side_effect=fake_az_graph_query), \
+             patch.object(collector_module, "_run_command", side_effect=fake_run_command_fail):
             nodes, edges, _meta = collect_network(
                 subscription="sub1", resource_group=None, limit=300
             )
@@ -284,7 +282,6 @@ class TestExporter(unittest.TestCase):
 
 from azure_ops_dashboard.gui_helpers import (
     WINDOW_TITLE, ACCENT_COLOR, FONT_SIZE,
-    cached_drawio_path, cached_vscode_path,
     write_text, write_json,
 )
 
@@ -312,7 +309,7 @@ class TestGuiHelpers(unittest.TestCase):
 
 # ---------- ai_reviewer tests (unit only, no SDK) ----------
 
-from azure_ops_dashboard.ai_reviewer import choose_default_model_id, build_template_instruction
+from azure_ops_dashboard.ai_reviewer import choose_default_model_id, build_template_instruction, MODEL
 from azure_ops_dashboard.docs_enricher import enrich_with_docs, security_search_queries, cost_search_queries
 from azure_ops_dashboard.i18n import get_language, set_language
 
@@ -330,7 +327,7 @@ class TestAIReviewerHelpers(unittest.TestCase):
 
     def test_choose_default_empty(self) -> None:
         result = choose_default_model_id([])
-        self.assertEqual(result, "gpt-4.1")  # MODEL fallback
+        self.assertEqual(result, MODEL)  # MODEL fallback
 
     def test_choose_default_unknown(self) -> None:
         ids = ["custom-model-1"]
@@ -577,6 +574,68 @@ Body
         self.assertIn("## Section 2", out)
         self.assertNotIn("tool_call_result", out.lower())
         self.assertNotIn("stdout", out.lower())
+
+
+# ---------- run_integrated_report quality gate tests (no SDK) ----------
+
+class TestIntegratedReportQualityGate(unittest.TestCase):
+    """run_integrated_report の品質ゲート（L13）を SDK なしで検証する。
+
+    _run_async をモックして AI の返値をコントロールし、
+    placeholder / too_short → None、valid → 採用 を確認する。
+    """
+
+    _PLACEHOLDER = (
+        "# Integrated Report\n\n"
+        "I'll generate an integrated operations report combining both security and cost findings.\n"
+    )
+    _TOO_SHORT = "# Integrated Report\n\nShort.\n"
+    _VALID = (
+        "# Integrated Report — Test Sub\n\n"
+        "## Executive Summary\n\n"
+        "This subscription has 54 resources. Security score is critically low at 31%.\n\n"
+        "## Security Posture\n\n"
+        "Defender plans enabled: 2/18. Unhealthy assessments: 107/144.\n\n"
+        "## Cost Overview\n\n"
+        "Total estimated monthly cost: ¥13,000. Storage accounts are the top spender.\n\n"
+        "## Priority Actions\n\n"
+        "1. Enable Defender for Storage — Quick win\n"
+        "2. Enable Defender for Key Vault — Quick win\n"
+        "3. Restrict public access on Storage — Quick win\n"
+        "4. Enable VNet integration for Container Apps — Strategic\n"
+        "5. Implement Private Endpoints for Cosmos DB — Strategic\n"
+    )
+
+    def _call(self, raw_return: str | None) -> str | None:
+        import azure_ops_dashboard.ai_reviewer as _mod
+        with patch.object(_mod, "_run_async", return_value=raw_return):
+            return _mod.run_integrated_report(
+                diagram_summaries=[],
+                report_contents=[("security", "sec"), ("cost", "cost")],
+            )
+
+    def test_placeholder_returns_none(self) -> None:
+        """プレースホルダ出力（"I'll generate..."）は None を返す。"""
+        result = self._call(self._PLACEHOLDER)
+        self.assertIsNone(result, "placeholder 出力は品質ゲートで棄却されるべき")
+
+    def test_too_short_returns_none(self) -> None:
+        """200文字未満の出力は None を返す。"""
+        result = self._call(self._TOO_SHORT)
+        self.assertIsNone(result, "短すぎる出力は品質ゲートで棄却されるべき")
+
+    def test_none_raw_returns_none(self) -> None:
+        """SDK が None を返した場合は None をそのまま返す。"""
+        result = self._call(None)
+        self.assertIsNone(result)
+
+    def test_valid_output_is_returned(self) -> None:
+        """十分な長さ・構造を持つ出力はそのまま返す。"""
+        result = self._call(self._VALID)
+        self.assertIsNotNone(result, "有効な出力は品質ゲートを通過すべき")
+        assert result is not None
+        self.assertIn("## Executive Summary", result)
+        self.assertIn("Priority Actions", result)
 
 
 if __name__ == "__main__":
