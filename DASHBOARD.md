@@ -1,6 +1,6 @@
 # 🚀 Challenge Dashboard
 
-> Last Updated: **2026-02-24** | Deadline: **2026-03-01 23:59 PST** (Agents League) | 残り **5 日**
+> Last Updated: **2026-02-24** | Deadline: **2026-03-07 22:00 PST** (FY26 SDK Enterprise Challenge) | 残り **11 日**
 
 ---
 
