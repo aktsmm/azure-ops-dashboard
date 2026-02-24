@@ -1,5 +1,4 @@
 <!-- skill-ninja-START -->
-
 ## Agent Skills (Compressed Index)
 
 > **IMPORTANT**: Prefer skill-led reasoning over pre-training-led reasoning.
@@ -7,10 +6,11 @@
 
 ### Skills Index
 
-| Skill                                                                    | Path                     | Description                                                                                          |
-| ------------------------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Skill | Path | Description |
+|-------|------|-------------|
 | [agentic-workflow-guide](.github/skills/agentic-workflow-guide/SKILL.md) | `agentic-workflow-guide` | Create, review, and update Prompt and agents and workflows. Covers 5 workflow patterns, runSubage... |
-| [drawio-diagram-forge](.github/skills/drawio-diagram-forge/SKILL.md)     | `drawio-diagram-forge`   | Generate draw.io editable diagrams (.drawio, .drawio.svg) from text, images, or Excel. Orchestrat... |
+| [drawio-diagram-forge](.github/skills/drawio-diagram-forge/SKILL.md) | `drawio-diagram-forge` | Generate draw.io editable diagrams (.drawio, .drawio.svg) from text, images, or Excel. Orchestrat... |
+| [powerpoint-automation](.github/skills/powerpoint-automation/SKILL.md) | `powerpoint-automation` | Create professional PowerPoint presentations from various sources including web articles, blog po... |
 
 <!-- skill-ninja-END -->
 
@@ -56,3 +56,23 @@
 
 - **Evidence**: `_run_async` で `future.result(timeout=...)` がタイムアウトすると裏のコルーチンが走り続けリソースリークする
 - **Action**: `except TimeoutError` で `future.cancel()` を呼ぶ。長時間セッション（drawio 60分等）では特に重要
+
+### L8: tkinter の after キューを高頻度で積まない + マルチスレッドバッファはアトミックスワップ
+
+- **Evidence**: AI ストリーミング中に `root.after(0, ...)` を毎デルタで積んだ結果、200ms 周期のタイマーが遅延してフリーズ。バッファの `join`+`clear` 間にワーカーが `append()` してデルタ消失。
+- **Action**: ストリーミング UI は 100ms 等でバッチ化する。マルチスレッドのバッファ回収は `self.buf = []`（属性再バインド）でアトミックにスワップし、`join`+`clear` の非原子性を回避する。
+
+### L9: python-pptx の Presentation() は 4:3 プレースホルダを生成する — 16:9 では Blank + 手動配置
+
+- **Evidence**: `slide_width = Cm(33.867)` で 16:9 に設定してもプレースホルダは 25.4cm (4:3) 基準のまま → 全スライドが左寄りに表示された
+- **Action**: 16:9 プレゼンでは Blank レイアウト + `add_textbox()` で `SW` 基準の対称マージン配置を行う。テンプレート PPTX 自体が 16:9 なら Layout 0-5 も使用可。
+
+### L10: binary ファイルの Git 管理は .gitattributes を add 前に設定する
+
+- **Evidence**: skill-ninja でインストールした `template.pptx` が UTF-8 変換で 12,778 箇所破損 (`.gitignore` の `skills/` で除外されていたため気づかず)
+- **Action**: `.gitattributes` の `*.pptx binary` は最初のコミット前に設定。破損した場合は `python-pptx` で空テンプレートを再生成して復旧可能。
+
+### L11: python-pptx で動画埋め込みは ZIP 直接操作で可能
+
+- **Evidence**: python-pptx は公式に MP4 埋め込み非対応。しかし PPTX は ZIP なので `lxml` + `zipfile` で slide XML に `p:pic` + `a:videoFile` + `p14:media` を注入し、rels と Content_Types を追加すれば埋め込み可能
+- **Action**: ポスター画像（サムネイル）は必須。PowerPoint が軽微な修復を求める場合があるが動作する。Git 管理には LFS 推奨。
