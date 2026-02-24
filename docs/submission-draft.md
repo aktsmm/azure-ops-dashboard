@@ -152,11 +152,13 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 I built **Azure Ops Dashboard**, a tkinter desktop app that generates architecture diagrams and AI-powered security/cost reports from live Azure environments using the Copilot SDK.
 
 **What worked well:**
+
 - `CopilotClient` streaming API (`turn.stream()`) was easy to integrate for real-time report generation in a GUI. Async streaming → tkinter `after()` batching pattern worked cleanly.
 - `await client.get_models()` made dynamic model selection straightforward (users can pick from available models in a dropdown).
 - The SDK's authentication via Copilot CLI (`copilot auth login`) is simple for internal tools.
 
 **Pain points / Feature requests:**
+
 1. **Model listing latency**: `get_models()` can take 3-5s on first call. A cached/local model list option would help GUI responsiveness.
 2. **Error messages on auth failure**: When `copilot auth login` hasn't been run, the error message from `CopilotClient.start()` is generic. A specific "not authenticated — run `copilot auth login`" message would save debugging time.
 3. **Timeout control**: No built-in per-request timeout on `turn.stream()`. We had to wrap with `asyncio.wait_for()` + manual cancellation (see L7 learning). A `timeout_s` parameter on send/stream would be welcome.

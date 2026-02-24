@@ -10,6 +10,14 @@ A **tkinter GUI desktop app** that connects to Azure Resource Graph, generates D
 
 Supports **Japanese / English runtime switching** — UI text, logs, and AI report output language can be toggled with one click.
 
+## Demo
+
+| GUI | Cost Report |
+|-----|-------------|
+| ![GUI Screenshot](docs/media/screenshot-gui.png) | ![Cost Report](docs/media/screenshot-cost-report.png) |
+
+**Demo video** (3 min): [docs/media/demo-full.mp4](docs/media/demo-full.mp4)
+
 ### Architecture
 
 See the full architecture diagram: [docs/architecture.drawio](docs/architecture.drawio)
