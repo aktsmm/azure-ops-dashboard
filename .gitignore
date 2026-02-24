@@ -22,3 +22,4 @@ dist-build-*/
 output_sessions/
 .github/temp/
 azure-ops-dashboard/.temp/
+.playwright-mcp/
