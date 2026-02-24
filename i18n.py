@@ -122,6 +122,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.model_fallback":       {"ja": "モデル一覧取得タイムアウト（既定モデルを使用）", "en": "Model list timeout (using default model)"},
     "log.model_list_error":     {"ja": "⚠ モデル一覧取得エラー: {err}",   "en": "⚠ Failed to list models: {err}"},
     "log.svg_export_skip":      {"ja": "SVG変換スキップ（Draw.io CLIが見つかりません）", "en": "SVG export skipped (Draw.io CLI not found)"},
+    "log.svg_export_failed":    {"ja": "SVG変換に失敗: {err}",            "en": "SVG export failed: {err}"},
     "log.diff_generated":       {"ja": "差分レポート生成: {path}",       "en": "Diff report generated: {path}"},
     "log.report_target_required": {"ja": "少なくとも1つのレポート種別を選んでください", "en": "Select at least one report type"},
     "log.multi_report_start":   {"ja": "複数レポート生成: {count} 種類", "en": "Multi-report generation: {count} types"},
@@ -169,6 +170,14 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.az_login_error":       {"ja": "az login エラー: {err}",       "en": "az login error: {err}"},
     "log.query_running":        {"ja": "az graph query を実行中... (view={view})",
                                  "en": "Running az graph query... (view={view})"},
+    "log.targets":              {"ja": "  対象: {targets}",
+                                 "en": "  Targets: {targets}"},
+    "log.subscription":         {"ja": "  サブスクリプション: {subscription}",
+                                 "en": "  Subscription: {subscription}"},
+    "log.resource_group":       {"ja": "  リソースグループ: {rg}",
+                                 "en": "  Resource Group: {rg}"},
+    "log.limit":                {"ja": "  上限: {limit}",
+                                 "en": "  Limit: {limit}"},
     "log.resources_found":      {"ja": "  → {count} 件のリソースを取得",
                                  "en": "  → Fetched {count} resource(s)"},
     "log.net_resources_found":  {"ja": "  → {nodes} 件のネットワークリソース, {edges} 件の接続を取得",
@@ -227,6 +236,8 @@ _STRINGS: dict[str, dict[str, str]] = {
 
     "log.open_failed":          {"ja": "ファイルを開けませんでした: {err}",
                                  "en": "Failed to open file: {err}"},
+    "log.clipboard_failed":     {"ja": "クリップボードにコピーできませんでした: {err}",
+                                 "en": "Failed to copy to clipboard: {err}"},
 
     # --- 保存済み指示 ---
     "instr.saved":              {"ja": "指示を保存しました: {label}",  "en": "Instruction saved: {label}"},

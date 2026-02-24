@@ -29,14 +29,33 @@ if ($running -and $DistPath -eq 'dist') {
 }
 
 # PyInstaller は開発用ツールなので、プロジェクトの .venv に追加
-$python = (Resolve-Path (Join-Path $PSScriptRoot '..\.venv\Scripts\python.exe')).Path
+# NOTE: monorepo では親ディレクトリの .venv を優先しつつ、単体リポ構成では同階層 .venv へフォールバック。
+$pythonCandidates = @(
+  (Join-Path $PSScriptRoot '..\.venv\Scripts\python.exe'),
+  (Join-Path $PSScriptRoot '.\.venv\Scripts\python.exe')
+)
+
+$python = $null
+foreach ($cand in $pythonCandidates) {
+  if (Test-Path $cand) {
+    $python = (Resolve-Path $cand).Path
+    break
+  }
+}
+
+if (-not $python) {
+  throw "Python executable not found. Expected one of: `n- $($pythonCandidates -join "`n- ")"
+}
+
+# Derive venv root from <venv>\Scripts\python.exe
+$venvRoot = Split-Path -Parent (Split-Path -Parent $python)
 uv pip install --python $python pyinstaller
 
 # templates/ を exe に同梱（Windows は ; 区切り）
 $addData = 'templates;templates'
 
 # Copilot SDK 同梱 CLI バイナリも同梱
-$copilotBinDir = Join-Path $PSScriptRoot '..\.venv\Lib\site-packages\copilot\bin'
+$copilotBinDir = Join-Path $venvRoot 'Lib\site-packages\copilot\bin'
 if (Test-Path $copilotBinDir) {
   # NOTE: exe 内の top-level "copilot/" は Python SDK モジュール名と衝突し得るため、別名に退避する
   $copilotData = "$copilotBinDir;copilot_cli\bin"
