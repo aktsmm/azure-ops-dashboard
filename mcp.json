@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "microsoft-docs": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "tools": ["*"],
+      "description": "Microsoft Learn documentation search and fetch — used to enrich AI-generated reports with grounded references"
+    }
+  }
+}
