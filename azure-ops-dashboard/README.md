@@ -1,8 +1,6 @@
 Japanese: [README.ja.md](README.ja.md)
 
-# Step10: Azure Ops Dashboard (GUI app)
-
-> Created: 2026-02-20
+# Azure Ops Dashboard
 
 A **tkinter GUI app** that reads an existing Azure environment and generates Draw.io diagrams (`.drawio`) plus security/cost reports (`.md` / `.docx` / `.pdf`).
 
@@ -36,6 +34,7 @@ Supports **Japanese / English switching** — UI text, logs, and AI report outpu
 - **Extra instructions** — load saved instructions + free text input
 - **Output folder** — if configured, saves without prompting
 - **Open with** — Auto / Draw.io / VS Code / OS default
+- - Note: Draw.io is used only for `.drawio` / `.drawio.svg`. Reports (`.md` / `.json`) open in VS Code (Windows falls back to Notepad).
 - **Auto-open** — open the generated file after completion
 - **AI review** — review the collected environment and Proceed/Cancel
 - **Canvas preview** — simple diagram preview under the logs (pan/zoom)
@@ -49,10 +48,32 @@ Supports **Japanese / English switching** — UI text, logs, and AI report outpu
 ## Prerequisites
 
 - Python 3.11+ (for source run; Python is not required when using a packaged .exe)
+- [uv](https://docs.astral.sh/uv/) (for dependency management / running from source)
 - Azure CLI (`az`) available in PATH
 - Logged in via `az login` (interactive browser)
 - Or logged in via Service Principal (if you want to operate with Reader-only permissions)
 - ARG extension installed: `az extension add --name resource-graph`
+
+### AI features (review / report generation)
+
+- GitHub Copilot SDK (`pip install github-copilot-sdk` or `uv pip install -e ".[ai]"`)
+- Copilot CLI installed and `copilot auth login` completed (SDK uses Copilot CLI server mode)
+- Or a token set via env vars (e.g., `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
+- Network access (proxy/firewall environments may require extra setup)
+
+### Export (optional)
+
+- **Word (.docx)**: included via `python-docx` (installed automatically)
+- **PDF**: Microsoft Word (Windows, via COM/comtypes) or LibreOffice (`soffice` command, any OS)
+  - Windows PDF also needs `pip install comtypes` if not already installed
+- **SVG (.drawio.svg)**: Draw.io desktop app installed (used as CLI for SVG export)
+
+### Permissions
+
+- At least **Reader** on the target subscription / resource group (for diagram generation)
+- **Security Reader** for Security Center data (secure score, recommendations)
+- **Cost Management Reader** for cost/billing data
+- **Advisor Reader** (or Reader) for Azure Advisor recommendations
 
 ### Prerequisites (when using a packaged .exe)
 
@@ -62,7 +83,7 @@ Even when packaged, **external dependencies (Azure CLI, etc.) are NOT bundled**.
 - Azure CLI installed and `az` executable available in PATH
 - `az login` completed (or Service Principal login)
 - ARG extension installed: `az extension add --name resource-graph`
-- At least Reader permissions on the target subscription / resource group
+- At least Reader permissions on the target subscription / resource group (see [Permissions](#permissions) above for Security/Cost)
 
 #### Service Principal (example)
 
@@ -83,12 +104,6 @@ pwsh .\scripts\collect-azure-env.ps1 -SubscriptionId <SUB_ID> -ResourceGroup <RG
 ```
 
 Note: the script fails fast if any `az` command returns a non-zero exit code (check the referenced output file path).
-
-- To use AI features (review/report generation):
-  - Copilot CLI installed and `copilot auth login` completed (SDK uses Copilot CLI server mode)
-  - Or a token set via env vars (e.g., `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
-  - Network access (proxy/firewall environments may require extra setup)
-- To export PDF: Microsoft Word or LibreOffice (must be able to run `soffice`)
 
 ### Distribution notes
 
@@ -116,12 +131,25 @@ Note: changing app behavior (code updates) requires rebuilding/updating the .exe
 ## Usage
 
 ```powershell
-# From the azure-ops-dashboard folder
-uv run python .\main.py
+# Install dependencies
+uv venv
+uv pip install -e .
 
-# Or from the repo root
-uv run python .\azure-ops-dashboard\main.py
+# To also use AI features (review / report generation)
+uv pip install -e ".[ai]"
+
+# Run
+uv run python main.py
 ```
+
+> **⚠ Windows PATH note**: If `uv` has installed a global Python in `~/.local/bin/`, that binary may take priority over `.venv\Scripts\python.exe` even after running `Activate.ps1`. In that case, use an **explicit path** to the venv Python:
+>
+> ```powershell
+> .venv\Scripts\python.exe main.py
+> ```
+>
+> You can verify which Python is active with `python -c "import sys; print(sys.executable)"`.
+> If it does NOT point to `.venv\Scripts\python.exe`, the Copilot SDK and other venv-installed packages will not be found.
 
 When the GUI window opens:
 
@@ -135,19 +163,23 @@ When the GUI window opens:
 
 ## Files
 
-| File               | Description                                                        |
-| ------------------ | ------------------------------------------------------------------ |
-| `main.py`          | Main GUI app (tkinter)                                             |
-| `gui_helpers.py`   | Shared GUI constants/utilities (split out from main.py)            |
-| `collector.py`     | Azure data collection (az graph query / Security / Cost / Advisor) |
-| `drawio_writer.py` | `.drawio` XML generator                                            |
-| `ai_reviewer.py`   | AI review/report generation (Copilot SDK)                          |
-| `exporter.py`      | Markdown → Word (.docx) / PDF export                               |
-| `i18n.py`          | i18n module (JA/EN dictionaries + runtime switch)                  |
-| `app_paths.py`     | Resource path abstraction (PyInstaller frozen support)             |
-| `docs_enricher.py` | Microsoft Docs MCP integration (reference enrichment)              |
-| `tests.py`         | Unit tests (collector / drawio_writer / exporter / gui_helpers)    |
-| `templates/`       | Report templates JSON + saved instructions                         |
+| File                 | Description                                                            |
+| -------------------- | ---------------------------------------------------------------------- |
+| `main.py`            | Main GUI app (tkinter)                                                 |
+| `gui_helpers.py`     | Shared GUI constants/utilities (split out from main.py)                |
+| `collector.py`       | Azure data collection (az graph query / Security / Cost / Advisor)     |
+| `drawio_writer.py`   | `.drawio` XML generator (deterministic layout)                         |
+| `drawio_validate.py` | Draw.io XML validator (checks structure, icons, node coverage)         |
+| `ai_reviewer.py`     | AI review/report generation (Copilot SDK + MCP)                        |
+| `docs_enricher.py`   | Microsoft Docs enrichment (Learn Search API + static reference map)    |
+| `exporter.py`        | Markdown → Word (.docx) / PDF export + diff report generation          |
+| `i18n.py`            | i18n module (JA/EN dictionaries + runtime switch)                      |
+| `app_paths.py`       | Resource path abstraction (PyInstaller frozen + user override support) |
+| `tests.py`           | Unit tests (collector / drawio_writer / exporter / gui_helpers)        |
+| `templates/`         | Report templates JSON + saved instructions                             |
+| `scripts/`           | Utility scripts (Azure collection, MCP smoke test, drawio validation)  |
+| `CHANGELOG.md`       | Release changelog                                                      |
+| `build_exe.ps1`      | PyInstaller build script (onedir / onefile)                            |
 
 ### Templates
 
@@ -169,14 +201,13 @@ Generated in the output folder:
 - `*-diff.md` (diff report — compares with previous run)
 - `*.docx` (Word report, optional)
 - `*.pdf` (PDF report, optional — requires Word/LibreOffice)
-- `env.json` (nodes/edges and azureId→cellId map)
-- `collect.log.json` (executed commands + stdout/stderr)
+- `*-env.json` (nodes/edges and azureId→cellId map — same base name as `.drawio`)
+- `*-collect-log.json` (executed commands + stdout/stderr — same base name as `.drawio`)
 
 ## Design / Survey
 
-- Design (SSOT): `DESIGN.md`
-- Technical survey (SSOT): `TECH-SURVEY.md`
-- Session logs: `output_sessions/`
+- Design: [DESIGN.md](DESIGN.md)
+- Technical survey: [TECH-SURVEY.md](TECH-SURVEY.md)
 
 ## Tests
 
@@ -185,7 +216,7 @@ Generated in the output folder:
 uv run python -m unittest tests -v
 ```
 
-Tests can run without Azure CLI / Copilot SDK connectivity (20 tests).
+Tests can run without Azure CLI / Copilot SDK connectivity (36 tests).
 
 ## Packaging (Windows .exe)
 
@@ -200,3 +231,34 @@ pwsh .\build_exe.ps1 -Mode onefile
 ```
 
 - Outputs are created under `dist/` (relative to the folder you run the build from).
+
+## Responsible AI (RAI) Notes
+
+### What this tool does
+
+Azure Ops Dashboard uses the **GitHub Copilot SDK** to generate AI-powered analysis reports (security and cost) based on Azure environment data collected via Azure CLI / Resource Graph. The AI reviews factual resource data and produces structured Markdown reports.
+
+### Limitations & risks
+
+- **AI-generated content**: Reports are AI-generated analysis, not authoritative audits. Always verify recommendations against official Azure documentation and your organization's policies before acting on them.
+- **Hallucination mitigation**: Reports are enriched with Microsoft Learn documentation references to ground AI output in official sources. However, AI may still produce inaccurate or incomplete analysis.
+- **No write operations**: The tool only reads Azure data (Reader role). It never creates, modifies, or deletes Azure resources.
+- **No data exfiltration**: Collected Azure data is sent to the Copilot SDK for analysis but is not stored or transmitted elsewhere. The Copilot SDK processes data under GitHub's data protection policies.
+- **Secrets handling**: Service Principal credentials entered via the GUI are used for `az login` only and are never stored to disk or logs.
+
+### Human oversight
+
+- **AI Review gate**: Before generating diagrams, the tool presents an AI review summary and requires explicit user confirmation (Proceed/Cancel).
+- **Template control**: Users can enable/disable report sections and add custom instructions to guide AI output.
+- **Diff reports**: Automatic comparison with previous runs helps users verify changes over time rather than relying solely on a single AI output.
+
+### Permissions principle of least privilege
+
+| Role | Required for |
+|---|---|
+| Reader | Resource inventory, diagram generation |
+| Security Reader | Secure score, Defender recommendations |
+| Cost Management Reader | Cost/billing data |
+| Advisor Reader | Azure Advisor recommendations |
+
+No write or admin permissions are ever needed or requested.

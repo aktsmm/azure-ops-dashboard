@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" version="27.0.5" generator="azure-ops-dashboard-arch">
+  <diagram name="Architecture" id="arch1">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Azure Ops Dashboard — Architecture" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#333333;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="500" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- User -->
+        <mxCell id="user" value="User" style="shape=image;aspect=fixed;image=img/lib/azure2/identity/Users.svg;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="310" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- GUI Layer -->
+        <mxCell id="gui_container" value="Desktop GUI (tkinter)" style="swimlane;horizontal=1;startSize=28;fontSize=14;fontStyle=1;fillColor=#E8EAF6;strokeColor=#5C6BC0;fontColor=#333;rounded=1;whiteSpace=wrap;html=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="160" y="60" width="260" height="600" as="geometry" />
+        </mxCell>
+        <mxCell id="main_py" value="main.py&#xa;(GUI + threading)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5C6BC0;fontSize=11;" vertex="1" parent="gui_container">
+          <mxGeometry x="30" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gui_helpers" value="gui_helpers.py&#xa;(constants, utils)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5C6BC0;fontSize=11;" vertex="1" parent="gui_container">
+          <mxGeometry x="30" y="100" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="i18n" value="i18n.py&#xa;(JA/EN switch)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5C6BC0;fontSize=11;" vertex="1" parent="gui_container">
+          <mxGeometry x="30" y="150" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="app_paths" value="app_paths.py&#xa;(PyInstaller paths)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5C6BC0;fontSize=11;" vertex="1" parent="gui_container">
+          <mxGeometry x="30" y="200" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="templates" value="templates/*.json&#xa;(report presets)" style="shape=note;size=14;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=11;" vertex="1" parent="gui_container">
+          <mxGeometry x="30" y="260" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Data Collection Layer -->
+        <mxCell id="collect_container" value="Data Collection" style="swimlane;horizontal=1;startSize=28;fontSize=14;fontStyle=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontColor=#333;rounded=1;whiteSpace=wrap;html=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="480" y="60" width="260" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="collector" value="collector.py&#xa;(az graph query)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=11;" vertex="1" parent="collect_container">
+          <mxGeometry x="30" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="collect_security" value="Security Center&#xa;Secure Score / Defender" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="collect_container">
+          <mxGeometry x="30" y="100" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="collect_cost" value="Cost Management&#xa;Advisor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="collect_container">
+          <mxGeometry x="30" y="150" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="collect_nodes" value="Node / Edge&#xa;(dataclasses)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=10;" vertex="1" parent="collect_container">
+          <mxGeometry x="30" y="200" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- AI Layer -->
+        <mxCell id="ai_container" value="AI Report Generation (Copilot SDK)" style="swimlane;horizontal=1;startSize=28;fontSize=14;fontStyle=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontColor=#333;rounded=1;whiteSpace=wrap;html=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="480" y="340" width="260" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_reviewer" value="ai_reviewer.py&#xa;(CopilotClient,&#xa;streaming, retry)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7B1FA2;fontSize=11;" vertex="1" parent="ai_container">
+          <mxGeometry x="30" y="40" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="docs_enricher" value="docs_enricher.py&#xa;(Learn Search API)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7B1FA2;fontSize=11;" vertex="1" parent="ai_container">
+          <mxGeometry x="30" y="110" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Output Layer -->
+        <mxCell id="output_container" value="Output" style="swimlane;horizontal=1;startSize=28;fontSize=14;fontStyle=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontColor=#333;rounded=1;whiteSpace=wrap;html=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="480" y="570" width="260" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="drawio_writer" value="drawio_writer.py&#xa;(.drawio XML)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;fontSize=11;" vertex="1" parent="output_container">
+          <mxGeometry x="30" y="40" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="exporter" value="exporter.py&#xa;(.docx / .pdf / diff)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;fontSize=11;" vertex="1" parent="output_container">
+          <mxGeometry x="30" y="90" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- External Services -->
+        <mxCell id="azure_cloud" value="Azure" style="shape=image;aspect=fixed;image=img/lib/azure2/general/Management_Groups.svg;verticalLabelPosition=bottom;verticalAlign=top;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="830" y="120" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="azure_rg" value="Resource Graph&#xa;Security / Cost / Advisor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#0078D4;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="900" y="100" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="copilot_cloud" value="GitHub Copilot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="350" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="learn_api" value="Microsoft Learn&#xa;Search API / MCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="880" y="420" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="output_files" value=".drawio / .md / .docx&#xa;.pdf / -diff.md / .json" style="shape=note;size=14;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="880" y="600" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e_user_gui" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333;" edge="1" source="user" target="main_py" parent="1" />
+        <mxCell id="e_gui_collect" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565C0;" edge="1" source="main_py" target="collector" parent="1" />
+        <mxCell id="e_gui_ai" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7B1FA2;" edge="1" source="main_py" target="ai_reviewer" parent="1" />
+        <mxCell id="e_gui_drawio" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2E7D32;" edge="1" source="main_py" target="drawio_writer" parent="1" />
+        <mxCell id="e_gui_export" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2E7D32;" edge="1" source="main_py" target="exporter" parent="1" />
+        <mxCell id="e_collect_azure" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0078D4;strokeWidth=2;" edge="1" source="collector" target="azure_rg" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai_copilot" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7B1FA2;strokeWidth=2;" edge="1" source="ai_reviewer" target="copilot_cloud" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ai_learn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#E65100;dashed=1;" edge="1" source="docs_enricher" target="learn_api" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_output_files" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2E7D32;strokeWidth=2;" edge="1" source="output_container" target="output_files" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
