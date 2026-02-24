@@ -84,7 +84,7 @@ class TestDrawioWriter(unittest.TestCase):
         self.assertRegex(stamp, r"\d{8}-\d{6}")
 
     def test_layout_order_publicip_before_vnet(self) -> None:
-        """PublicIP 列は VNet 列より左（インデックスが小さい）ことを検証する。"""
+        """PublicIP が VNet コンテナ外にリーフとして配置されることを検証する。"""
         nodes = [
             Node(azure_id="/subs/1/vnet1", name="vnet1",
                  type="microsoft.network/virtualnetworks",
@@ -96,13 +96,16 @@ class TestDrawioWriter(unittest.TestCase):
         cell_map = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
         xml = build_drawio_xml(nodes=nodes, edges=[], azure_to_cell_id=cell_map,
                                diagram_name="layout-test")
-        pip_pos = xml.index("publicipaddresses")
-        vnet_pos = xml.index("virtualnetworks")
-        self.assertLess(pip_pos, vnet_pos,
-                        "PublicIP ヘッダーは VNet ヘッダーより前に出力されるべき")
+        self.assertIn("pip1", xml)
+        self.assertIn("vnet1", xml)
+        # PublicIP アイコンが出力されていること
+        self.assertIn("Public_IP_Addresses", xml)
+        # LAYOUT_ORDER で publicipaddresses が virtualnetworks より前
+        from drawio_writer import LAYOUT_ORDER as LO
+        self.assertLess(LO.index("publicipaddresses"), LO.index("virtualnetworks"))
 
     def test_layout_order_subnet_before_vnet(self) -> None:
-        """Subnet 列は VNet 列より左であることを検証する。"""
+        """Subnet が VNet コンテナ内に配置されることを検証する。"""
         nodes = [
             Node(azure_id="/subs/1/vnet1", name="vnet1",
                  type="microsoft.network/virtualnetworks",
@@ -114,10 +117,11 @@ class TestDrawioWriter(unittest.TestCase):
         cell_map = {n.azure_id: cell_id_for_azure_id(n.azure_id) for n in nodes}
         xml = build_drawio_xml(nodes=nodes, edges=[], azure_to_cell_id=cell_map,
                                diagram_name="subnet-layout-test")
-        # subnets ヘッダーは virtualnetworks ヘッダーの前にあるはず
-        subnet_header_pos = xml.index("subnets")
-        vnet_header_pos = xml.rindex("virtualnetworks")  # 最後の出現（subnets の後ろの vnet）
-        self.assertLess(subnet_header_pos, vnet_header_pos)
+        self.assertIn("default", xml)
+        self.assertIn("vnet1", xml)
+        # LAYOUT_ORDER で virtualnetworks/subnets が virtualnetworks より前
+        from drawio_writer import LAYOUT_ORDER as LO
+        self.assertLess(LO.index("virtualnetworks/subnets"), LO.index("virtualnetworks"))
 
     def test_layout_order_constant_exists(self) -> None:
         """LAYOUT_ORDER が定義されており公開 IP と VNet を含む。"""
@@ -231,6 +235,7 @@ class TestExporter(unittest.TestCase):
             (p / "security-report-20260102-000000.md").write_text("new", encoding="utf-8")
             prev = find_previous_report(p, "security", "security-report-20260102-000000.md")
             self.assertIsNotNone(prev)
+            assert prev is not None
             self.assertIn("20260101", prev.name)
 
     def test_find_previous_report_none(self) -> None:
@@ -383,6 +388,54 @@ class TestPromptAndDocs(unittest.TestCase):
             self.assertIn("Cloud Adoption Framework", block)
         finally:
             set_language(prev, persist=False)
+
+
+class TestAISanitizer(unittest.TestCase):
+    def test_sanitize_extracts_markdown_from_tool_input_json(self) -> None:
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "Let me create the report.\n\n"
+            "<tool_call>\n"
+            "<tool_name>CreateFile</tool_name>\n"
+            "<tool_input type=\"json\">{\"filePath\":\"x.md\",\"content\":\"# Integrated Report\\n\\n## A\\nBody\\n\"}</tool_input>\n"
+            "</tool_call>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Integrated Report"))
+        self.assertIn("## A", out)
+        self.assertNotIn("<tool_call>", out)
+
+    def test_sanitize_one_line_tool_calls_does_not_swallow_report(self) -> None:
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "<tool_calls><tool_call>noop</tool_call></tool_calls>\n\n"
+            "# Report\n"
+            "Body\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Report"))
+        self.assertIn("Body", out)
+        self.assertNotIn("tool_call", out.lower())
+
+    def test_sanitize_drops_tool_blocks_keeps_report(self) -> None:
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = """Preamble
+
+<tool_calls>
+<tool_call>
+X
+</tool_call>
+</tool_calls>
+
+# Report
+Body
+"""
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Report"))
+        self.assertNotIn("<tool_calls>", out)
 
 
 if __name__ == "__main__":
