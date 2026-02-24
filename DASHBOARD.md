@@ -9,13 +9,13 @@
 | Track                            | ステータス  | 進捗 | 備考                                                                          |
 | -------------------------------- | ----------- | ---- | ----------------------------------------------------------------------------- |
 | Step 0: SDK Chat CLI             | ✅ 完了     | 100% | トレイ常駐 + Alt×2 ポップアップ                                               |
-| Step 1: Env Builder CLI          | 🔧 実装中   | 45%  | az動作○、SDK統合・修復ループ未                                                |
+| Step 1: Env Builder CLI          | 🔧 実装中   | 75%  | az動作○、SDK Bicep生成・修復ループ実装済み                                    |
 | Step 2: Dictation                | 🟡 最小完成 | 80%  | STT+pyautogui動作、ホットキー未                                               |
-| Step 3: Voice Agent 統合（本命） | ⬜ 未着手   | 0%   | src/ は空                                                                     |
+| Step 3: Voice Agent 統合（本命） | 🔧 実装中   | 40%  | src/app.py 骨格・SDK・Speech モジュール実装済み、app.py 統合済み              |
 | Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト39件 |
 | 提出物準備（docs/video/deck）    | ✅ 提出済   | 100% | 2/24 提出完了（PPTX 2スライド + 動画 + SDK Feedback）                         |
 
-**🎯 総合: 約 40%** ／ **本命 (Voice Agent) 単体: 25%**
+**🎯 総合: 約 55%** ／ **本命 (Voice Agent) 単体: 45%**
 
 ---
 
@@ -23,13 +23,14 @@
 
 ### NOW ― 今日やること
 
-- ✅ [fix-error] Azure Ops Dashboard: Integrated Report の短文出力を回避
-- [ ] Step1: 自然言語→Bicep 生成（Copilot SDK 呼び出し）実装
-- [ ] Step3: `src/app.py` 骨格（トレイ常駐 + モード切替）
+- 👁 [code-review] Azure Ops Dashboard tests.py 品質ゲートテスト追加・ import 整理（43 tests）
+- [x] Step1: 自然言語→Bicep 生成（Copilot SDK 呼び出し）実装
+- [x] Step3: `src/app.py` 骨格（トレイ常駐 + モード切替）
+- 🔨 [hard-builder] Step3 src/sdk/ + src/speech/ 移植・app.py 統合実装済み
 
 ### NEXT ― 今週中
 
-- [ ] Step1: 失敗修復ループ（エラー分類→SDK 修正→再デプロイ）実装
+- [x] Step1: 失敗修復ループ（エラー分類→SDK 修正→再デプロイ）実装
 - [ ] Step3: `src/sdk/` Step0 移植
 - [ ] Step3: `src/speech/` Step2 移植（STT/TTS 疎通確認）
 - [ ] 提出物: README / デモシナリオ骨格
@@ -55,8 +56,8 @@
 - [x] エラー分類（`_classify_az_error` — 10カテゴリ）
 - [x] out/\<timestamp\>/ 成果物保存（spec.md / main.bicep / deploy.log / result.md）
 - [x] what-if / 実デプロイ実行（Storage 実デプロイ成功ログあり）
-- [ ] **自然言語→Bicep 生成（Copilot SDK 呼び出し）** ← ★最優先
-- [ ] **失敗修復ループ（SDK でエラー解析→Bicep 修正→再デプロイ）** ← ★最優先
+- [x] 自然言語→Bicep 生成（Copilot SDK 呼び出し） ← ★最優先
+- [x] 失敗修復ループ（SDK でエラー解析→Bicep 修正→再デプロイ） ← ★最優先
 - [ ] モジュール分割（orchestrator / bicep_generator / artifact_store）
 
 ---
@@ -71,9 +72,9 @@
 
 ### Step 3: Voice-first Enterprise Copilot ⬜（本命）
 
-- [ ] `src/app.py` ― トレイ常駐 + モード切替（dictation / agent）
-- [ ] `src/sdk/` ― Step0 Copilot SDK ラッパー移植
-- [ ] `src/speech/` ― Step2 Azure Speech STT/TTS 移植
+- [x] `src/app.py` ― トレイ常駐 + モード切替（dictation / agent）
+- [x] `src/sdk/` ― Step0 Copilot SDK ラッパー移植
+- [x] `src/speech/` ― Step2 Azure Speech STT/TTS 移植
 - [ ] `src/skills/` ― Agent-Skills 自動同期（git pull + skill_directories 注入）
 - [ ] `src/tools/` ― onPreToolUse（許可/拒否/確認）
 - [ ] Work IQ MCP 連携
@@ -132,12 +133,12 @@
 
 ## ⚠️ リスク・ブロッカー
 
-| リスク                             | 影響度 | 対策                                      |
-| ---------------------------------- | ------ | ----------------------------------------- |
-| Step3 統合が 0% のまま進む         | 🔴 高  | 2/24 から先行着手。Step1 完成後すぐ移行   |
-| Azure Speech キー/リージョン未設定 | 🟡 中  | 早めに `AZURE_SPEECH_KEY` 確認・設定      |
+| リスク                             | 影響度  | 対策                                      |
+| ---------------------------------- | ------- | ----------------------------------------- |
+| Step3 統合が 0% のまま進む         | 🔴 高   | 2/24 から先行着手。Step1 完成後すぐ移行   |
+| Azure Speech キー/リージョン未設定 | 🟡 中   | 早めに `AZURE_SPEECH_KEY` 確認・設定      |
 | 提出物（Azure Ops Dashboard）      | 🟢 解消 | 2/24 に提出完了（動画/デック/README）     |
-| Step1 SDK統合が長引く              | 🟠 中  | 2/24 中に方針決定。長引けば保険提出に切替 |
+| Step1 SDK統合が長引く              | 🟠 中   | 2/24 中に方針決定。長引けば保険提出に切替 |
 
 ---
 
