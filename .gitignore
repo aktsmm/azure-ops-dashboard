@@ -39,6 +39,9 @@ Thumbs.db
 # Presentations (large binary — do not sync to public repo)
 presentations/*.pptx
 
+# Release archives (large binary)
+*.zip
+
 # Demo videos / submission notes (do not sync to public repo)
 docs/media/*.mp4
 docs/submission-draft.md
