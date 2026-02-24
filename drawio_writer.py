@@ -1,4 +1,4 @@
-"""Step10: Azure Env Diagrammer — .drawio XML 生成
+"""Azure Ops Dashboard — .drawio XML 生成
 
 mxfile XML を組み立てて返す。
 Azure公式アイコン（img/lib/azure2/）を使用。

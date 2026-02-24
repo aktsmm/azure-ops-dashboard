@@ -38,6 +38,338 @@ from docs_enricher import (
 from i18n import t as _t, get_language
 
 
+_TOOL_INPUT_BLOCK_RE = re.compile(
+    r"<tool_input\b[^>]*>\s*(.*?)\s*</tool_input>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+_JSON_DECODER = json.JSONDecoder()
+
+
+def _looks_like_markdown_report(text: str) -> bool:
+    if not text:
+        return False
+    trimmed = text.strip()
+    if not trimmed:
+        return False
+    # Integrated reports are expected to have headings.
+    return any(l.lstrip().startswith("#") for l in trimmed.splitlines() if l.strip())
+
+
+def _extract_jsonish_string_field(payload: str, field_name: str) -> str | None:
+    """壊れた JSON からでも field の文字列値をベストエフォートで抜き出す。
+
+    典型例:
+      {"filePath":"x.md","content":"# Title\n..."}
+
+    モデルが JSON の文字列中改行をエスケープせずに出してしまうと json.loads が失敗するため、
+    `"content":"..."}` のパターンを優先して抜き取る。
+    """
+    if not payload or not field_name:
+        return None
+
+    def _unescape_backslash_sequences(s: str) -> str:
+        buf: list[str] = []
+        escape = False
+        for ch in s:
+            if escape:
+                if ch == "n":
+                    buf.append("\n")
+                elif ch == "r":
+                    buf.append("\r")
+                elif ch == "t":
+                    buf.append("\t")
+                elif ch == '"':
+                    buf.append('"')
+                elif ch == "\\":
+                    buf.append("\\")
+                else:
+                    buf.append(ch)
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            buf.append(ch)
+        if escape:
+            buf.append("\\")
+        return "".join(buf)
+
+    # 1) content がオブジェクト末尾（"..." }）にあるケースを優先（最も成功率が高い）
+    tail_pat = re.compile(
+        rf"[\"']{re.escape(field_name)}[\"']\s*:\s*\"(.*)\"\s*}}\s*$",
+        re.IGNORECASE | re.DOTALL,
+    )
+    m = tail_pat.search(payload.strip())
+    if m:
+        s = m.group(1)
+        if s and s.strip():
+            return _unescape_backslash_sequences(s)
+
+    # 2) それ以外: "field":"..." を 1 つ分だけ state-machine で抜く（途中に未エスケープの " があると打ち切り）
+    head_pat = re.compile(
+        rf"[\"']{re.escape(field_name)}[\"']\s*:\s*\"",
+        re.IGNORECASE,
+    )
+    m2 = head_pat.search(payload)
+    if not m2:
+        return None
+
+    i = m2.end()
+    buf: list[str] = []
+    escape = False
+    while i < len(payload):
+        ch = payload[i]
+        if escape:
+            if ch == "n":
+                buf.append("\n")
+            elif ch == "r":
+                buf.append("\r")
+            elif ch == "t":
+                buf.append("\t")
+            elif ch == '"':
+                buf.append('"')
+            elif ch == "\\":
+                buf.append("\\")
+            else:
+                buf.append(ch)
+            escape = False
+            i += 1
+            continue
+
+        if ch == "\\":
+            escape = True
+            i += 1
+            continue
+
+        if ch == '"':
+            break
+
+        buf.append(ch)
+        i += 1
+
+    out = "".join(buf)
+    return out if out.strip() else None
+
+
+def _best_effort_json_load(payload: str) -> Any | None:
+    """JSON をベストエフォートで parse する。
+
+    - 先頭に余計な文字がある/末尾にゴミが付くケースでも、先頭の JSON を拾える範囲で拾う。
+    - 失敗したら None。
+    """
+    if not payload:
+        return None
+    s = payload.strip()
+    if not s:
+        return None
+
+    # Common fence wrappers (best-effort)
+    if s.startswith("```"):
+        # ```json\n{...}\n```
+        first_nl = s.find("\n")
+        last_fence = s.rfind("```")
+        if first_nl >= 0 and last_fence > first_nl:
+            inner = s[first_nl + 1:last_fence].strip()
+            if inner:
+                s = inner
+
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+
+    try:
+        obj, _idx = _JSON_DECODER.raw_decode(s)
+        return obj
+    except Exception:
+        return None
+
+
+def _score_markdown_candidate(text: str) -> int:
+    if not text:
+        return 0
+    trimmed = text.strip()
+    if not trimmed:
+        return 0
+
+    score = 0
+    head_lines = trimmed.splitlines()[:30]
+    heading_count = sum(1 for l in head_lines if l.lstrip().startswith("#"))
+    score += min(40, heading_count * 8)
+    if "\n|" in trimmed and "|" in trimmed:
+        score += 10
+    score += min(40, len(trimmed) // 400)
+    lowered = trimmed.lower()
+    if "<tool_call" in lowered or "<tool_calls" in lowered or "<tool_input" in lowered:
+        score -= 50
+    return score
+
+
+def _extract_markdown_from_tool_input(text: str) -> str | None:
+    """tool-call trace から Markdown 本文を救出する（ベストエフォート）。
+
+    モデル出力が `<tool_call>...<tool_input>{"content": "..."}</tool_input>...` の形式
+    になった場合、ツールブロックを丸ごと除去すると本文も消えるため、content を抽出して返す。
+    """
+    if not text or "<tool_input" not in text:
+        return None
+
+    candidates: list[str] = []
+    for m in _TOOL_INPUT_BLOCK_RE.finditer(text):
+        payload = (m.group(1) or "").strip()
+        if not payload:
+            continue
+        obj = _best_effort_json_load(payload)
+        if obj is None:
+            # Broken JSON fallback: try to extract a plausible Markdown string.
+            for key in ("content", "markdown", "text"):
+                extracted = _extract_jsonish_string_field(payload, key)
+                if extracted and extracted.strip():
+                    candidates.append(extracted)
+                    break
+            else:
+                # Some models put raw Markdown directly inside <tool_input>.
+                if _looks_like_markdown_report(payload):
+                    candidates.append(payload)
+            continue
+
+        if isinstance(obj, dict):
+            for key in ("content", "markdown", "text"):
+                content = obj.get(key)
+                if isinstance(content, str) and content.strip():
+                    candidates.append(content)
+                    break
+            else:
+                args = obj.get("arguments")
+                if isinstance(args, dict):
+                    for key in ("content", "markdown", "text"):
+                        content2 = args.get(key)
+                        if isinstance(content2, str) and content2.strip():
+                            candidates.append(content2)
+                            break
+
+    if not candidates:
+        return None
+    return max(candidates, key=_score_markdown_candidate)
+
+
+def _sanitize_ai_markdown(text: str) -> str:
+    """AI 出力に混入しがちなメタ情報を除去し、レポート本文に寄せる。"""
+    if not text:
+        return text
+
+    extracted = _extract_markdown_from_tool_input(text)
+    # Quality gate: extracted must be substantial (not just thinking preamble)
+    # to prevent adopting a short "Let me examine..." snippet over the full output.
+    if extracted and _looks_like_markdown_report(extracted):
+        ex_lines = [l for l in extracted.splitlines() if l.strip()]
+        ex_headings = sum(1 for l in ex_lines if l.lstrip().startswith("#"))
+        if len(extracted.strip()) >= 300 and ex_headings >= 2:
+            if _score_markdown_candidate(extracted) > _score_markdown_candidate(text):
+                text = extracted
+
+    lines = text.splitlines()
+    sanitized: list[str] = []
+    skip_tag: str | None = None
+    in_code_fence = False
+
+    tool_trace_tags_always = (
+        "tool_call",
+        "tool_call_result",
+        "tool_result",
+        "tool_calls",
+        "tool_results",
+        "tool_input",
+        "tool_name",
+        "FileReadResult",
+        "FileWriteResult",
+    )
+    # NOTE:
+    # These tags are too generic to treat as multi-line blocks. If we set skip_tag on an
+    # opening tag without a matching close tag (which happens in real model outputs), we can
+    # accidentally drop the entire report and cause downstream failures like "no_heading".
+    # For these, we only drop the tag lines (outside code fences) and keep the rest.
+    tool_trace_line_tags_outside_fence = (
+        "parameters",
+        "parameter",
+        "result",
+    )
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            in_code_fence = not in_code_fence
+            sanitized.append(line)
+            continue
+
+        # Skip inside tool-trace blocks (also inside code fences).
+        if skip_tag is not None:
+            if re.search(rf"</\s*{re.escape(skip_tag)}\s*>", stripped, re.IGNORECASE):
+                skip_tag = None
+            continue
+
+        # 1) Drop multi-line tool-trace blocks (also inside code fences).
+        start_tag: str | None = None
+        for tag in tool_trace_tags_always:
+            if re.search(rf"<\s*{re.escape(tag)}\b", stripped, re.IGNORECASE):
+                start_tag = tag
+                break
+        if start_tag is not None:
+            # Handle "<tag>... </tag>" on the same line safely.
+            if re.search(rf"</\s*{re.escape(start_tag)}\s*>", stripped, re.IGNORECASE):
+                continue
+            skip_tag = start_tag
+            continue
+
+        # 2) Drop generic tool-ish tag lines (outside code fences) but do NOT enter skip mode.
+        #    This prevents swallowing the report when the close tag is missing.
+        if not in_code_fence:
+            for tag in tool_trace_line_tags_outside_fence:
+                if re.search(rf"<\s*/?\s*{re.escape(tag)}\b", stripped, re.IGNORECASE):
+                    # Only drop the tag line itself; keep the rest of the report.
+                    start_tag = tag
+                    break
+            if start_tag is not None:
+                continue
+
+        if stripped.startswith("Tool summary:"):
+            continue
+
+        sanitized.append(line)
+
+    out = "\n".join(sanitized).strip()
+
+    # Reconsider: if line-by-line result is too short but we had a substantial extracted
+    # candidate that failed the strict quality gate, prefer it over a near-empty result.
+    # Only adopt if extracted is also at least as long (avoids replacing useful post-tool
+    # text with a short "thinking" snippet from tool_input).
+    if extracted and len(out.strip()) < 300:
+        ex_score = _score_markdown_candidate(extracted)
+        out_score = _score_markdown_candidate(out)
+        if ex_score > out_score and len(extracted.strip()) >= len(out.strip()):
+            out = extracted.strip()
+
+    # 見出し(#)開始に寄せる（ただし Target metadata は許容）
+    out_lines = out.splitlines()
+    heading_idx = next((i for i, l in enumerate(out_lines) if l.lstrip().startswith("#")), None)
+    if heading_idx is not None and heading_idx > 0:
+        pre = [l.strip() for l in out_lines[:heading_idx] if l.strip()]
+        allowed_prefixes = (
+            "**Target Subscription**:",
+            "**Target Resource Group**:",
+            "**対象サブスクリプション**:",
+            "**対象リソースグループ**:",
+            "**サブスクリプション**:",
+            "**リソースグループ**:",
+        )
+        if not (pre and all(any(p.startswith(ap) for ap in allowed_prefixes) for p in pre)):
+            out = "\n".join(out_lines[heading_idx:]).strip()
+
+    return out
+
+
 def _system_prompt_drawio() -> str:
     """draw.io 図生成（mxfile XML）用システムプロンプト。
 
@@ -1021,7 +1353,7 @@ async def _get_or_create_client(
             cached_client = _cached_client
     if cached_client is not None:
         # NOTE: on_status は任意の実装（GUIログ等）になり得るため、ロック外で呼ぶ。
-        log("Copilot SDK: キャッシュ済みクライアントを再利用")
+        log("Copilot SDK: Reusing cached client" if get_language() == "en" else "Copilot SDK: キャッシュ済みクライアントを再利用")
         return cached_client
 
     lock = _get_client_create_lock()
@@ -1032,10 +1364,10 @@ async def _get_or_create_client(
             if _cached_client is not None and _cached_client_started:
                 cached_client = _cached_client
         if cached_client is not None:
-            log("Copilot SDK: キャッシュ済みクライアントを再利用")
+            log("Copilot SDK: Reusing cached client" if get_language() == "en" else "Copilot SDK: キャッシュ済みクライアントを再利用")
             return cached_client
 
-        log("Copilot SDK に接続中...")
+        log("Copilot SDK: Connecting..." if get_language() == "en" else "Copilot SDK に接続中...")
         client_opts: Any = {
             "auto_restart": True,
         }
@@ -1046,7 +1378,7 @@ async def _get_or_create_client(
 
         if CopilotClient is None:
             details = _COPILOT_IMPORT_ERROR or "unknown import error"
-            log(f"⚠ Copilot SDK が利用できません: {details}")
+            log(f"⚠ Copilot SDK not available: {details}" if get_language() == "en" else f"⚠ Copilot SDK が利用できません: {details}")
             # frozen exe では、同梱ディレクトリ名が 'copilot' と衝突すると ImportError になりやすい。
             raise RuntimeError(
                 f"Copilot SDK is not available.\n"
@@ -1061,7 +1393,7 @@ async def _get_or_create_client(
             _cached_client = new_client
             _cached_client_started = True
 
-        log("Copilot SDK 接続 OK")
+        log("Copilot SDK: Connected" if get_language() == "en" else "Copilot SDK 接続 OK")
         return new_client
 
 
@@ -1194,7 +1526,7 @@ class AIReviewer:
             session_cfg["mcp_servers"] = {
                 "microsoftdocs": MCP_MICROSOFT_DOCS,
             }
-            self._on_status("Microsoft Docs MCP を接続中... (https://learn.microsoft.com/api/mcp)")
+            self._on_status("Connecting Microsoft Docs MCP... (https://learn.microsoft.com/api/mcp)" if get_language() == "en" else "Microsoft Docs MCP を接続中... (https://learn.microsoft.com/api/mcp)")
 
             session = await client.create_session(session_cfg)
 
@@ -1252,7 +1584,7 @@ class AIReviewer:
                     nonlocal reasoning_notified
                     if not reasoning_notified:
                         reasoning_notified = True
-                        self._on_status("AI 思考中...")
+                        self._on_status("AI thinking..." if get_language() == "en" else "AI 思考中...")
 
                 elif etype == "assistant.message":
                     # 最終メッセージ（streaming の有無に関わらず送信される）
@@ -1267,7 +1599,7 @@ class AIReviewer:
             session.on(_handler)
 
             # 4. 送信（send + idle 待ち — SDK 推奨パターン）
-            self._on_status("AI 処理実行中...")
+            self._on_status("AI processing..." if get_language() == "en" else "AI 処理実行中...")
             await session.send({"prompt": prompt})
 
             # タイムアウト付きで idle 待ち（長時間タスクは heartbeat で進捗表示）
@@ -1326,7 +1658,7 @@ class AIReviewer:
             return result
 
         except Exception as e:
-            self._on_status(f"AI レビューエラー: {e}")
+            self._on_status(f"AI review error: {e}" if get_language() == "en" else f"AI レビューエラー: {e}")
             run_debug["duration_s"] = round(time.monotonic() - started, 3)
             run_debug["exception"] = str(e)[:500]
             _set_last_run_debug(run_debug)
@@ -1495,6 +1827,7 @@ def run_integrated_report(
     *,
     diagram_summaries: list[dict[str, Any]],
     report_contents: list[tuple[str, str]],
+    diff_contents: list[tuple[str, str]] | None = None,
     on_delta: Optional[Callable[[str], None]] = None,
     on_status: Optional[Callable[[str], None]] = None,
     model_id: str | None = None,
@@ -1514,8 +1847,13 @@ def run_integrated_report(
             "2. Summarizes key findings from each report (security/cost)\n"
             "3. Adds cross-domain insights (security vs cost vs architecture)\n"
             "4. Provides a unified priority action list (Top 5) with effort labels\n"
+            "If diff data is provided, summarize what changed (3-5 bullets).\n"
             "Do not repeat the full reports. Be specific to the provided data.\n"
             "Do not mention internal tools, tool availability, or any tool errors.\n"
+            "\n"
+            "CRITICAL: Output the Markdown report DIRECTLY as plain text.\n"
+            "Do NOT wrap the output in <tool_calls>, <tool_call>, <tool_input>, or any XML tags.\n"
+            "Do NOT simulate file-creation tool calls. Just output the Markdown text directly.\n"
         )
     else:
         system_prompt = (
@@ -1526,8 +1864,13 @@ def run_integrated_report(
             "2. 各レポート（security/cost）の重要所見を要約\n"
             "3. 横断的な洞察（セキュリティ×コスト×アーキテクチャ）を追加\n"
             "4. 優先アクション Top 5（工数目安: Quick win / Strategic）\n"
+            "差分データがある場合は、前回から何が変わったかを 3〜5 点で要約\n"
             "全文の貼り直しは避け、要約中心で具体的に。\n"
             "内部ツールの有無・アクセス可否・ツールエラー等には一切触れないでください。\n"
+            "\n"
+            "重要: レポートは Markdown テキストとして直接出力してください。\n"
+            "<tool_calls>/<tool_call>/<tool_input> 等の XML タグで囲まないでください。\n"
+            "ファイル作成のツール呼び出しを模倣しないでください。Markdown をそのまま出力してください。\n"
         )
 
     parts: list[str] = []
@@ -1551,12 +1894,66 @@ def run_integrated_report(
     for rtype, content in report_contents:
         parts.append(f"## {rtype.upper()} Report\n\n{content}\n\n---\n\n")
 
+    if diff_contents:
+        diff_title = "Changes from Previous Reports" if en else "前回レポートからの変更点"
+        parts.append(f"## {diff_title}\n\n")
+        for rtype, diff_md in diff_contents:
+            parts.append(f"### {rtype.upper()} Diff\n\n{diff_md}\n\n---\n\n")
+
     prompt = "".join(parts)
-    return _run_async(
+    raw = _run_async(
         reviewer.generate(prompt, system_prompt, model_id=model_id,
                          timeout_s=REPORT_SEND_TIMEOUT),
         timeout_s=REPORT_SEND_TIMEOUT + 30,
     )
+
+    if not isinstance(raw, str):
+        return raw
+
+    sanitized = _sanitize_ai_markdown(raw)
+
+    # If sanitization removed headings but the content is otherwise present, salvage by
+    # prepending a top-level heading to avoid unnecessary fallback.
+    if sanitized and not any(l.lstrip().startswith("#") for l in sanitized.splitlines() if l.strip()):
+        title = "# Integrated Report" if get_language() == "en" else "# 統合レポート"
+        sanitized = title + "\n\n" + sanitized.lstrip()
+
+    # まだツール痕跡が残る/見出しが無い場合は「統合として不正」として扱う
+    lowered = sanitized.lower()
+    reasons: list[str] = []
+    if (
+        "<tool_" in lowered
+        or "<parameters" in lowered
+        or "<parameter" in lowered
+        or "<result" in lowered
+        or "<filereadresult" in lowered
+        or "<filewriteresult" in lowered
+    ):
+        reasons.append("tool_trace")
+    if not any(l.lstrip().startswith("#") for l in sanitized.splitlines() if l.strip()):
+        reasons.append("no_heading")
+
+    if reasons:
+        log = on_status or (lambda _s: None)
+        msg = (
+            "AI output invalid for integrated report" if en else "AI 統合出力が不正です"
+        ) + f" ({', '.join(reasons)})"
+        log(msg)
+        # Best-effort debug hint (keep short to avoid log bloat)
+        try:
+            raw_preview = raw.replace("\r", "").replace("\n", "\\n")[:240]
+            san_preview = sanitized.replace("\r", "").replace("\n", "\\n")[:240]
+            if en:
+                log(f"  raw(head): {raw_preview}")
+                log(f"  sanitized(head): {san_preview}")
+            else:
+                log(f"  raw(先頭): {raw_preview}")
+                log(f"  sanitized(先頭): {san_preview}")
+        except Exception:
+            pass
+        return None
+
+    return sanitized
 
 
 def run_drawio_generation(
@@ -1786,7 +2183,7 @@ def list_available_model_ids_sync(
         return list(future.result(timeout=timeout))
     except concurrent.futures.TimeoutError:
         if on_status:
-            on_status(f"Copilot SDK: モデル一覧取得が {timeout:g}s を超過しました")
+            on_status(f"Copilot SDK: Model listing timed out ({timeout:g}s)" if get_language() == "en" else f"Copilot SDK: モデル一覧取得が {timeout:g}s を超過しました")
         if future is not None:
             try:
                 future.cancel()
@@ -1795,7 +2192,7 @@ def list_available_model_ids_sync(
         return []
     except Exception as exc:
         if on_status:
-            on_status(f"Copilot SDK: モデル一覧取得エラー: {type(exc).__name__}: {exc}")
+            on_status(f"Copilot SDK: Model listing error: {type(exc).__name__}: {exc}" if get_language() == "en" else f"Copilot SDK: モデル一覧取得エラー: {type(exc).__name__}: {exc}")
         if future is not None:
             try:
                 future.cancel()

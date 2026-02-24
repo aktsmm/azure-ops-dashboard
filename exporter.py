@@ -1,4 +1,4 @@
-"""Step10: エクスポートユーティリティ（Markdown → Word / PDF）
+"""エクスポートユーティリティ（Markdown → Word / PDF）
 
 Markdown レポートを .docx（Word）に変換する。
 PDF は docx 経由で Word→PDF 変換（comtypes/LibreOffice）が必要なため、
@@ -150,6 +150,10 @@ def md_to_docx(md_text: str, output_path: Path, title: str = "") -> Path:
         if text:
             doc.add_paragraph(text)
         i += 1
+
+    # 未閉じのコードブロック（入力が不正でも欠落しないようベストエフォート）
+    if in_code_block and code_lines:
+        _add_code_block(doc, "\n".join(code_lines))
 
     # 未閉じのテーブル
     if in_table and table_rows:
@@ -339,3 +343,150 @@ def _extract_sections(lines: list[str]) -> list[str]:
         if stripped.startswith("## "):
             sections.append(stripped[3:].strip())
     return sections
+
+
+# ============================================================
+# Markdown バリデーション（レポート品質チェック）
+# ============================================================
+
+def validate_markdown(md_text: str) -> list[str]:
+    """生成された Markdown レポートを機械的に検証し、警告メッセージのリストを返す。
+
+    チェック項目:
+    - 先頭空行
+    - テーブルセル内の脚注 [^N]
+    - 脚注定義の重複 URL
+    - 未定義の脚注参照 / 未使用の脚注定義
+    - テーブル列数の不一致
+    """
+    warnings: list[str] = []
+    lines = md_text.split("\n")
+
+    # 1. 先頭空行チェック
+    if md_text and md_text[0] in ("\n", "\r", " "):
+        warnings.append("先頭に不要な空行/空白があります")
+
+    def _footnote_sort_key(k: str) -> tuple[int, int, str]:
+        return (0, int(k), k) if k.isdigit() else (1, 0, k)
+
+    # 2. テーブルセル内の脚注チェック
+    footnote_in_cell = re.compile(r"^\|.*\[\^([A-Za-z0-9_-]+)\].*\|")
+    for i, line in enumerate(lines, 1):
+        if footnote_in_cell.match(line.strip()):
+            warnings.append(f"L{i}: テーブルセル内に脚注 [^N] があります（レンダリング崩れの原因）")
+
+    # 3. 脚注定義の収集と重複 URL チェック
+    footnote_def = re.compile(r"^\[\^([A-Za-z0-9_-]+)\]:\s*\[.*?\]\((https?://[^\s)]+)\)")
+    defined_footnotes: dict[str, str] = {}  # key -> url
+    url_to_keys: dict[str, list[str]] = {}
+    for line in lines:
+        m = footnote_def.match(line.strip())
+        if m:
+            key, url = m.group(1), m.group(2)
+            defined_footnotes[key] = url
+            url_to_keys.setdefault(url, []).append(key)
+
+    for url, keys in url_to_keys.items():
+        if len(keys) > 1:
+            warnings.append(f"脚注 [{', '.join(keys)}] が同一 URL を重複定義しています: {url[:80]}")
+
+    # 4. 脚注参照 vs 定義の整合性
+    ref_pattern = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
+    referenced: set[str] = set()
+    for line in lines:
+        if not line.strip().startswith("[^"):
+            # 本文中の参照
+            referenced.update(ref_pattern.findall(line))
+
+    defined_set = set(defined_footnotes.keys())
+    undefined = referenced - defined_set
+    unused = defined_set - referenced
+    if undefined:
+        warnings.append(f"未定義の脚注参照: {', '.join(sorted(undefined, key=_footnote_sort_key))}")
+    if unused:
+        warnings.append(f"未使用の脚注定義: {', '.join(sorted(unused, key=_footnote_sort_key))}")
+
+    # 5. テーブル列数の一貫性チェック
+    in_table = False
+    table_col_count = 0
+    table_start_line = 0
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            col_count = stripped.count("|") - 1
+            if not in_table:
+                in_table = True
+                table_col_count = col_count
+                table_start_line = i
+            else:
+                if col_count != table_col_count:
+                    warnings.append(
+                        f"L{i}: テーブル列数が不一致（ヘッダー={table_col_count}, この行={col_count}、開始L{table_start_line}）"
+                    )
+        else:
+            in_table = False
+
+    return warnings
+
+
+def remove_unused_footnote_definitions(md_text: str) -> tuple[str, list[str]]:
+    """未使用の脚注定義を削除する（ベストエフォート）。
+
+    - 参照されていない `[^N]: ...` 定義ブロックを除去する。
+    - 脚注定義が複数行（次行以降がインデント）でもまとめて除去する。
+
+    Returns:
+        (cleaned_markdown, removed_keys)
+    """
+    lines = md_text.split("\n")
+    if not lines:
+        return md_text, []
+
+    def _footnote_sort_key(k: str) -> tuple[int, int, str]:
+        return (0, int(k), k) if k.isdigit() else (1, 0, k)
+
+    ref_pattern = re.compile(r"\[\^([A-Za-z0-9_-]+)\]")
+    def_pattern = re.compile(r"^\[\^([A-Za-z0-9_-]+)\]:")
+
+    referenced: set[str] = set()
+    for line in lines:
+        if not line.strip().startswith("[^"):
+            referenced.update(ref_pattern.findall(line))
+
+    def_starts: dict[int, str] = {}
+    for idx, line in enumerate(lines):
+        m = def_pattern.match(line.strip())
+        if m:
+            def_starts[idx] = m.group(1)
+
+    if not def_starts:
+        return md_text, []
+
+    remove_line: set[int] = set()
+    removed_keys: set[str] = set()
+
+    sorted_starts = sorted(def_starts.items())
+    for pos, (start_idx, key) in enumerate(sorted_starts):
+        if key in referenced:
+            continue
+
+        # Remove the definition line and its continuation lines.
+        # Continuation lines are indented (2+ spaces or a tab) and are not another footnote definition.
+        end_idx = sorted_starts[pos + 1][0] if pos + 1 < len(sorted_starts) else len(lines)
+        remove_line.add(start_idx)
+        for j in range(start_idx + 1, end_idx):
+            nxt = lines[j]
+            if def_pattern.match(nxt.strip()):
+                break
+            if nxt.startswith("\t") or nxt.startswith("  "):
+                remove_line.add(j)
+                continue
+            break
+
+        removed_keys.add(key)
+
+    if not removed_keys:
+        return md_text, []
+
+    cleaned = "\n".join(line for i, line in enumerate(lines) if i not in remove_line).rstrip() + "\n"
+    return cleaned, sorted(removed_keys, key=_footnote_sort_key)

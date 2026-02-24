@@ -2,9 +2,26 @@ Japanese: [README.ja.md](README.ja.md)
 
 # Azure Ops Dashboard
 
-A **tkinter GUI app** that reads an existing Azure environment and generates Draw.io diagrams (`.drawio`) plus security/cost reports (`.md` / `.docx` / `.pdf`).
+> **Problem**: Enterprise IT operations teams waste hours switching between Azure Portal, CLI, and documentation tools to visualize environments, assess security posture, and track costs. Architecture diagrams go stale, and manual report creation is error-prone.
+>
+> **Solution**: Azure Ops Dashboard reads a live Azure environment and produces **architecture diagrams + AI-powered security/cost reports** in one click — powered by the **GitHub Copilot SDK**.
 
-Supports **Japanese / English switching** — UI text, logs, and AI report output language can be toggled with one click.
+A **tkinter GUI desktop app** that connects to Azure Resource Graph, generates Draw.io diagrams (`.drawio`), and streams AI analysis reports (`.md` / `.docx` / `.pdf`) enriched with Microsoft Learn documentation.
+
+Supports **Japanese / English runtime switching** — UI text, logs, and AI report output language can be toggled with one click.
+
+### Architecture
+
+See the full architecture diagram: [docs/architecture.drawio](docs/architecture.drawio)
+
+```
+User → tkinter GUI (main.py)
+         ├─→ collector.py ──→ Azure CLI (Resource Graph / Security / Cost / Advisor)
+         ├─→ ai_reviewer.py ──→ GitHub Copilot SDK (streaming report generation)
+         │     └─ docs_enricher.py ──→ Microsoft Learn Search API / MCP
+         ├─→ drawio_writer.py ──→ .drawio (inventory / network diagrams)
+         └─→ exporter.py ──→ .docx / .pdf / -diff.md
+```
 
 ## Features
 
@@ -254,11 +271,11 @@ Azure Ops Dashboard uses the **GitHub Copilot SDK** to generate AI-powered analy
 
 ### Permissions principle of least privilege
 
-| Role | Required for |
-|---|---|
-| Reader | Resource inventory, diagram generation |
-| Security Reader | Secure score, Defender recommendations |
-| Cost Management Reader | Cost/billing data |
-| Advisor Reader | Azure Advisor recommendations |
+| Role                   | Required for                           |
+| ---------------------- | -------------------------------------- |
+| Reader                 | Resource inventory, diagram generation |
+| Security Reader        | Secure score, Defender recommendations |
+| Cost Management Reader | Cost/billing data                      |
+| Advisor Reader         | Azure Advisor recommendations          |
 
 No write or admin permissions are ever needed or requested.

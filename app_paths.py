@@ -1,4 +1,4 @@
-"""Step10: パス解決ユーティリティ
+"""パス解決ユーティリティ
 
 - 通常実行と PyInstaller(frozen) 実行で、リソース/ユーザーデータの場所を共通化する。
 - templates は「同梱(既定)」+「ユーザー上書き」を想定する。
@@ -59,6 +59,11 @@ def saved_instructions_path() -> Path:
     return bundled_templates_dir() / "saved-instructions.json"
 
 
+def user_saved_instructions_path() -> Path:
+    """保存済み指示のユーザー領域パスを返す。"""
+    return user_templates_dir() / "saved-instructions.json"
+
+
 def template_search_dirs() -> list[Path]:
     """テンプレート探索ディレクトリ（ユーザー優先）を返す。"""
     return [user_templates_dir(), bundled_templates_dir()]
@@ -68,7 +73,7 @@ def copilot_cli_path() -> str | None:
     """Copilot SDK 同梱 CLI バイナリのパスを返す。
 
     PyInstaller frozen の場合:
-      _MEIPASS/copilot/bin/copilot.exe  (--add-data で同梱)
+            _MEIPASS/copilot_cli/bin/copilot.exe  (--add-data で同梱)
     通常実行:
       site-packages/copilot/bin/copilot.exe  (SDK が自身で解決するので None)
 
@@ -85,7 +90,8 @@ def copilot_cli_path() -> str | None:
     else:
         binary_name = "copilot"
 
-    candidate = Path(meipass) / "copilot" / "bin" / binary_name
+    # NOTE: top-level "copilot/" は Python SDK モジュール名と衝突し得るため、別名ディレクトリに同梱する
+    candidate = Path(meipass) / "copilot_cli" / "bin" / binary_name
     if candidate.exists():
         return str(candidate)
 
@@ -106,7 +112,8 @@ def load_setting(key: str, default: str = "") -> str:
             p = settings_path()
             if p.exists():
                 data = json.loads(p.read_text(encoding="utf-8"))
-                return str(data.get(key, default))
+                if isinstance(data, dict):
+                    return str(data.get(key, default))
         except Exception:
             pass
         return default
@@ -128,7 +135,9 @@ def _load_all_settings_unlocked() -> dict[str, Any]:
     try:
         p = settings_path()
         if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
     except (json.JSONDecodeError, OSError):
         pass
     return {}

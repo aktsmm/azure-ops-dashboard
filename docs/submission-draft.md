@@ -22,19 +22,20 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 ## 2. Demo Video (3 min max)
 
 <!-- TODO: 撮影後にリンクを貼る -->
+
 - [ ] YouTube or Stream link: (TBD)
 
 ### デモシナリオ案 (3分)
 
-| 時間 | 内容 |
-|---|---|
-| 0:00–0:20 | 問題提起: Azure 環境の可視化・レポート作成が手作業で大変 |
-| 0:20–0:50 | GUI 起動、サブスクリプション選択、inventory ビューで Collect → Draw.io 図が生成される |
-| 0:50–1:20 | network ビューに切替 → VNet/Subnet 階層の図が生成される |
+| 時間      | 内容                                                                                    |
+| --------- | --------------------------------------------------------------------------------------- |
+| 0:00–0:20 | 問題提起: Azure 環境の可視化・レポート作成が手作業で大変                                |
+| 0:20–0:50 | GUI 起動、サブスクリプション選択、inventory ビューで Collect → Draw.io 図が生成される   |
+| 0:50–1:20 | network ビューに切替 → VNet/Subnet 階層の図が生成される                                 |
 | 1:20–2:00 | security-report 選択 → テンプレートカスタマイズ → AI レポート生成（ストリーミング表示） |
-| 2:00–2:30 | レポートの中身を見せる（セキュアスコア、推奨事項、Learn ドキュメントリンク） |
-| 2:30–2:50 | 言語切替 (EN↔JA)、差分レポート、Word エクスポート |
-| 2:50–3:00 | まとめ: Copilot SDK で Azure 運用をワンクリック化 |
+| 2:00–2:30 | レポートの中身を見せる（セキュアスコア、推奨事項、Learn ドキュメントリンク）            |
+| 2:30–2:50 | 言語切替 (EN↔JA)、差分レポート、Word エクスポート                                       |
+| 2:50–3:00 | まとめ: Copilot SDK で Azure 運用をワンクリック化                                       |
 
 ---
 
@@ -44,13 +45,13 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 ### 必須ディレクトリ構成 — ギャップ分析
 
-| 要件 | 現状 | 対応 |
-|---|---|---|
-| `/src` or `/app` (working code) | ルート直下に `.py` ファイル配置 | ルートを `/app` 扱いとする or README で説明 |
-| `/docs` (README, arch diagram, RAI notes) | `README.md` + `DESIGN.md` あり | **アーキテクチャ図** と **RAI notes** を追加 |
-| `AGENTS.md` | なし（親リポにはある） | **新規作成** |
-| `mcp.json` | なし | **新規作成**（Microsoft Learn MCP 設定） |
-| `/presentations/AzureOpsDashboard.pptx` | なし | **新規作成** |
+| 要件                                      | 現状                            | 対応                                         |
+| ----------------------------------------- | ------------------------------- | -------------------------------------------- |
+| `/src` or `/app` (working code)           | ルート直下に `.py` ファイル配置 | ルートを `/app` 扱いとする or README で説明  |
+| `/docs` (README, arch diagram, RAI notes) | `README.md` + `DESIGN.md` あり  | **アーキテクチャ図** と **RAI notes** を追加 |
+| `AGENTS.md`                               | なし（親リポにはある）          | **新規作成**                                 |
+| `mcp.json`                                | なし                            | **新規作成**（Microsoft Learn MCP 設定）     |
+| `/presentations/AzureOpsDashboard.pptx`   | なし                            | **新規作成**                                 |
 
 ---
 
@@ -92,23 +93,23 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 ### メインスコア (105 pts)
 
-| 基準 | 配点 | 見込 | 根拠 |
-|---|---|---|---|
-| Enterprise applicability, reusability & business value | 35 | **30** | Azure 環境可視化は全エンタープライズ共通課題。テンプレート再利用可能 |
-| Integration with Azure/MS solutions | 25 | **22** | Resource Graph, Security Center, Cost Management, Advisor, Learn API |
-| Operational readiness | 15 | **12** | PyInstaller exe / README / 32 tests / CI 未整備 |
-| Security, governance & RAI | 15 | **11** | Reader 権限のみ / SP login / secret 非保存 / RAI notes 追加予定 |
-| Storytelling & clarity | 15 | **12** | README 充実 / デモ動画 + デック作成予定 |
-| **小計** | **105** | **87** | |
+| 基準                                                   | 配点    | 見込   | 根拠                                                                 |
+| ------------------------------------------------------ | ------- | ------ | -------------------------------------------------------------------- |
+| Enterprise applicability, reusability & business value | 35      | **30** | Azure 環境可視化は全エンタープライズ共通課題。テンプレート再利用可能 |
+| Integration with Azure/MS solutions                    | 25      | **22** | Resource Graph, Security Center, Cost Management, Advisor, Learn API |
+| Operational readiness                                  | 15      | **12** | PyInstaller exe / README / 32 tests / CI 未整備                      |
+| Security, governance & RAI                             | 15      | **11** | Reader 権限のみ / SP login / secret 非保存 / RAI notes 追加予定      |
+| Storytelling & clarity                                 | 15      | **12** | README 充実 / デモ動画 + デック作成予定                              |
+| **小計**                                               | **105** | **87** |                                                                      |
 
 ### ボーナス (35 pts)
 
-| 基準 | 配点 | 見込 | 根拠 |
-|---|---|---|---|
-| Work IQ / Fabric IQ / Foundry IQ | 15 | **0** | 未統合 (検討中) |
-| Customer validation | 10 | **5** | 社内利用ドキュメント作成可能 |
-| SDK product feedback | 10 | **10** | 提出予定 |
-| **小計** | **35** | **15** | |
+| 基準                             | 配点   | 見込   | 根拠                         |
+| -------------------------------- | ------ | ------ | ---------------------------- |
+| Work IQ / Fabric IQ / Foundry IQ | 15     | **0**  | 未統合 (検討中)              |
+| Customer validation              | 10     | **5**  | 社内利用ドキュメント作成可能 |
+| SDK product feedback             | 10     | **10** | 提出予定                     |
+| **小計**                         | **35** | **15** |                              |
 
 **合計見込: 約 102 / 140**
 

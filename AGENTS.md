@@ -25,12 +25,14 @@ main.py            ← GUI entry point (tkinter, threading)
 ## Key Design Decisions
 
 ### Threading Model
+
 - GUI runs on the main thread (tkinter requirement)
 - AI/Azure operations run in background threads via `threading.Thread`
 - Communication: atomic buffer swap (attribute rebinding) polled at 100ms intervals
 - **Never call `StringVar.get()` from a background thread** — capture all GUI values before spawning
 
 ### Copilot SDK Usage
+
 - `CopilotClient` → `create_session()` → streaming `send()` with token callbacks
 - Dynamic model selection: prefer latest `claude-sonnet-*`, fallback `gpt-4.1`
 - Read-only tool permissions only (`_ALLOWED_TOOLS` frozenset in ai_reviewer.py)
@@ -39,11 +41,13 @@ main.py            ← GUI entry point (tkinter, threading)
 - `future.cancel()` on timeout to prevent coroutine leaks
 
 ### Resource Paths
+
 - All resource references go through `app_paths.py`
 - PyInstaller frozen: falls back to `sys._MEIPASS`
 - User override: `%APPDATA%\AzureOpsDashboard\templates\` takes precedence
 
 ### Data Safety
+
 - **Read-only Azure operations only** — no create/update/delete
 - Requires at minimum Reader role
 - Service Principal secret is never stored (entered per-session via GUI)
@@ -60,22 +64,26 @@ main.py            ← GUI entry point (tkinter, threading)
 ## Common Tasks
 
 ### Running
+
 ```powershell
 uv venv && uv pip install -e ".[ai]"
 uv run python main.py
 ```
 
 ### Testing
+
 ```powershell
 uv run python -m unittest tests -v
 ```
 
 ### Building .exe
+
 ```powershell
 pwsh .\build_exe.ps1 -Mode onedir
 ```
 
 ### Adding a new report template
+
 1. Create `templates/<type>-<name>.json` following existing schema
 2. The template will be auto-discovered by `list_templates()`
 3. User overrides go in `%APPDATA%\AzureOpsDashboard\templates\`

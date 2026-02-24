@@ -6,11 +6,11 @@ Azure Ops Dashboard で AI レポート生成に使用されるプロンプト�
 
 ## 1. リソースレビュー（inventory / network ビュー）
 
-| 層 | 内容 | ソース |
-|---|---|---|
-| **System Prompt** | Azure インフラレビュー専門家。5観点で500字以内に要約 | `ai_reviewer.py` — `_system_prompt_review()` |
-| **言語指示** | `ai.output_language` — 末尾に「日本語/英語で出力」を追記 | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
-| **User Prompt** | 「以下のAzureリソース一覧をレビューしてください」+ テキスト | `ai_reviewer.py` — `AIReviewer.review()` |
+| 層                | 内容                                                        | ソース                                                          |
+| ----------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
+| **System Prompt** | Azure インフラレビュー専門家。5観点で500字以内に要約        | `ai_reviewer.py` — `_system_prompt_review()`                    |
+| **言語指示**      | `ai.output_language` — 末尾に「日本語/英語で出力」を追記    | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
+| **User Prompt**   | 「以下のAzureリソース一覧をレビューしてください」+ テキスト | `ai_reviewer.py` — `AIReviewer.review()`                        |
 
 ### System Prompt 概要（日本語モード）
 
@@ -32,15 +32,15 @@ Azure Ops Dashboard で AI レポート生成に使用されるプロンプト�
 
 ## 2. セキュリティレポート（security-report ビュー）
 
-| 層 | 内容 | ソース |
-|---|---|---|
-| **System Prompt (base)** | Azure セキュリティ監査専門家 | `ai_reviewer.py` — `_system_prompt_security_base()` |
-| **+ CAF ガイダンス** | 準拠FW / 環境固有分析 / Docs検索 / 深刻度分類 | `ai_reviewer.py` — `_caf_security_guidance()` |
-| **+ テンプレート指示** | セクション ON/OFF + 出力オプション | `ai_reviewer.py` — `build_template_instruction()` |
-| **+ カスタム指示** | フリーテキスト + 保存済み指示 | `main.py`（UI） + `ai_reviewer.py`（合成） |
-| **+ 言語指示** | system prompt 末尾に追記 | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
-| **User Prompt** | サブスク名 → 依頼文 → セキュリティデータ → リソース一覧 → Docs参照 | `ai_reviewer.py` — `_run_report()` |
-| **Docs 検索** | `Azure security best practices` + タイプ別 (max 3) | `docs_enricher.py` — `security_search_queries()` |
+| 層                       | 内容                                                               | ソース                                                          |
+| ------------------------ | ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| **System Prompt (base)** | Azure セキュリティ監査専門家                                       | `ai_reviewer.py` — `_system_prompt_security_base()`             |
+| **+ CAF ガイダンス**     | 準拠FW / 環境固有分析 / Docs検索 / 深刻度分類                      | `ai_reviewer.py` — `_caf_security_guidance()`                   |
+| **+ テンプレート指示**   | セクション ON/OFF + 出力オプション                                 | `ai_reviewer.py` — `build_template_instruction()`               |
+| **+ カスタム指示**       | フリーテキスト + 保存済み指示                                      | `main.py`（UI） + `ai_reviewer.py`（合成）                      |
+| **+ 言語指示**           | system prompt 末尾に追記                                           | `i18n.py`（キー） + `ai_reviewer.py`（`AIReviewer.generate()`） |
+| **User Prompt**          | サブスク名 → 依頼文 → セキュリティデータ → リソース一覧 → Docs参照 | `ai_reviewer.py` — `_run_report()`                              |
+| **Docs 検索**            | `Azure security best practices` + タイプ別 (max 3)                 | `docs_enricher.py` — `security_search_queries()`                |
 
 ### レポートのレビューゲート（保存前）
 
@@ -80,14 +80,14 @@ Azure Security Center / Microsoft Defender for Cloud のデータと、
 
 ## 3. コストレポート（cost-report ビュー）
 
-| 層 | 内容 | ソース |
-|---|---|---|
-| **System Prompt (base)** | Azure コスト最適化専門家 | `ai_reviewer.py` — `_system_prompt_cost_base()` |
-| **+ CAF ガイダンス** | 準拠FW / コスト上位リソース / 金額付き | `ai_reviewer.py` — `_caf_cost_guidance()` |
-| **+ テンプレート指示** | セクション ON/OFF + オプション + 通貨記号 | `ai_reviewer.py` — `build_template_instruction()` |
-| **+ カスタム指示** | 同上 | `main.py`（UI） + `ai_reviewer.py`（合成） |
-| **User Prompt** | サブスク名 → 依頼文 → コストデータ → Advisor推奨 → Docs参照 | `ai_reviewer.py` — `_run_report()` |
-| **Docs 検索** | `Azure cost optimization best practices` + タイプ別 (max 3) | `docs_enricher.py` — `cost_search_queries()` |
+| 層                       | 内容                                                        | ソース                                            |
+| ------------------------ | ----------------------------------------------------------- | ------------------------------------------------- |
+| **System Prompt (base)** | Azure コスト最適化専門家                                    | `ai_reviewer.py` — `_system_prompt_cost_base()`   |
+| **+ CAF ガイダンス**     | 準拠FW / コスト上位リソース / 金額付き                      | `ai_reviewer.py` — `_caf_cost_guidance()`         |
+| **+ テンプレート指示**   | セクション ON/OFF + オプション + 通貨記号                   | `ai_reviewer.py` — `build_template_instruction()` |
+| **+ カスタム指示**       | 同上                                                        | `main.py`（UI） + `ai_reviewer.py`（合成）        |
+| **User Prompt**          | サブスク名 → 依頼文 → コストデータ → Advisor推奨 → Docs参照 | `ai_reviewer.py` — `_run_report()`                |
+| **Docs 検索**            | `Azure cost optimization best practices` + タイプ別 (max 3) | `docs_enricher.py` — `cost_search_queries()`      |
 
 ### レポートのレビューゲート（保存前）
 
@@ -156,12 +156,12 @@ Azure Cost Management のデータ（サービス別・RG別コスト）と、
 
 ### テンプレート一覧
 
-| ファイル | 名前 | タイプ | 概要 |
-|---|---|---|---|
-| `security-executive.json` | Executive | security | 経営層向け (4セクションON) |
-| `security-standard.json` | Standard | security | 全セクション有効 (10セクションON) |
-| `cost-executive.json` | Executive | cost | 経営層向け (4セクションON) |
-| `cost-standard.json` | Standard | cost | 全セクション有効 (8セクションON) |
+| ファイル                  | 名前      | タイプ   | 概要                              |
+| ------------------------- | --------- | -------- | --------------------------------- |
+| `security-executive.json` | Executive | security | 経営層向け (4セクションON)        |
+| `security-standard.json`  | Standard  | security | 全セクション有効 (10セクションON) |
+| `cost-executive.json`     | Executive | cost     | 経営層向け (4セクションON)        |
+| `cost-standard.json`      | Standard  | cost     | 全セクション有効 (8セクションON)  |
 
 ---
 
@@ -169,24 +169,24 @@ Azure Cost Management のデータ（サービス別・RG別コスト）と、
 
 `templates/saved-instructions.json` で管理。チェックボックスで複数選択可能。
 
-| 指示名 | 内容 |
-|---|---|
-| 経営層向け要約 | 技術用語を避け、3-5点に箇条書き |
-| 英語併記 | タイトルと要約を日英併記 |
-| アクションアイテム重視 | 担当者・期限付きの次アクション |
-| コンプライアンス準拠 | ISO 27001 / SOC 2 の観点を追加 |
-| 簡潔（500字以内） | 最重要ポイントだけ |
-| CAF 深掘り | CAF 各フェーズに対応付け + Docs検索 |
-| WAF 5 Pillars 評価 | 5つの柱で環境を評価 + Docs検索 |
-| リソース別の改善提案 | 1リソースずつ具体名で改善提案 |
-| Docs 引用を強化 | 全推奨事項に Learn URL必須 |
+| 指示名                 | 内容                                |
+| ---------------------- | ----------------------------------- |
+| 経営層向け要約         | 技術用語を避け、3-5点に箇条書き     |
+| 英語併記               | タイトルと要約を日英併記            |
+| アクションアイテム重視 | 担当者・期限付きの次アクション      |
+| コンプライアンス準拠   | ISO 27001 / SOC 2 の観点を追加      |
+| 簡潔（500字以内）      | 最重要ポイントだけ                  |
+| CAF 深掘り             | CAF 各フェーズに対応付け + Docs検索 |
+| WAF 5 Pillars 評価     | 5つの柱で環境を評価 + Docs検索      |
+| リソース別の改善提案   | 1リソースずつ具体名で改善提案       |
+| Docs 引用を強化        | 全推奨事項に Learn URL必須          |
 
 ---
 
 ## 6. MCP ツール（AI が自律利用）
 
-| ツール | エンドポイント | 用途 |
-|---|---|---|
+| ツール                  | エンドポイント                        | 用途                               |
+| ----------------------- | ------------------------------------- | ---------------------------------- |
 | `microsoft_docs_search` | `https://learn.microsoft.com/api/mcp` | Microsoft Learn 検索 → 引用URL付与 |
 
 補足:
