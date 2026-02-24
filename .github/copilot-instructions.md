@@ -2,6 +2,15 @@
 
 このワークスペース共通のルール。
 
+## Repositories
+
+アプリ単位で独立した公開リポジトリを運用する。
+
+| App | Public Repo | Description |
+|-----|-------------|-------------|
+| azure-ops-dashboard | https://github.com/aktsmm/azure-ops-dashboard | Azure 環境可視化 + AI レポート (tkinter desktop) |
+| (monorepo) | https://github.com/aktsmm/Ag-sdk-enterprise-challenge | SDK Challenge 全体（設計ドキュメント・セッションログ含む） |
+
 ## Python
 
 - パッケージ管理は `uv venv` + `uv pip`（pip 直は NG）

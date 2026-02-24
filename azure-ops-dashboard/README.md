@@ -2,6 +2,8 @@ Japanese: [README.ja.md](README.ja.md)
 
 # Azure Ops Dashboard
 
+[![GitHub](https://img.shields.io/badge/repo-aktsmm%2Fazure--ops--dashboard-blue?logo=github)](https://github.com/aktsmm/azure-ops-dashboard)
+
 > **Problem**: Enterprise IT operations teams waste hours switching between Azure Portal, CLI, and documentation tools to visualize environments, assess security posture, and track costs. Architecture diagrams go stale, and manual report creation is error-prone.
 >
 > **Solution**: Azure Ops Dashboard reads a live Azure environment and produces **architecture diagrams + AI-powered security/cost reports** in one click — powered by the **GitHub Copilot SDK**.
