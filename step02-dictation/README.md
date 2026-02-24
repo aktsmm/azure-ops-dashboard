@@ -1,39 +1,41 @@
-# Step 02: ディクテーションツール
+Japanese: [README.ja.md](README.ja.md)
 
-Azure Speech STT + `pyautogui` で、音声を **アクティブウィンドウ** へテキスト入力します。
-（SDK は使わず、Voice Agent 統合に向けた音声レイヤーの先行実装です）
+# Step 02: Dictation Tool
 
-## 前提
+Types speech into the **active window** using Azure Speech STT + `pyautogui`.
+(This does not use the Copilot SDK; it is a speech-layer prototype for Voice Agent integration.)
+
+## Prerequisites
 
 - Windows
 - Python 3.11+
-- `uv` が利用できること
-- 環境変数
+- `uv` available
+- Environment variables:
   - `AZURE_SPEECH_KEY`
   - `AZURE_SPEECH_REGION`
 
-※ 認識言語は現状 `ja-JP` 固定です（[main.py](main.py)）。
+Note: recognition language is currently fixed to `ja-JP` (see [main.py](main.py)).
 
-## セットアップ（共通）
+## Setup (common)
 
-ワークスペースルートで:
+From the workspace root:
 
 ```powershell
 uv venv
 uv pip install -e .
 ```
 
-## 実行
+## Run
 
 ```powershell
 cd .\step02-dictation
 uv run python .\main.py
 ```
 
-## 停止
+## Stop
 
 - `Ctrl+C`
 
-## 注意
+## Notes
 
-- 入力先は「現在フォーカスされているウィンドウ」です（意図しない場所に入力される可能性があります）。
+- Input goes to the currently focused window (it may type into an unintended place).

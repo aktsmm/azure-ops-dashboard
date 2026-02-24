@@ -1,36 +1,38 @@
-# GitHub Copilot SDK Enterprise Pattern Challenge（Workspace）
+Japanese: [README.ja.md](README.ja.md)
 
-このリポジトリは、GitHub Copilot SDK を使った複数の小プロジェクト（Step00〜03 + Azure Ops Dashboard）をまとめたワークスペースです。
-各プロジェクトは切り出し（サブディレクトリ単体）を前提に、詳細はそれぞれの README に集約します。
+# GitHub Copilot SDK Enterprise Pattern Challenge (Workspace)
 
-## まず見る
+This repository is a workspace that contains multiple small projects built around the GitHub Copilot SDK (Step00–Step03 + Azure Ops Dashboard).
+Each project is designed to be separable (as a standalone subdirectory), and detailed usage lives in each project’s README.
 
-- 進捗/残タスク: [DASHBOARD.md](DASHBOARD.md)
-- エージェント/運用知見: [AGENTS.md](AGENTS.md)
-- 設計/調査: [docs/](docs/)
+## Start Here
 
-## 共通セットアップ（ソース実行）
+- Progress / remaining tasks: [DASHBOARD.md](DASHBOARD.md)
+- Agents / operational learnings: [AGENTS.md](AGENTS.md)
+- Design & research notes: [docs/](docs/)
 
-このワークスペースは `uv` 前提です。
+## Common Setup (source run)
+
+This workspace uses `uv`.
 
 ```powershell
 uv venv
 uv pip install -e .
 ```
 
-## プロジェクト一覧（詳細は各 README）
+## Projects
 
-| ディレクトリ | 概要 | README |
-| --- | --- | --- |
-| `azure-ops-dashboard/` | Azure 環境→図（.drawio）/レポート（Security/Cost）生成 GUI（exe化対応） | [azure-ops-dashboard/README.md](azure-ops-dashboard/README.md) |
-| `step00-chat-cli/` | Copilot SDK 素振り（トレイ常駐 + Alt×2 ポップアップ） | [step00-chat-cli/README.md](step00-chat-cli/README.md) |
-| `step01-env-builder/` | 自然言語→Bicep→デプロイ（what-if/実デプロイ）CLI | [step01-env-builder/README.md](step01-env-builder/README.md) |
-| `step02-dictation/` | Azure Speech STT → アクティブウィンドウへテキスト入力 | [step02-dictation/README.md](step02-dictation/README.md) |
-| `step03-voice-agent/` | 本命（Step00/01/02 統合の Voice-first Agent） | [step03-voice-agent/README.md](step03-voice-agent/README.md) |
+| Directory              | Summary                                                                                                | README                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `azure-ops-dashboard/` | GUI app: Azure environment → diagrams (.drawio) / reports (Security/Cost) with optional .exe packaging | [azure-ops-dashboard/README.md](azure-ops-dashboard/README.md) |
+| `step00-chat-cli/`     | Copilot SDK smoke test (tray resident + Alt×2 popup)                                                   | [step00-chat-cli/README.md](step00-chat-cli/README.md)         |
+| `step01-env-builder/`  | Natural language → Bicep → deploy (what-if / apply) CLI                                                | [step01-env-builder/README.md](step01-env-builder/README.md)   |
+| `step02-dictation/`    | Azure Speech STT → type into the active window                                                         | [step02-dictation/README.md](step02-dictation/README.md)       |
+| `step03-voice-agent/`  | Main project (integrates Step00/01/02 into a voice-first agent)                                        | [step03-voice-agent/README.md](step03-voice-agent/README.md)   |
 
-## 参考（このリポジトリ内）
+## References (in this repo)
 
-- Voice Agent 設計: [docs/design.md](docs/design.md)
-- SDK/運用メモ: [docs/tech-reference.md](docs/tech-reference.md)
-- 調査メモ: [research/](research/)
-- 実装セッションログ: [output_sessions/](output_sessions/)
+- Voice Agent design: [docs/design.md](docs/design.md)
+- SDK / ops notes: [docs/tech-reference.md](docs/tech-reference.md)
+- Research notes: [research/](research/)
+- Implementation session logs: [output_sessions/](output_sessions/)

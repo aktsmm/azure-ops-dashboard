@@ -1,8 +1,6 @@
 English: [README.md](README.md)
 
-# Step10: Azure Ops Dashboard（GUIアプリ）
-
-> 作成日: 2026-02-20
+# Azure Ops Dashboard
 
 Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.drawio`）やセキュリティ／コストレポート（`.md` / `.docx` / `.pdf`）を生成する **tkinter GUIアプリ**。
 
@@ -36,6 +34,7 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 - **追加指示** — 保存済み指示をチェックで呼び出し + 自由入力欄
 - **出力フォルダ** — 設定済みならダイアログなしで自動保存
 - **Open with** — Auto / Draw.io / VS Code / OS default から選択
+- - 補足: Draw.io で開くのは `.drawio` / `.drawio.svg` のみです。レポート（`.md` / `.json`）は VS Code で開きます（Windows は Notepad にフォールバック）。
 - **自動オープン** — 生成完了後に自動でファイルを開く
 - **AI レビュー** — Collect 後にリソース構成レビュー → Proceed/Cancel
 - **Canvas プレビュー** — ログ下部に簡易構成図（パン/ズーム対応）
@@ -49,10 +48,32 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 ## 前提
 
 - Python 3.11+（※ソース実行時。exe 配布で使う場合は Python 不要）
+- [uv](https://docs.astral.sh/uv/)（依存管理・ソース実行時）
 - Azure CLI（`az`）が利用可能
 - `az login` 済み（ブラウザ対話）
 - または Service Principal でログイン済み（Reader 権限で運用したい場合）
 - ARG拡張: `az extension add --name resource-graph`
+
+### AI 機能（レビュー / レポート生成）
+
+- GitHub Copilot SDK（`pip install github-copilot-sdk` または `uv pip install -e ".[ai]"`）
+- Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
+- もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
+- ネットワーク到達（社内 Proxy/Firewall 環境だと追加設定が必要な場合あり）
+
+### エクスポート（オプション）
+
+- **Word (.docx)**: `python-docx` 同梱（自動インストール）
+- **PDF**: Microsoft Word（Windows、COM/comtypes 経由）または LibreOffice（`soffice` コマンド、全 OS）
+  - Windows での PDF 変換には `pip install comtypes` も必要
+- **SVG (.drawio.svg)**: Draw.io デスクトップアプリ（CLI として SVG エクスポートに使用）
+
+### 権限
+
+- 対象 Subscription / RG に対して最低でも **Reader**（図生成用）
+- **Security Reader**（Security Center データ: セキュアスコア、推奨事項）
+- **Cost Management Reader**（コスト/課金データ）
+- **Advisor Reader**（または Reader）（Azure Advisor 推奨事項）
 
 ### 前提（exe 配布で使う場合）
 
@@ -62,7 +83,7 @@ exe にしても **外部依存（Azure CLI など）は同梱されません**�
 - Azure CLI がインストール済みで `az` が PATH から実行できること
 - `az login` 済みであること（または Service Principal ログイン）
 - ARG 拡張が入っていること: `az extension add --name resource-graph`
-- 対象 Subscription / RG に対して最低でも Reader 相当の権限があること
+- 対象 Subscription / RG に対して最低でも Reader 相当の権限があること（Security/Cost は上記 [権限](#権限) 参照）
 
 #### Service Principal（例）
 
@@ -83,12 +104,6 @@ pwsh .\scripts\collect-azure-env.ps1 -SubscriptionId <SUB_ID> -ResourceGroup <RG
 ```
 
 補足: スクリプトは `az` コマンドが非0終了した時点で停止します（エラー時は例外メッセージに出力ファイルパスが表示されます）。
-
-- AI 機能（レビュー/レポート）を使う場合:
-  - Copilot CLI がインストール済みで `copilot auth login` 済み（SDK は Copilot CLI の server mode を利用）
-  - もしくは環境変数トークン（例: `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`）が設定済み
-  - ネットワーク到達（社内Proxy/Firewall環境だと追加設定が必要な場合あり）
-- PDF 出力を使う場合: Microsoft Word または LibreOffice（`soffice` が実行できること）
 
 ### 配布メモ
 
@@ -116,12 +131,24 @@ exe を作り直さずに反映したい場合は、以下に JSON を配置し�
 ## 使い方
 
 ```powershell
-# azure-ops-dashboard フォルダ内で実行
-uv run python .\main.py
+# 依存関係インストール
+uv venv
+uv pip install -e .
 
-# リポジトリルートから実行する場合
-uv run python .\azure-ops-dashboard\main.py
+# AI 機能も使う場合
+uv pip install -e ".[ai]"
+
+# 起動
+uv run python main.py
 ```
+
+> **⚠ Windows PATH に関する注意**: `uv` がグローバル Python を `~/.local/bin/` にインストールしている場合、`Activate.ps1` を実行しても `.venv\Scripts\python.exe` より先にグローバル Python が使われることがあります。その場合は **venv の Python を明示的に指定**してください:
+>
+> ```powershell
+> .venv\Scripts\python.exe main.py
+> ```
+>
+> `python -c "import sys; print(sys.executable)"` で `.venv\Scripts\python.exe` を指していなければ、Copilot SDK 等の venv パッケージが見つからずエラーになります。
 
 GUIウィンドウが起動するので:
 
@@ -135,19 +162,23 @@ GUIウィンドウが起動するので:
 
 ## ファイル構成
 
-| ファイル           | 説明                                                                 |
-| ------------------ | -------------------------------------------------------------------- |
-| `main.py`          | GUI アプリ本体（tkinter）                                            |
-| `gui_helpers.py`   | GUI 共通定数・ユーティリティ（main.py から分離）                     |
-| `collector.py`     | Azure データ収集（az graph query / Security / Cost / Advisor）       |
-| `drawio_writer.py` | .drawio XML 生成                                                     |
-| `ai_reviewer.py`   | AI レビュー・レポート生成（Copilot SDK）                             |
-| `exporter.py`      | Markdown → Word (.docx) / PDF 変換                                   |
-| `i18n.py`          | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）            |
-| `app_paths.py`     | リソースパス抽象化（PyInstaller frozen 対応）                        |
-| `docs_enricher.py` | Microsoft Docs MCP 連携（レポート参考文献補強）                      |
-| `tests.py`         | ユニットテスト（collector / drawio_writer / exporter / gui_helpers） |
-| `templates/`       | レポートテンプレート JSON + 保存済み指示                             |
+| ファイル             | 説明                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
+| `main.py`            | GUI アプリ本体（tkinter）                                            |
+| `gui_helpers.py`     | GUI 共通定数・ユーティリティ（main.py から分離）                     |
+| `collector.py`       | Azure データ収集（az graph query / Security / Cost / Advisor）       |
+| `drawio_writer.py`   | .drawio XML 生成（決定的レイアウト）                                 |
+| `drawio_validate.py` | Draw.io XML バリデータ（構造・アイコン・ノード網羅率検査）           |
+| `ai_reviewer.py`     | AI レビュー・レポート生成（Copilot SDK + MCP）                       |
+| `docs_enricher.py`   | Microsoft Docs 補強（Learn Search API + 静的リファレンスマップ）     |
+| `exporter.py`        | Markdown → Word (.docx) / PDF 変換 + 差分レポート生成                |
+| `i18n.py`            | 国際化モジュール（日本語/英語 翻訳辞書 + ランタイム切替）            |
+| `app_paths.py`       | リソースパス抽象化（PyInstaller frozen + ユーザー上書き対応）        |
+| `tests.py`           | ユニットテスト（collector / drawio_writer / exporter / gui_helpers） |
+| `templates/`         | レポートテンプレート JSON + 保存済み指示                             |
+| `scripts/`           | ユーティリティスクリプト（Azure 収集、MCP テスト、drawio 検証）      |
+| `CHANGELOG.md`       | リリース変更履歴                                                     |
+| `build_exe.ps1`      | PyInstaller ビルドスクリプト（onedir / onefile）                     |
 
 ### テンプレート
 
@@ -169,14 +200,13 @@ GUIウィンドウが起動するので:
 - `*-diff.md`（差分レポート — 前回レポートとの比較）
 - `*.docx`（Word レポート、オプション）
 - `*.pdf`（PDF レポート、オプション — Word/LibreOffice 必要）
-- `env.json`（nodes/edges と azureId→cellId マップ）
-- `collect.log.json`（実行コマンドとstdout/stderr）
+- `*-env.json`（nodes/edges と azureId→cellId マップ — `.drawio` と同名ベース）
+- `*-collect-log.json`（実行コマンドとstdout/stderr — `.drawio` と同名ベース）
 
 ## 設計/調査
 
-- 設計（SSOT）: `DESIGN.md`
-- 技術調査（SSOT）: `TECH-SURVEY.md`
-- セッションログ: `output_sessions/`
+- 設計: [DESIGN.md](DESIGN.md)
+- 技術調査: [TECH-SURVEY.md](TECH-SURVEY.md)
 
 ## テスト
 
@@ -185,7 +215,7 @@ GUIウィンドウが起動するので:
 uv run python -m unittest tests -v
 ```
 
-Azure CLI / Copilot SDK 接続なしでテスト可能（20件）。
+Azure CLI / Copilot SDK 接続なしでテスト可能（36件）。
 
 ## 実行ファイル化（Windows .exe）
 

@@ -1,0 +1,10 @@
+# Binary files — prevent Git text conversion (L10)
+*.pptx binary
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.exe binary
+*.zip binary
+*.drawio.svg binary

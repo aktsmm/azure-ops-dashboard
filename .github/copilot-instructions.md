@@ -7,6 +7,7 @@
 - パッケージ管理は `uv venv` + `uv pip`（pip 直は NG）
 - ワークスペースごとに `.venv` を作成
 - Windows は spawn: worker 関数はモジュールレベル定義、`if __name__ == "__main__"` ガード必須
+- 起動時は `.venv\Scripts\python.exe` を絶対パスで呼ぶ（`uv` の `.local\bin` が PATH で優先され Activate.ps1 が効かない場合がある）（L8）
 
 ## Git
 

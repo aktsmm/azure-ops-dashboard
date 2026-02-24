@@ -112,8 +112,8 @@ GUIウィンドウが起動する（VS Codeダークテーマ風）。
 ### 3.6 成果物
 
 - `*.drawio`（指定パス）
-- `env.json`（正規化済みの nodes/edges。デバッグと差分比較用）
-- `collect.log.json`（実行した `az ...` と stdout/stderr）
+- `*-env.json`（正規化済みの nodes/edges。デバッグと差分比較用）
+- `*-collect-log.json`（実行した `az ...` と stdout/stderr）
 
 ## 4. データモデル（内部）
 
@@ -172,7 +172,7 @@ Edge:
 
 - Draw.ioの `mxCell id` は、Azure resourceId をそのまま使うと長すぎるので、
   `n<hash>`（例: sha1の先頭12桁）に変換して安定化
-- `env.json` 側に `azureId -> cellId` のマップを保存して追跡可能にする
+- `*-env.json` 側に `azureId -> cellId` のマップを保存して追跡可能にする
 
 ### 6.3 レイアウト（MVP）
 
@@ -182,7 +182,7 @@ Edge:
 ## 7. セキュリティ/ガバナンス
 
 - 読み取り専用コマンドに限定（`az graph query`、必要なら `az account show` など）
-- 取得結果はローカルに保存されるため、`env.json` には秘密（キー/接続文字列等）を入れない
+- 取得結果はローカルに保存されるため、`*-env.json` には秘密（キー/接続文字列等）を入れない
   - 出力前に `properties` をホワイトリスト方式で絞る（MVPは props最小）
 
 ## 8. Voice Agent / Skills への組み込み想定（将来）

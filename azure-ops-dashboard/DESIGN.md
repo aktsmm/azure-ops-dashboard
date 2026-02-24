@@ -1,10 +1,4 @@
-# Step10: Azure Env Diagrammer — 設計（MVP）
-
-> 作成日: 2026-02-20
-
-このStepの設計SSOTは以下。
-
-- `docs/azure-env-diagrammer-design.md`
+# Azure Ops Dashboard — 設計（MVP）
 
 ## 方式
 

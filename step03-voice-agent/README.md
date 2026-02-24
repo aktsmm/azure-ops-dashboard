@@ -1,31 +1,33 @@
-# Step 03: Voice-first Enterprise Copilot（本命）
+Japanese: [README.ja.md](README.ja.md)
 
-Step00（SDK Chat + トレイ常駐）/ Step01（Env Builder）/ Step02（Dictation）を統合する本命プロジェクトです。
+# Step 03: Voice-first Enterprise Copilot (Main)
 
-## 参照
+This is the main project that integrates Step00 (SDK Chat + tray app), Step01 (Env Builder), and Step02 (Dictation).
 
-- 全体設計: [../docs/design.md](../docs/design.md)
-- SDK前提/セキュリティ: [../docs/tech-reference.md](../docs/tech-reference.md)
-- 進捗/残タスク: [../DASHBOARD.md](../DASHBOARD.md)
+## References
 
-## 現状
+- Overall design: [../docs/design.md](../docs/design.md)
+- SDK prerequisites / security: [../docs/tech-reference.md](../docs/tech-reference.md)
+- Progress / remaining tasks: [../DASHBOARD.md](../DASHBOARD.md)
 
-- `src/` はまだ骨格段階（統合はこれから）
-- 実装が進むまでは Step00/01/02 を単体で動かして検証します
+## Current status
 
-## セットアップ（共通）
+- `src/` is still at the skeleton stage (integration is next)
+- Until implementation progresses, validate by running Step00/01/02 independently
 
-ワークスペースルートで:
+## Setup (common)
+
+From the workspace root:
 
 ```powershell
 uv venv
 uv pip install -e .
 ```
 
-## 実装配置（予定）
+## Planned layout
 
-- `src/app.py`: 常駐（トレイ/ホットキー）とモード切替（dictation / agent）
-- `src/sdk/`: Copilot SDK ラッパー（Step00の移植/統合）
-- `src/speech/`: Azure Speech STT/TTS（Step02の移植/統合）
-- `src/skills/`: skills 同期 + `skill_directories` 注入
-- `src/tools/`: onPreToolUse（許可/拒否/確認）
+- `src/app.py`: tray/hotkey resident app + mode switching (dictation / agent)
+- `src/sdk/`: Copilot SDK wrappers (port/integrate from Step00)
+- `src/speech/`: Azure Speech STT/TTS (port/integrate from Step02)
+- `src/skills/`: skills sync + inject `skill_directories`
+- `src/tools/`: onPreToolUse (allow/deny/confirm)

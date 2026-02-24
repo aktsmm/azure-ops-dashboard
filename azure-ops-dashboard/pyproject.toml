@@ -1,0 +1,26 @@
+[project]
+name = "azure-ops-dashboard"
+version = "1.0.1"
+description = "Azure environment → Draw.io diagrams & AI-powered Security/Cost reports (tkinter GUI)"
+readme = "README.md"
+license = { text = "CC-BY-NC-SA-4.0" }
+requires-python = ">=3.11"
+
+dependencies = [
+    "python-docx>=1.2.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "github-copilot-sdk>=0.1.25",
+]
+dev = [
+    "pyinstaller>=6.0",
+]
+
+[project.urls]
+Repository = "https://github.com/aktsmm/azure-ops-dashboard"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"

@@ -4,6 +4,7 @@ import argparse
 import json
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -200,22 +201,33 @@ def _write_json(path: Path, obj: object) -> None:
     _write_text(path, json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
 
 
+def _resolve_az_exe() -> str:
+    if sys.platform == "win32":
+        candidates = ("az.cmd", "az.exe", "az")
+    else:
+        candidates = ("az", "az.cmd", "az.exe")
+    for c in candidates:
+        found = shutil.which(c)
+        if found:
+            return found
+    return "az"
+
+
 def _az(argv: Sequence[str], *, cwd: Path, timeout_sec: int) -> AzResult:
     display_argv = ["az", *argv]
 
-    if sys.platform == "win32":
-        exec_cmd: str | list[str] = subprocess.list2cmdline(display_argv)
-        use_shell = True
+    az_exe = _resolve_az_exe()
+    if sys.platform == "win32" and az_exe.lower().endswith((".cmd", ".bat")):
+        exec_cmd: list[str] = ["cmd.exe", "/d", "/s", "/c", az_exe, *argv]
     else:
-        exec_cmd = display_argv
-        use_shell = False
+        exec_cmd = [az_exe, *argv]
 
     start = time.monotonic()
     try:
         completed = subprocess.run(
             exec_cmd,
             cwd=str(cwd),
-            shell=use_shell,
+            shell=False,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -235,13 +247,13 @@ def _az(argv: Sequence[str], *, cwd: Path, timeout_sec: int) -> AzResult:
         )
     except subprocess.TimeoutExpired as exc:
         duration_ms = int((time.monotonic() - start) * 1000)
-        stdout = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
-        stderr = (exc.stderr or "") if isinstance(exc.stderr, str) else ""
+        stdout: str = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
+        stderr: str = (exc.stderr or "") if isinstance(exc.stderr, str) else ""
         return AzResult(
             argv=display_argv,
             returncode=124,
             stdout=stdout,
-            stderr=stderr + f"\n[timeout] exceeded {timeout_sec}s",
+            stderr=f"{stderr}\n[timeout] exceeded {timeout_sec}s",
             duration_ms=duration_ms,
         )
 

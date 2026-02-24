@@ -406,6 +406,67 @@ class TestAISanitizer(unittest.TestCase):
         self.assertIn("## A", out)
         self.assertNotIn("<tool_call>", out)
 
+    def test_sanitize_extracts_markdown_from_tool_input_invalid_json_newlines(self) -> None:
+        """tool_input の JSON が壊れていても content を救出できる（改行未エスケープ等）。"""
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "Preamble\n"
+            "<tool_call>\n"
+            "<tool_name>CreateFile</tool_name>\n"
+            "<tool_input type=\"json\">"
+            "{\"filePath\":\"x.md\",\"content\":\"# Integrated Report\n\n## A\nBody\n\"}"
+            "</tool_input>\n"
+            "</tool_call>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Integrated Report"))
+        self.assertIn("## A", out)
+        self.assertIn("Body", out)
+        self.assertNotIn("tool_input", out.lower())
+
+    def test_sanitize_extracts_from_tool_input_arguments_content(self) -> None:
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "<tool_call>\n"
+            "<tool_input type=\"json\">{\"arguments\":{\"content\":\"# Integrated Report\\n\\n## A\\nBody\\n\"}}</tool_input>\n"
+            "</tool_call>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Integrated Report"))
+        self.assertIn("## A", out)
+
+    def test_sanitize_multiple_tool_input_blocks_picks_best_candidate(self) -> None:
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "<tool_call>\n"
+            "<tool_input type=\"json\">{\"content\":\"# A\\nshort\\n\"}</tool_input>\n"
+            "</tool_call>\n"
+            "<tool_call>\n"
+            "<tool_input type=\"json\">{\"content\":\"# Integrated Report\\n\\n## A\\nBody\\n\"}</tool_input>\n"
+            "</tool_call>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Integrated Report"))
+        self.assertIn("Body", out)
+
+    def test_sanitize_does_not_replace_report_with_non_markdown_tool_input_content(self) -> None:
+        """tool_input の content が非Markdownでも、既存の本文を潰さない。"""
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "# Report\n"
+            "Body\n\n"
+            "<tool_call>\n"
+            "<tool_input type=\"json\">{\"content\":\"just text\"}</tool_input>\n"
+            "</tool_call>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertTrue(out.startswith("# Report"))
+        self.assertIn("Body", out)
+
     def test_sanitize_one_line_tool_calls_does_not_swallow_report(self) -> None:
         from ai_reviewer import _sanitize_ai_markdown
 
@@ -436,6 +497,79 @@ Body
         out = _sanitize_ai_markdown(raw)
         self.assertTrue(out.startswith("# Report"))
         self.assertNotIn("<tool_calls>", out)
+
+    def test_sanitize_result_tag_does_not_swallow_report(self) -> None:
+        """<result>/<parameters> のような汎用タグが混入しても本文を飲み込まない。"""
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "# Report\n"
+            "Body line 1\n"
+            "<result>\n"
+            "some meta\n"
+            "# Still Here\n"
+            "Body line 2\n"
+            "</result>\n"
+            "<parameters>\n"
+            "x\n"
+            "</parameters>\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertIn("# Report", out)
+        self.assertIn("Body line 1", out)
+        self.assertIn("# Still Here", out)
+        self.assertIn("Body line 2", out)
+        self.assertNotIn("<result", out.lower())
+        self.assertNotIn("<parameters", out.lower())
+
+    def test_sanitize_quality_gate_rejects_short_extraction(self) -> None:
+        """tool_input の content が短い思考テキストの場合、採用せず post-tool テキストを残す。"""
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "Let me examine.\n"
+            "<tool_calls>\n"
+            "<tool_call>\n"
+            "<tool_name>create_file</tool_name>\n"
+            '<tool_input type="json">{"filePath":"x.md","content":"# Title\\n\\nThinking text."}</tool_input>\n'
+            "</tool_call>\n"
+            "</tool_calls>\n"
+            "<tool_call_result>\n"
+            "<stdout></stdout>\n"
+            "</tool_call_result>\n"
+            "Created the report.\n"
+            "1. **Security** – score 31%\n"
+            "2. **Cost** – total 13000\n"
+            "3. **Cross-domain** – insights\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        # 短い extraction ("# Title\n\nThinking text.") は採用されず、
+        # post-tool テキストが残っている
+        self.assertIn("Security", out)
+        self.assertIn("Cost", out)
+        # tool_call_result タグが除去されている
+        self.assertNotIn("<tool_call_result", out.lower())
+        self.assertNotIn("</tool_call_result", out.lower())
+
+    def test_sanitize_strips_tool_call_result_tags(self) -> None:
+        """<tool_call_result> タグが正しく除去される。"""
+        from ai_reviewer import _sanitize_ai_markdown
+
+        raw = (
+            "# Report\n"
+            "Body\n"
+            "<tool_call_result>\n"
+            "<stdout>ok</stdout>\n"
+            "</tool_call_result>\n"
+            "## Section 2\n"
+            "More content\n"
+        )
+        out = _sanitize_ai_markdown(raw)
+        self.assertIn("# Report", out)
+        self.assertIn("Body", out)
+        self.assertIn("## Section 2", out)
+        self.assertNotIn("tool_call_result", out.lower())
+        self.assertNotIn("stdout", out.lower())
 
 
 if __name__ == "__main__":

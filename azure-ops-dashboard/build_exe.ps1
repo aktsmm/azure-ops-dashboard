@@ -1,11 +1,32 @@
 param(
   [ValidateSet('onedir','onefile')]
-  [string]$Mode = 'onedir'
+  [string]$Mode = 'onedir',
+
+  [switch]$NoRun,
+
+  # Optional custom dist output root (default: dist)
+  [string]$DistPath = 'dist'
 )
 
 $ErrorActionPreference = 'Stop'
 
 Set-Location $PSScriptRoot
+
+# If the app is already running, avoid deleting dist output (Windows file lock).
+# In that case, build into a timestamped dist folder and skip auto-run.
+try {
+  $running = Get-Process -Name 'AzureOpsDashboard' -ErrorAction SilentlyContinue
+} catch {
+  $running = $null
+}
+
+$distRoot = $DistPath
+if ($running -and $DistPath -eq 'dist') {
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  $distRoot = "dist-build-$stamp"
+  $NoRun = $true
+  Write-Host "INFO: AzureOpsDashboard is running. Building into: $distRoot (auto-run disabled)"
+}
 
 # PyInstaller は開発用ツールなので、プロジェクトの .venv に追加
 $python = (Resolve-Path (Join-Path $PSScriptRoot '..\.venv\Scripts\python.exe')).Path
@@ -17,7 +38,8 @@ $addData = 'templates;templates'
 # Copilot SDK 同梱 CLI バイナリも同梱
 $copilotBinDir = Join-Path $PSScriptRoot '..\.venv\Lib\site-packages\copilot\bin'
 if (Test-Path $copilotBinDir) {
-  $copilotData = "$copilotBinDir;copilot\bin"
+  # NOTE: exe 内の top-level "copilot/" は Python SDK モジュール名と衝突し得るため、別名に退避する
+  $copilotData = "$copilotBinDir;copilot_cli\bin"
   Write-Host "Copilot CLI binary: $copilotBinDir"
 } else {
   $copilotData = $null
@@ -25,12 +47,13 @@ if (Test-Path $copilotBinDir) {
 }
 
 $pyiParams = @(
-  'pyinstaller',
+  '-m', 'PyInstaller',
   'main.py',
   '--name', 'AzureOpsDashboard',
   '--noconsole',
   '--clean',
   '--noconfirm',
+  '--distpath', $distRoot,
   '--add-data', $addData
 )
 
@@ -45,8 +68,25 @@ if ($Mode -eq 'onefile') {
   $pyiParams += '--onedir'
 }
 
-uv run @pyiParams
+& $python @pyiParams
 
 Write-Host ''
 Write-Host 'Build output:'
-Write-Host '  dist\ (配下に exe が生成されます)'
+Write-Host "  $distRoot\ (配下に exe が生成されます)"
+
+# Build 後に自動起動（既定ON）
+if (-not $NoRun) {
+  if ($Mode -eq 'onefile') {
+    $exePath = Join-Path $PSScriptRoot (Join-Path $distRoot 'AzureOpsDashboard.exe')
+  } else {
+    $exePath = Join-Path $PSScriptRoot (Join-Path $distRoot 'AzureOpsDashboard\AzureOpsDashboard.exe')
+  }
+
+  if (Test-Path $exePath) {
+    Write-Host ''
+    Write-Host "Launching: $exePath"
+    Start-Process -FilePath $exePath | Out-Null
+  } else {
+    Write-Host "WARNING: exe not found: $exePath"
+  }
+}

@@ -1,4 +1,4 @@
-"""Step10: GUI ヘルパー — 定数・ユーティリティ関数
+"""GUI ヘルパー — 定数・ユーティリティ関数
 
 main.py から分離したモジュールレベルの共通定数とファイル操作。
 """
@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 # ============================================================
@@ -105,28 +105,41 @@ def detect_vscode_path() -> str | None:
         p = shutil.which(name)
         if p:
             return p
+
+    # Windows: PATH に無い場合が多いので、代表的なインストール先も見る
+    if sys.platform == "win32":
+        candidates = [
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Microsoft VS Code" / "Code.exe",
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Microsoft VS Code Insiders" / "Code - Insiders.exe",
+            Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft VS Code" / "Code.exe",
+            Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft VS Code" / "Code.exe",
+        ]
+        for c in candidates:
+            if c.exists():
+                return str(c)
     return None
 
 
 # ---------- パス検出キャッシュ ----------
-_drawio_path_cache: str | None = ...   # type: ignore[assignment]
-_vscode_path_cache: str | None = ...   # type: ignore[assignment]
+_CACHE_UNSET = object()
+_drawio_path_cache: str | None | object = _CACHE_UNSET
+_vscode_path_cache: str | None | object = _CACHE_UNSET
 
 
 def cached_drawio_path() -> str | None:
     """detect_drawio_path() の結果をキャッシュして返す。"""
     global _drawio_path_cache
-    if _drawio_path_cache is ...:
+    if _drawio_path_cache is _CACHE_UNSET:
         _drawio_path_cache = detect_drawio_path()
-    return _drawio_path_cache
+    return cast(str | None, _drawio_path_cache)
 
 
 def cached_vscode_path() -> str | None:
     """detect_vscode_path() の結果をキャッシュして返す。"""
     global _vscode_path_cache
-    if _vscode_path_cache is ...:
+    if _vscode_path_cache is _CACHE_UNSET:
         _vscode_path_cache = detect_vscode_path()
-    return _vscode_path_cache
+    return cast(str | None, _vscode_path_cache)
 
 
 # Windows でサブプロセスのコンソール窓を非表示にするヘルパー
@@ -138,14 +151,18 @@ def _subprocess_no_window() -> dict:
 
 
 def export_drawio_svg(drawio_path: Path, drawio_exe: str | None = None) -> Path | None:
-    """Draw.io CLI で .drawio → .drawio.svg に変換する。"""
+    """Draw.io CLI で .drawio → .drawio.svg に変換する。
+
+    NOTE:
+      生成された SVG を draw.io で再編集できるよう、ダイアグラムを埋め込む。
+    """
     exe = drawio_exe or cached_drawio_path()
     if not exe:
         return None
     svg_path = drawio_path.with_suffix(".drawio.svg")
     try:
         result = subprocess.run(
-            [exe, "--export", "--format", "svg",
+            [exe, "--export", "--format", "svg", "--embed-diagram",
              "--output", str(svg_path), str(drawio_path)],
             capture_output=True, text=True, timeout=60,
             **_subprocess_no_window(),

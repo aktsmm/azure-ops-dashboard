@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any
+from typing import Any, cast
 
 from copilot import CopilotClient
+from copilot.types import CopilotClientOptions
 
 from config import MAX_RETRY, PREFIX_ERROR, PREFIX_SYSTEM, RETRY_BACKOFF
 
@@ -42,8 +43,12 @@ class SDKClient:
 
         for attempt in range(1, MAX_RETRY + 1):
             try:
-                self._client = CopilotClient(**self._client_options)
-                await self._client.start()
+                opts: CopilotClientOptions | None = (
+                    cast(CopilotClientOptions, self._client_options) if self._client_options else None
+                )
+                client = CopilotClient(options=opts)
+                self._client = client
+                await client.start()
                 print(f"{PREFIX_SYSTEM} CopilotClient started (attempt {attempt})")
                 return
             except Exception as e:  # noqa: BLE001
@@ -62,9 +67,10 @@ class SDKClient:
 
     async def stop(self) -> None:
         """CopilotClient を停止。"""
-        if self._client is not None:
+        client = self._client
+        if client is not None:
             try:
-                await self._client.stop()
+                await client.stop()
                 print(f"{PREFIX_SYSTEM} CopilotClient stopped")
             except Exception as e:  # noqa: BLE001
                 print(f"{PREFIX_ERROR} Client 停止時エラー: {e}", file=sys.stderr)

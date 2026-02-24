@@ -50,7 +50,7 @@ ARGの例（公式サンプルがある関係）:
 ## 3) 推奨MVPアーキテクチャ（超要約）
 
 - Collector: `az graph query` で nodes/edges を抽出（view別に2〜3本のクエリ）
-- Normalizer: `nodes[]/edges[]` に正規化して `env.json` として保存
+- Normalizer: `nodes[]/edges[]` に正規化して `*-env.json` として保存（`.drawio` と同名ベース）
 - Renderer: `.drawio` XML を生成して保存（固定グリッド配置でMVP成立）
 
 ## 参考（一次情報）

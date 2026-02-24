@@ -1,10 +1,4 @@
-# Step10: Azure Ops Dashboard（GUI）— 技術調査（要約）
-
-> 作成日: 2026-02-20
-
-技術調査SSOTは以下。
-
-- `docs/azure-env-diagrammer-tech-survey.md`
+# Azure Ops Dashboard — 技術調査（要約）
 
 要点（MVP結論）:
 

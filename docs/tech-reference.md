@@ -17,7 +17,8 @@
 ### インストール
 
 ```bash
-pip install github-copilot-sdk
+uv venv
+uv pip install github-copilot-sdk
 ```
 
 > **import 注意**: パッケージ名は `github-copilot-sdk` だが import は `from copilot import CopilotClient`

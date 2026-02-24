@@ -1,46 +1,48 @@
+Japanese: [README.ja.md](README.ja.md)
+
 # Step 0: SDK Chat CLI
 
-GitHub Copilot SDK（Python）の動作確認用チャットアプリ。
-**System Tray 常駐 + Alt ダブルタップでポップアップ**する GUI 形式。
-Voice Agent（Step 3）の SDK レイヤー + GUI レイヤー基盤として再利用できる設計。
+A chat app to validate the GitHub Copilot SDK (Python).
+It runs as a **tray resident app** and shows a popup window on **double-tapping Alt**.
+Designed to be reusable as the SDK + GUI foundation for the Voice Agent (Step 3).
 
-## 前提条件
+## Prerequisites
 
 - Python 3.11+
-- `copilot` CLI インストール済み & `copilot auth login` 完了
-- Windows（System Tray + グローバルホットキー）
+- `copilot` CLI installed and `copilot auth login` completed
+- Windows (system tray + global hotkey)
 
-## セットアップ
+## Setup
 
 ```bash
-# ワークスペースルートで
+# From the workspace root
 uv venv
 uv pip install -e .
 ```
 
-## 実行
+## Run
 
 ```bash
 cd step00-chat-cli
 uv run python main.py
 ```
 
-## 使い方
+## How to use
 
-1. 起動すると **System Tray にアイコンが表示**され、SDK に接続
-2. **Alt キーを素早く2回押す** → チャットウィンドウがポップアップ
-3. テキストを入力して **Enter** で送信 → ストリーミングで応答表示
-4. **Escape** でウィンドウを非表示（会話履歴は保持）
-5. 再度 Alt×2 でウィンドウを再表示
-6. トレイアイコン右クリック → 「Exit」でアプリ終了
+1. On startup, a tray icon appears and the app connects to the SDK
+2. Double-tap **Alt** → the chat window pops up
+3. Type a message and press **Enter** → responses stream in
+4. Press **Escape** to hide the window (conversation history is kept)
+5. Double-tap Alt again to show the window
+6. Right-click the tray icon → Exit to quit
 
-- SDK 接続に失敗した場合は、右クリック → 「Reconnect」で再接続できます
+- If SDK connection fails: right-click the tray icon → Reconnect
 
-## ホットキーの変更
+## Hotkey configuration
 
-`settings.json` を編集してホットキーを変更できます：
+Edit `settings.json` to change the hotkey:
 
-※ 型不一致や範囲外などの **不正な値は無視**され、デフォルト値が使用されます。
+Invalid values (type mismatch/out of range) are ignored and defaults are used.
 
 ```json
 {
@@ -50,34 +52,34 @@ uv run python main.py
 }
 ```
 
-| 設定              | 説明                       | デフォルト  |
-| ----------------- | -------------------------- | ----------- |
-| `hotkey_key`      | ダブルタップで検出するキー | `"alt"`     |
-| `hotkey_interval` | ダブルタップ判定間隔（秒） | `0.35`      |
-| `model`           | 使用する AI モデル         | `"gpt-4.1"` |
-| `window_width`    | ウィンドウ幅               | `500`       |
-| `window_height`   | ウィンドウ高さ             | `600`       |
-| `font_size`       | フォントサイズ             | `11`        |
+| Setting           | Description                            | Default     |
+| ----------------- | -------------------------------------- | ----------- |
+| `hotkey_key`      | Key to detect as the double-tap hotkey | `"alt"`     |
+| `hotkey_interval` | Double-tap detection window (seconds)  | `0.35`      |
+| `model`           | AI model to use                        | `"gpt-4.1"` |
+| `window_width`    | Window width                           | `500`       |
+| `window_height`   | Window height                          | `600`       |
+| `font_size`       | Font size                              | `11`        |
 
-## ファイル構成
+## Files
 
-| ファイル             | 責務                                             |
-| -------------------- | ------------------------------------------------ |
-| `main.py`            | エントリポイント（スレッド統合・App クラス）     |
-| `chat_window.py`     | tkinter チャットウィンドウ（ストリーミング表示） |
-| `tray_app.py`        | pystray System Tray 管理                         |
-| `sdk_client.py`      | CopilotClient ラッパー（接続管理・リトライ）     |
-| `session_manager.py` | Session 作成・イベント購読・送受信               |
-| `event_handler.py`   | イベントルーター（コールバック注入対応）         |
-| `config.py`          | 設定定数 + settings.json 読み込み                |
-| `settings.json`      | ユーザー設定（ホットキー・モデル等）             |
-| `DESIGN.md`          | 基本設計 + 詳細設計                              |
+| File                 | Responsibility                                      |
+| -------------------- | --------------------------------------------------- |
+| `main.py`            | Entry point (thread integration, App class)         |
+| `chat_window.py`     | tkinter chat window (streaming output)              |
+| `tray_app.py`        | pystray system tray management                      |
+| `sdk_client.py`      | CopilotClient wrapper (connection + retry)          |
+| `session_manager.py` | Session creation, event subscriptions, send/receive |
+| `event_handler.py`   | Event router (callback injection)                   |
+| `config.py`          | Config constants + `settings.json` loading          |
+| `settings.json`      | User settings (hotkey/model/etc.)                   |
+| `DESIGN.md`          | Design docs                                         |
 
-## Voice Agent 統合時の拡張ポイント
+## Extension points for Voice Agent integration
 
-| モジュール       | 差し替え内容                                                 |
-| ---------------- | ------------------------------------------------------------ |
-| `EventHandler`   | `on_delta` を TTS キューへの送信に差し替え                   |
-| `SessionManager` | `session_config` に `skill_directories`, `mcpServers` を注入 |
-| `ChatWindow`     | 音声入力ボタン追加 / ホットキーで音声モード切替              |
-| `TrayApp`        | Skills 更新・設定・ログ表示等のメニュー追加                  |
+| Module           | What to replace                                                   |
+| ---------------- | ----------------------------------------------------------------- |
+| `EventHandler`   | Replace `on_delta` to send into a TTS queue                       |
+| `SessionManager` | Inject `skill_directories` and `mcpServers` into `session_config` |
+| `ChatWindow`     | Add voice input button / hotkey to switch voice mode              |
+| `TrayApp`        | Add menu items (skills refresh, settings, logs, etc.)             |

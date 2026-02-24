@@ -8,6 +8,7 @@ System Tray 常駐 + Alt ダブルタップでチャットウィンドウ起動�
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import sys
 import threading
 import time
@@ -47,6 +48,7 @@ class App:
         self._session_mgr: Optional[SessionManager] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_thread: Optional[threading.Thread] = None
+        self._loop_ready = threading.Event()
         self._tray_thread: Optional[threading.Thread] = None
         self._last_alt_time: float = 0.0
         self._shutting_down = False
@@ -63,10 +65,26 @@ class App:
 
         # 2. asyncio ループを別スレッドで起動
         self._loop = asyncio.new_event_loop()
+        self._loop_ready.clear()
         self._loop_thread = threading.Thread(
             target=self._run_async_loop, daemon=True, name="asyncio-sdk"
         )
         self._loop_thread.start()
+
+        # ループが回り始めてからスケジューリングする（競合回避）
+        if not self._loop_ready.wait(timeout=5):
+            msg = "内部エラー: SDK ループの起動がタイムアウトしました"
+            print(f"{PREFIX_ERROR} {msg}", file=sys.stderr)
+            try:
+                if self._loop is not None:
+                    self._loop.call_soon_threadsafe(self._loop.stop)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._root.destroy()
+            except Exception:  # noqa: BLE001
+                pass
+            return
 
         # 3. ChatWindow 作成
         self._chat_window = ChatWindow(self._root, on_submit=self._on_user_submit)
@@ -102,26 +120,39 @@ class App:
 
     def _run_async_loop(self) -> None:
         """asyncio イベントループを実行（別スレッド）。"""
+        if self._loop is None:
+            return
         asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
+        self._loop.call_soon(self._loop_ready.set)
+        try:
+            self._loop.run_forever()
+        finally:
+            try:
+                self._loop.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     async def _init_sdk(self) -> None:
         """SDK Client + Session を初期化。"""
         self._sdk_client = SDKClient()
         await self._sdk_client.start()
 
+        chat_window = self._chat_window
+        if chat_window is None:
+            raise RuntimeError("ChatWindow is not initialized")
+
         handler = EventHandler(
-            on_delta=self._chat_window.append_delta,
-            on_message_complete=lambda _: self._chat_window.on_response_complete(),
-            on_tool_start=self._chat_window.append_tool,
-            on_reasoning_delta=self._chat_window.append_reasoning,
+            on_delta=chat_window.append_delta,
+            on_message_complete=lambda _: chat_window.on_response_complete(),
+            on_tool_start=chat_window.append_tool,
+            on_reasoning_delta=chat_window.append_reasoning,
             on_reasoning=lambda _: None,
             on_idle=lambda: None,
         )
         self._session_mgr = SessionManager(self._sdk_client, handler)
         await self._session_mgr.create()
 
-    def _on_sdk_init_done(self, future: asyncio.Future) -> None:
+    def _on_sdk_init_done(self, future: concurrent.futures.Future[None]) -> None:
         """SDK 初期化完了コールバック。"""
         try:
             future.result()
@@ -199,10 +230,12 @@ class App:
             self._reconnecting = False
             return
 
-        future = asyncio.run_coroutine_threadsafe(self._reconnect_sdk(), self._loop)
+        future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
+            self._reconnect_sdk(), self._loop
+        )
         future.add_done_callback(self._on_reconnect_done)
 
-    def _on_reconnect_done(self, future: asyncio.Future) -> None:
+    def _on_reconnect_done(self, future: concurrent.futures.Future[None]) -> None:
         try:
             future.result()
             if self._chat_window:
@@ -280,7 +313,7 @@ class App:
 
         # SDK クリーンアップ（asyncio スレッドで実行）
         if self._loop and self._session_mgr:
-            future = asyncio.run_coroutine_threadsafe(
+            future: concurrent.futures.Future[None] = asyncio.run_coroutine_threadsafe(
                 self._cleanup_sdk(), self._loop
             )
             try:
@@ -326,11 +359,15 @@ class App:
         if self._chat_window is None:
             return
 
+        chat_window = self._chat_window
+        if chat_window is None:
+            return
+
         handler = EventHandler(
-            on_delta=self._chat_window.append_delta,
-            on_message_complete=lambda _: self._chat_window.on_response_complete(),
-            on_tool_start=self._chat_window.append_tool,
-            on_reasoning_delta=self._chat_window.append_reasoning,
+            on_delta=chat_window.append_delta,
+            on_message_complete=lambda _: chat_window.on_response_complete(),
+            on_tool_start=chat_window.append_tool,
+            on_reasoning_delta=chat_window.append_reasoning,
             on_reasoning=lambda _: None,
             on_idle=lambda: None,
         )

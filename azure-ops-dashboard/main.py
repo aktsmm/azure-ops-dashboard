@@ -1,4 +1,4 @@
-"""Step10: Azure Env Diagrammer — tkinter GUIアプリ
+"""Azure Ops Dashboard — tkinter GUIアプリ
 
 Azure環境（既存リソース）を読み取り、
 Draw.io（diagrams.net）で開ける .drawio 図を生成するGUI。
@@ -99,6 +99,8 @@ class App:
         self._preflight_ok = False  # preflight完了まではCollect不可
         self._activity_started_at: float | None = None
         self._elapsed_timer_id: str | None = None
+        self._delta_buffer: list[str] = []          # ストリーミングデルタのバッチバッファ
+        self._delta_flush_scheduled: bool = False   # flush 予約済みフラグ
         self._last_out_path: Path | None = None
         self._last_diff_path: Path | None = None
         self._subs_cache: list[dict[str, str]] = []
@@ -205,7 +207,7 @@ class App:
         view_cb_frame.grid(row=1, column=1, columnspan=2, sticky="w", pady=3)
 
         self._view_inventory_var = tk.BooleanVar(value=False)
-        self._view_network_var = tk.BooleanVar(value=True)
+        self._view_network_var = tk.BooleanVar(value=False)
         self._gen_security_var = tk.BooleanVar(value=False)
         self._gen_cost_var = tk.BooleanVar(value=False)
 
@@ -1322,13 +1324,29 @@ class App:
         self._root.after(0, _do)
 
     def _log_append_delta(self, delta: str) -> None:
-        """ストリーミング用: 改行なしでテキストを追記。"""
-        def _do() -> None:
-            self._log_area.configure(state=tk.NORMAL)
-            self._log_area.insert(tk.END, delta, "info")
-            self._log_area.see(tk.END)
-            self._log_area.configure(state=tk.DISABLED)
-        self._root.after(0, _do)
+        """ストリーミング用: デルタをバッファに溜め、100ms間隔で一括挿入。
+
+        高頻度の root.after(0, ...) がタイマー(_tick_elapsed)を圧迫するのを防ぐ。
+        """
+        self._delta_buffer.append(delta)
+        if not self._delta_flush_scheduled:
+            self._delta_flush_scheduled = True
+            self._root.after(100, self._flush_delta_buffer)
+
+    def _flush_delta_buffer(self) -> None:
+        """バッファに溜まったデルタを一括でログエリアに挿入する。"""
+        self._delta_flush_scheduled = False
+        # アトミックなバッファスワップ（STORE_ATTR は GIL 下で単一命令）
+        # ワーカースレッドの append() との競合を防ぐ
+        buf = self._delta_buffer
+        self._delta_buffer = []
+        if not buf:
+            return
+        chunk = "".join(buf)
+        self._log_area.configure(state=tk.NORMAL)
+        self._log_area.insert(tk.END, chunk, "info")
+        self._log_area.see(tk.END)
+        self._log_area.configure(state=tk.DISABLED)
 
     def _set_status(self, text: str) -> None:
         self._root.after(0, self._status_var.set, text)
@@ -1386,6 +1404,7 @@ class App:
                 self._refresh_btn.configure(state=tk.DISABLED)
                 self._open_btn.configure(state=tk.DISABLED)
                 self._diff_btn.configure(state=tk.DISABLED)
+                self._progress.configure(mode="indeterminate")
                 self._progress.start(12)
                 self._start_timer()
             else:
@@ -1393,9 +1412,21 @@ class App:
                 self._collect_btn.pack(side=tk.LEFT, before=self._refresh_btn)
                 self._refresh_btn.configure(state=tk.NORMAL)
                 self._progress.stop()
+                # 完了時は determinate + 100% で「完了」を視覚的に示す
+                self._progress.configure(mode="determinate", maximum=100, value=100)
                 self._stop_timer()
                 self._set_step("")
                 self._elapsed_var.set("")
+                # ステータスが「生成中」のまま残るのを防ぐ
+                cur = self._status_var.get()
+                generating_keywords = ("generating", "collecting", "running", "reviewing",
+                                       "normalizing", "saving", "choosing", "生成中", "収集中",
+                                       "実行中", "レビュー")
+                if cur and any(kw in cur.lower() for kw in generating_keywords):
+                    self._status_var.set(t("status.done") if self._last_out_path else "")
+                # 残留デルタバッファをフラッシュ
+                if self._delta_buffer:
+                    self._flush_delta_buffer()
         self._root.after(0, _do)
 
     def _on_abort(self) -> None:
@@ -1716,11 +1747,7 @@ class App:
             generated_reports: list[tuple[str, Path]] = []  # (report_type, path)
 
             # 図の生成（1つ以上の diagram view）
-            diagram_list: list[str] = []
-            if diagram_views is None:
-                diagram_list = [view]
-            else:
-                diagram_list = list(diagram_views)
+            diagram_list: list[str] = list(diagram_views) if diagram_views else []
 
             first_diagram = True
             for dv in diagram_list:
@@ -1755,6 +1782,8 @@ class App:
     def _worker_single_diagram(self, sub: str | None, rg: str | None, limit: int, view: str,
                                 *, opts: dict[str, Any] | None = None) -> tuple[Path, dict[str, Any]] | None:
         """単一の diagram view を収集→生成する（_worker_collect から呼ばれる）。"""
+        if opts is None:
+            opts = {}
         self._log(f"  📊 Diagram: {view}", "accent")
 
         # Step 1: Collect
@@ -2029,7 +2058,8 @@ class App:
 
         # 自動オープン
         if opts.get("auto_open") and out_path.exists():
-            self._root.after(500, lambda p=out_path: self._open_file_with(p))
+            open_choice = (opts.get("open_app") if isinstance(opts, dict) else None) or None
+            self._root.after(500, lambda p=out_path, c=open_choice: self._open_file_with(p, choice_override=c))
 
         # 統合レポート用に、最小のサマリ情報を返す
         try:
@@ -2087,7 +2117,20 @@ class App:
                 name = "security" if view == "security-report" else "cost"
                 self._log(t("log.multi_report_item", index=idx, total=total, name=name), "accent")
 
-            result_path = self._worker_report(sub, rg, limit, view, template_override=template_override, opts=opts)
+            # 複数レポート生成中は、各レポート完了ごとの自動オープンを抑制する
+            # （途中で別アプリが起動して体験が悪くなる / まだ次のレポート生成中など）
+            item_opts = dict(opts or {})
+            if total > 1:
+                item_opts["auto_open"] = False
+
+            result_path = self._worker_report(
+                sub,
+                rg,
+                limit,
+                view,
+                template_override=template_override,
+                opts=item_opts,
+            )
             if result_path:
                 rtype = "security" if view == "security-report" else "cost"
                 generated_reports.append((rtype, result_path))
@@ -2144,6 +2187,33 @@ class App:
             self._log(t("log.integrated_ai_gen"), "info")
             self._log("─" * 40, "accent")
 
+            # 差分レポートがあれば統合レポートに含める
+            diff_contents: list[tuple[str, str]] = []
+            for rtype, path in generated_reports:
+                try:
+                    diff_path = path.with_name(path.stem + "-diff.md")
+                    if diff_path.exists():
+                        diff_md = diff_path.read_text(encoding="utf-8")
+                        # unified diff は巨大になりやすいので、要約セクションのみ渡す
+                        # 1) ```diff フェンスがあればそこから先を落とす（フェンス破断を避ける）
+                        fence = "```diff"
+                        if fence in diff_md:
+                            diff_md = diff_md.split(fence, 1)[0].rstrip() + "\n"
+                        else:
+                            # 2) セクション見出しで落とす（前後改行の有無に依存しない）
+                            for marker in ("## 詳細 Diff", "## Detailed Diff"):
+                                idx = diff_md.find(marker)
+                                if idx >= 0:
+                                    diff_md = diff_md[:idx].rstrip() + "\n"
+                                    break
+                        # 念のため文字数上限を設ける（コンテキスト肥大化の回避）
+                        if len(diff_md) > 4000:
+                            diff_md = diff_md[:4000].rstrip() + "\n…(truncated)\n"
+                        diff_contents.append((rtype, diff_md))
+                        self._log(t("log.integrated_read_diff", type=rtype, path=diff_path.name), "info")
+                except Exception:
+                    pass  # diff is best-effort
+
             integrated_result: str | None = None
             try:
                 from ai_reviewer import run_integrated_report
@@ -2152,6 +2222,7 @@ class App:
                 integrated_result = run_integrated_report(
                     diagram_summaries=diagram_summaries,
                     report_contents=report_contents,
+                    diff_contents=diff_contents if diff_contents else None,
                     on_delta=lambda d: self._log_append_delta(d),
                     on_status=lambda s: self._log(s, "info"),
                     model_id=opts.get("model_id") if opts else None,
@@ -2189,6 +2260,29 @@ class App:
             rg_val = rg_for_filename or None
             out_name = self._make_filename("integrated-report", sub, rg_val, ".md")
             out_path = out_dir / out_name
+            # 未使用脚注などをベストエフォートでクリーンアップ
+            try:
+                from exporter import remove_unused_footnote_definitions, validate_markdown
+
+                integrated_result, removed = remove_unused_footnote_definitions(integrated_result)
+                if removed:
+                    self._log(
+                        ("  ℹ 未使用の脚注定義を削除: " + ", ".join(removed))
+                        if get_language() != "en"
+                        else ("  ℹ Removed unused footnote definitions: " + ", ".join(removed)),
+                        "info",
+                    )
+
+                md_warnings = validate_markdown(integrated_result)
+                if md_warnings:
+                    self._log("⚠ Markdown validation:", "warning")
+                    for w in md_warnings:
+                        self._log(f"  {w}", "warning")
+                else:
+                    self._log("✓ Markdown validation: OK", "success")
+            except Exception:
+                pass
+
             write_text(out_path, integrated_result)
             self._last_out_path = out_path
             self._log(f"  → {out_path}", "success")
@@ -2207,7 +2301,8 @@ class App:
             self._log(t("log.integrated_done"), "success")
 
             if opts.get("auto_open") and out_path.exists() if opts else False:
-                self._root.after(500, lambda p=out_path: self._open_file_with(p))
+                open_choice = (opts.get("open_app") if isinstance(opts, dict) else None) or None
+                self._root.after(500, lambda p=out_path, c=open_choice: self._open_file_with(p, choice_override=c))
 
         except Exception as e:
             self._log(f"Integrated ERROR: {e}", "error")
@@ -2399,11 +2494,24 @@ class App:
         else:
             self._log(t("label.diff_not_found"), "warning")
 
-    def _open_file_with(self, path: Path) -> None:
+    def _open_file_with(self, path: Path, *, choice_override: str | None = None) -> None:
         """Open App 設定に応じてファイルを開く。"""
-        choice = self._open_app_var.get()
+        choice = choice_override or self._open_app_var.get()
         suffix = path.suffix.lower()
-        is_drawio = suffix == ".drawio"
+        is_drawio = suffix == ".drawio" or path.name.lower().endswith(".drawio.svg")
+
+        def _open_notepad_if_possible() -> bool:
+            # レポート(.md) などを OS 既定で開くと、環境によっては Draw.io が関連付いて
+            # しまい誤起動することがあるため、Windows では安全側に Notepad を使う。
+            if sys.platform != "win32":
+                return False
+            if suffix not in (".md", ".json", ".txt"):
+                return False
+            try:
+                subprocess.Popen(["notepad.exe", str(path)], **_subprocess_no_window())
+                return True
+            except Exception:
+                return False
 
         def _open_os_default() -> None:
             try:
@@ -2428,9 +2536,29 @@ class App:
                 vp = cached_vscode_path()
                 if vp and _try_popen(vp):
                     return
+                _open_os_default()
+                return
+
+            # Markdown 等は VS Code を優先（OS 側の関連付けが無い/不安定でも開ける）
+            vp = cached_vscode_path()
+            if vp and _try_popen(vp):
+                return
             _open_os_default()
+            if _open_notepad_if_possible():
+                return
 
         elif choice == "drawio":
+            # Draw.io は .drawio（および .drawio.svg）以外を開く用途に向かないため、
+            # Markdown 等は VS Code/OS 既定で開く。
+            if not is_drawio:
+                vp = cached_vscode_path()
+                if vp and _try_popen(vp):
+                    return
+                if _open_notepad_if_possible():
+                    return
+                # 非 drawio を Draw.io に渡さないことを最優先（Invalid file data 回避）
+                _open_os_default()
+                return
             dp = cached_drawio_path()
             if dp:
                 if not _try_popen(dp):
@@ -2443,10 +2571,12 @@ class App:
             vp = cached_vscode_path()
             if vp:
                 if not _try_popen(vp):
-                    _open_os_default()
+                    if not _open_notepad_if_possible():
+                        _open_os_default()
             else:
                 self._log(t("log.vscode_not_found"), "warning")
-                _open_os_default()
+                if not _open_notepad_if_possible():
+                    _open_os_default()
 
         else:  # "os"
             _open_os_default()
@@ -2456,7 +2586,8 @@ class App:
     # ------------------------------------------------------------------ #
 
     def _worker_report(self, sub: str | None, rg: str | None, limit: int, view: str,
-                       template_override: dict | None = None) -> Path | None:
+                       template_override: dict | None = None,
+                       opts: dict[str, Any] | None = None) -> Path | None:
         """Security / Cost レポート生成ワーカー。成功時は保存パスを返す。"""
         try:
             # テンプレートとカスタム指示をUIスレッドで取得
@@ -2510,7 +2641,11 @@ class App:
             if view == "security-report":
                 self._set_status(t("status.collecting_sec"))
                 self._log(t("log.sec_collecting"), "info")
-                security_data = collect_security(sub)
+                try:
+                    security_data = collect_security(sub)
+                except Exception as e:
+                    self._log(t("log.sec_collect_failed", err=str(e)), "warning")
+                    security_data = {"error": str(e)}
                 score = security_data.get("secure_score")
                 if score:
                     self._log(t("log.sec_score", current=score.get('current'), max=score.get('max')), "info")
@@ -2537,7 +2672,11 @@ class App:
             elif view == "cost-report":
                 self._set_status(t("status.collecting_cost"))
                 self._log(t("log.cost_collecting"), "info")
-                cost_data = collect_cost(sub)
+                try:
+                    cost_data = collect_cost(sub)
+                except Exception as e:
+                    self._log(t("log.cost_collect_failed", err=str(e)), "warning")
+                    cost_data = {"error": str(e)}
                 svc = cost_data.get("cost_by_service")
                 if svc:
                     self._log(t("log.cost_by_svc", count=len(svc)), "info")
@@ -2546,7 +2685,11 @@ class App:
                     self._log(t("log.cost_by_rg", count=len(rg_cost)), "info")
 
                 self._log(t("log.advisor_collecting"), "info")
-                advisor_data = collect_advisor(sub)
+                try:
+                    advisor_data = collect_advisor(sub)
+                except Exception as e:
+                    self._log(t("log.advisor_collect_failed", err=str(e)), "warning")
+                    advisor_data = {"error": str(e)}
                 adv_summary = advisor_data.get("summary", {})
                 if adv_summary:
                     for cat, cnt in adv_summary.items():
@@ -2616,8 +2759,37 @@ class App:
                     return
                 out_path = Path(out_path_holder[0])
             write_text(out_path, report_result)
+            # 未使用脚注などをベストエフォートでクリーンアップ（保存後の diff/再現性は維持）
+            try:
+                from exporter import remove_unused_footnote_definitions
+
+                cleaned, removed = remove_unused_footnote_definitions(report_result)
+                if removed and cleaned.strip() != report_result.strip():
+                    report_result = cleaned
+                    write_text(out_path, report_result)
+                    self._log(
+                        ("  ℹ 未使用の脚注定義を削除: " + ", ".join(removed))
+                        if get_language() != "en"
+                        else ("  ℹ Removed unused footnote definitions: " + ", ".join(removed)),
+                        "info",
+                    )
+            except Exception:
+                pass
             self._last_out_path = out_path
             self._log(f"  → {out_path}", "success")
+
+            # Markdown バリデーション（機械チェック）
+            try:
+                from exporter import validate_markdown
+                md_warnings = validate_markdown(report_result)
+                if md_warnings:
+                    self._log("⚠ Markdown validation:", "warning")
+                    for w in md_warnings:
+                        self._log(f"  {w}", "warning")
+                else:
+                    self._log("✓ Markdown validation: OK", "success")
+            except Exception:
+                pass
 
             # レポート入力（収集データ/テンプレ/指示）を隣に保存（再生成・監査用）
             try:
@@ -2686,7 +2858,8 @@ class App:
 
             # 自動オープン
             if opts.get("auto_open") and out_path.exists() if opts else False:
-                self._root.after(500, lambda p=out_path: self._open_file_with(p))
+                open_choice = (opts.get("open_app") if isinstance(opts, dict) else None) or None
+                self._root.after(500, lambda p=out_path, c=open_choice: self._open_file_with(p, choice_override=c))
 
             return out_path
 

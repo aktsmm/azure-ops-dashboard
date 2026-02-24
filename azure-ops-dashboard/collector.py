@@ -1,4 +1,4 @@
-"""Step10: Azure Env Diagrammer — Azure収集ロジック
+"""Azure Ops Dashboard — Azure収集ロジック
 
 az graph query ラッパとデータモデル。
 """
@@ -45,6 +45,7 @@ class Edge:
 
 _AZ_EXE: str | None = None
 _ARG_MAX_LIMIT = 1000
+_REPORT_COLLECT_TIMEOUT_S = 60 * 10  # 10 min
 
 
 class AzNotFoundError(RuntimeError):
@@ -881,7 +882,7 @@ def collect_security(subscription: str | None) -> dict[str, Any]:
     assess_uri = f"https://management.azure.com/subscriptions/{sub_id}/providers/Microsoft.Security/assessments?api-version=2021-06-01"
     code, out, _err = _run_command(
         [_get_az_exe(), "rest", "--method", "GET", "--uri", assess_uri, "--output", "json"],
-        timeout_s=60,
+        timeout_s=_REPORT_COLLECT_TIMEOUT_S,
     )
     if code == 0:
         try:
@@ -963,7 +964,7 @@ def collect_cost(subscription: str | None) -> dict[str, Any]:
     code, out, _err = _run_command(
         [_get_az_exe(), "rest", "--method", "POST", "--uri", cost_uri,
          "--body", service_query, "--output", "json"],
-        timeout_s=60,
+        timeout_s=_REPORT_COLLECT_TIMEOUT_S,
     )
     if code == 0:
         try:
@@ -995,7 +996,7 @@ def collect_cost(subscription: str | None) -> dict[str, Any]:
     code, out, _err = _run_command(
         [_get_az_exe(), "rest", "--method", "POST", "--uri", cost_uri,
          "--body", rg_query, "--output", "json"],
-        timeout_s=60,
+        timeout_s=_REPORT_COLLECT_TIMEOUT_S,
     )
     if code == 0:
         try:
@@ -1027,7 +1028,7 @@ def collect_advisor(subscription: str | None) -> dict[str, Any]:
     if subscription:
         cmd.extend(["--subscription", subscription])
 
-    code, out, _err = _run_command(cmd, timeout_s=60)
+    code, out, _err = _run_command(cmd, timeout_s=_REPORT_COLLECT_TIMEOUT_S)
     result: dict[str, Any] = {"recommendations": [], "summary": {}}
 
     if code == 0:

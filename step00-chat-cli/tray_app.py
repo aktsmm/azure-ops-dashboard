@@ -6,11 +6,12 @@ pystray ベースの System Tray アイコン。
 
 from __future__ import annotations
 
-import sys
 from typing import Callable
 
 import pystray
 from PIL import Image, ImageDraw
+
+from app_paths import bundled_icon_path
 
 
 class TrayApp:
@@ -85,11 +86,10 @@ class TrayApp:
 
         assets/icon.png が存在すればそちらを優先。
         """
-        from pathlib import Path
-
-        icon_path = Path(__file__).parent / "assets" / "icon.png"
+        icon_path = bundled_icon_path()
         if icon_path.exists():
-            return Image.open(icon_path)
+            with Image.open(icon_path) as img:
+                return img.copy()
 
         # フォールバック: 青い丸に白い C
         size = 64

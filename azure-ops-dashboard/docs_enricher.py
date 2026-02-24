@@ -1,4 +1,4 @@
-"""Step10: Microsoft Docs エンリッチャー
+"""Microsoft Docs エンリッチャー
 
 レポート生成前に Microsoft Learn から関連ドキュメントを取得し、
 プロンプトに埋め込む参照情報を生成する。
@@ -26,6 +26,7 @@ class DocReference:
     title: str
     url: str
     description: str
+    category: str = ""  # e.g. "security", "cost", "network", "storage", "identity"
 
 
 def _docs_locale() -> str:
@@ -49,41 +50,49 @@ def _security_refs() -> list[DocReference]:
                 "Azure Well-Architected Framework (WAF) overview",
                 f"{base}/well-architected/",
                 "Official guidance across pillars (security, reliability, cost, etc.)",
+                "general",
             ),
             DocReference(
                 "WAF: Security pillar",
                 f"{base}/well-architected/security",
                 "Security design principles and checklist",
+                "security",
             ),
             DocReference(
                 "Cloud Adoption Framework (CAF) overview",
                 f"{base}/cloud-adoption-framework/",
                 "Adoption guidance including governance and security baselines",
+                "governance",
             ),
             DocReference(
                 "Azure security best practices",
                 f"{base}/security/best-practices-and-patterns",
                 "Core Azure security principles and best practices",
+                "security",
             ),
             DocReference(
                 "Microsoft Defender for Cloud overview",
                 f"{base}/defender-for-cloud/defender-for-cloud-introduction",
                 "Cloud security posture management (CSPM) and workload protection",
+                "defender",
             ),
             DocReference(
                 "Network security groups (NSGs)",
                 f"{base}/virtual-network/network-security-groups-overview",
                 "Filter network traffic using NSGs",
+                "network",
             ),
             DocReference(
                 "Azure Private Link and Private Endpoints",
                 f"{base}/private-link/private-link-overview",
                 "Private connectivity to Azure services",
+                "network",
             ),
             DocReference(
                 "Azure Key Vault best practices",
                 f"{base}/key-vault/general/best-practices",
                 "Manage secrets, keys, and certificates",
+                "identity",
             ),
         ]
     return [
@@ -91,41 +100,49 @@ def _security_refs() -> list[DocReference]:
             "Azure Well-Architected Framework (WAF) の概要",
             f"{base}/well-architected/",
             "セキュリティ/信頼性/コストなどの公式設計ガイダンス",
+            "general",
         ),
         DocReference(
             "WAF: セキュリティ",
             f"{base}/well-architected/security",
             "セキュリティ設計原則とチェックリスト",
+            "security",
         ),
         DocReference(
             "Cloud Adoption Framework (CAF) の概要",
             f"{base}/cloud-adoption-framework/",
             "採用・統制・セキュリティベースラインの公式ガイダンス",
+            "governance",
         ),
         DocReference(
             "Azure セキュリティのベスト プラクティス",
             f"{base}/security/best-practices-and-patterns",
             "Azure セキュリティの基本原則とベストプラクティス一覧",
+            "security",
         ),
         DocReference(
             "Microsoft Defender for Cloud の概要",
             f"{base}/defender-for-cloud/defender-for-cloud-introduction",
             "クラウドセキュリティ態勢管理 (CSPM) とワークロード保護",
+            "defender",
         ),
         DocReference(
             "ネットワーク セキュリティ グループ (NSG)",
             f"{base}/virtual-network/network-security-groups-overview",
             "NSG によるネットワークトラフィックのフィルタリング",
+            "network",
         ),
         DocReference(
             "Azure Private Link と Private Endpoint",
             f"{base}/private-link/private-link-overview",
             "Azure サービスへのプライベート接続",
+            "network",
         ),
         DocReference(
             "Azure Key Vault のベスト プラクティス",
             f"{base}/key-vault/general/best-practices",
             "シークレット、キー、証明書の管理",
+            "identity",
         ),
     ]
 
@@ -138,36 +155,43 @@ def _cost_refs() -> list[DocReference]:
                 "Azure Well-Architected Framework (WAF) overview",
                 f"{base}/well-architected/",
                 "Official guidance across pillars (security, reliability, cost, etc.)",
+                "general",
             ),
             DocReference(
                 "WAF: Cost Optimization pillar",
                 f"{base}/well-architected/cost-optimization",
                 "Cost optimization design principles and checklist",
+                "cost",
             ),
             DocReference(
                 "Cloud Adoption Framework (CAF) overview",
                 f"{base}/cloud-adoption-framework/",
                 "Adoption guidance including cost management and governance",
+                "governance",
             ),
             DocReference(
                 "Azure Cost Management best practices",
                 f"{base}/cost-management-billing/costs/best-practices-cost-management",
                 "Best practices for monitoring, analyzing, and optimizing costs",
+                "cost",
             ),
             DocReference(
                 "Azure Advisor cost recommendations",
                 f"{base}/advisor/advisor-cost-recommendations",
                 "Advisor recommendations for cost optimization",
+                "advisor",
             ),
             DocReference(
                 "Azure pricing calculator",
                 "https://azure.microsoft.com/en-us/pricing/calculator/",
                 "Cost estimation tool for Azure services",
+                "pricing",
             ),
             DocReference(
                 "Save with Azure Reservations",
                 f"{base}/cost-management-billing/reservations/save-compute-costs-reservations",
                 "Reduce costs with reserved instances",
+                "reservation",
             ),
         ]
     return [
@@ -175,36 +199,43 @@ def _cost_refs() -> list[DocReference]:
             "Azure Well-Architected Framework (WAF) の概要",
             f"{base}/well-architected/",
             "セキュリティ/信頼性/コストなどの公式設計ガイダンス",
+            "general",
         ),
         DocReference(
             "WAF: コスト最適化",
             f"{base}/well-architected/cost-optimization",
             "コスト最適化の設計原則とチェックリスト",
+            "cost",
         ),
         DocReference(
             "Cloud Adoption Framework (CAF) の概要",
             f"{base}/cloud-adoption-framework/",
             "採用・統制・コスト管理の公式ガイダンス",
+            "governance",
         ),
         DocReference(
             "Azure Cost Management のベスト プラクティス",
             f"{base}/cost-management-billing/costs/best-practices-cost-management",
             "コストの監視、分析、最適化のベストプラクティス",
+            "cost",
         ),
         DocReference(
             "Azure Advisor のコスト推奨事項",
             f"{base}/advisor/advisor-cost-recommendations",
             "Advisor によるコスト最適化の推奨事項",
+            "advisor",
         ),
         DocReference(
             "Azure の料金計算ツール",
             "https://azure.microsoft.com/ja-jp/pricing/calculator/",
             "Azure サービスの見積もりツール",
+            "pricing",
         ),
         DocReference(
             "Azure 予約による割引",
             f"{base}/cost-management-billing/reservations/save-compute-costs-reservations",
             "予約インスタンスによるコスト削減",
+            "reservation",
         ),
     ]
 
@@ -336,16 +367,22 @@ def search_docs(
     url = f"{_SEARCH_URL}?{params}"
 
     try:
-        log(f"Microsoft Docs 検索中: {query[:60]}...")
+        log(f"Microsoft Docs: Searching: {query[:60]}..." if get_language() == "en" else f"Microsoft Docs 検索中: {query[:60]}...")
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as e:
-        log(f"Microsoft Docs 検索スキップ（{type(e).__name__}: {e}）")
+        log(f"Microsoft Docs: Search skipped ({type(e).__name__}: {e})" if get_language() == "en" else f"Microsoft Docs 検索スキップ（{type(e).__name__}: {e}）")
+        return []
+
+    if not isinstance(data, dict):
+        log("Microsoft Docs: Search skipped (unexpected JSON shape)" if get_language() == "en" else "Microsoft Docs 検索スキップ（unexpected JSON shape）")
         return []
 
     results: list[DocReference] = []
     for item in data.get("results", []):
+        if not isinstance(item, dict):
+            continue
         title = item.get("title", "").strip()
         item_url = item.get("url", "").strip()
         desc = item.get("description", "").strip()
@@ -356,7 +393,7 @@ def search_docs(
             if "/azure/" in item_url or "/defender" in item_url:
                 results.append(DocReference(title=title, url=item_url, description=desc))
 
-    log(f"Microsoft Docs: {len(results)} 件取得")
+    log(f"Microsoft Docs: {len(results)} result(s) found" if get_language() == "en" else f"Microsoft Docs: {len(results)} 件取得")
     return results
 
 
@@ -384,7 +421,8 @@ def build_reference_block(refs: list[DocReference]) -> str:
             "",
         ]
     for i, ref in enumerate(refs, 1):
-        lines.append(f"{i}. [{ref.title}]({ref.url})")
+        tag = f" `[{ref.category}]`" if ref.category else ""
+        lines.append(f"{i}. [{ref.title}]({ref.url}){tag}")
         if ref.description:
             lines.append(f"   — {ref.description[:120]}")
     lines.append("")
@@ -431,7 +469,7 @@ def enrich_with_docs(
     queries: list[str],
     report_type: str = "security",
     resource_types: list[str] | None = None,
-    locale: str = "ja-jp",
+    locale: str | None = None,
     max_refs: int = 10,
     on_status: Optional[Callable[[str], None]] = None,
 ) -> str:
@@ -441,7 +479,8 @@ def enrich_with_docs(
     all_refs: list[DocReference] = []
 
     # locale の既定は現在のUI言語
-    locale = "en-us" if get_language() == "en" else "ja-jp"
+    if not locale:
+        locale = "en-us" if get_language() == "en" else "ja-jp"
 
     # 1. 静的リファレンス（常に利用可能）
     static_refs = _security_refs() if report_type == "security" else _cost_refs()
@@ -469,5 +508,5 @@ def enrich_with_docs(
                 all_refs.append(ref)
                 seen_urls.add(ref.url)
 
-    log(f"公式ドキュメント参照: {len(all_refs)} 件をプロンプトに追加")
+    log(f"Doc references: Adding {len(all_refs)} ref(s) to prompt" if get_language() == "en" else f"公式ドキュメント参照: {len(all_refs)} 件をプロンプトに追加")
     return build_reference_block(all_refs)

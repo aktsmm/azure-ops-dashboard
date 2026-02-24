@@ -1,50 +1,52 @@
+Japanese: [README.ja.md](README.ja.md)
+
 # Step 01: Azure Env Builder CLI
 
-自然言語の要件から Bicep を生成し、`az deployment group` で **what-if（プレビュー）/ 実デプロイ** を行う CLI です。
-実行ごとに `out/<timestamp>/` に成果物（Bicep/ログ/結果）を保存します。
+A CLI that generates Bicep from a natural language spec and runs `az deployment group` for **what-if (preview) / apply (deploy)**.
+Each run saves artifacts (Bicep/logs/results) under `out/<timestamp>/`.
 
-- 設計: [DESIGN.md](DESIGN.md)
+- Design: [DESIGN.md](DESIGN.md)
 
-## 前提
+## Prerequisites
 
 - Python 3.11+
-- `uv` が利用できること
-- Azure CLI（`az`）が利用できること
-- `az login` 済み
-- デプロイ先サブスクリプションに権限があること
+- `uv` available
+- Azure CLI (`az`) available
+- Logged in via `az login`
+- Permissions on the target subscription
 
-## セットアップ（共通）
+## Setup (common)
 
-ワークスペースルートで:
+From the workspace root:
 
 ```powershell
 uv venv
 uv pip install -e .
 ```
 
-## 実行
+## Run
 
 ```powershell
 cd .\step01-env-builder
 
-# RG 未指定の場合、RG は自動で envb-<timestamp> が作られます
-uv run python .\main.py "storageだけの検証環境" --what-if
+# If Resource Group is omitted, it auto-creates envb-<timestamp>
+uv run python .\main.py "validation environment (storage only)" --what-if
 
-# サブスク/RG/リージョンを明示
-uv run python .\main.py "storageだけの検証環境" --subscription <SUB_ID> --resource-group <RG> --location japaneast --what-if
+# Explicit subscription / RG / location
+uv run python .\main.py "validation environment (storage only)" --subscription <SUB_ID> --resource-group <RG> --location japaneast --what-if
 ```
 
-## 成果物（`out/<timestamp>/`）
+## Artifacts (`out/<timestamp>/`)
 
-- `spec.md`（入力/ターゲット/実行する az コマンド一覧）
-- `main.bicep`（生成 Bicep）
+- `spec.md` (input/targets/list of az commands)
+- `main.bicep` (generated Bicep)
 - `main.parameters.json`
-- `deploy.log`（実行ログ: az コマンド + stdout/stderr）
-- `result.md`（結果、エラー分類、次アクション、outputs）
+- `deploy.log` (execution log: az commands + stdout/stderr)
+- `result.md` (results, error classification, next actions, outputs)
 
-## 推奨: 新規RGで分離（what-if → deploy）
+## Recommended: isolate in a new RG (what-if → deploy)
 
-同じ Resource Group で `--what-if`（プレビュー）→ 実デプロイを流すと、検証と後片付けが楽です。
+Using the same Resource Group for `--what-if` (preview) → deploy makes validation and cleanup easier.
 
 ```powershell
 cd .\step01-env-builder
@@ -53,14 +55,14 @@ $rg = 'envb-' + (Get-Date -Format yyyyMMdd-HHmmss)
 
 az group create -n $rg -l $loc
 
-# プレビュー（リソース作成なし）
-uv run python .\main.py "storageだけの検証環境" --what-if --resource-group $rg --location $loc
+# Preview (no resource creation)
+uv run python .\main.py "validation environment (storage only)" --what-if --resource-group $rg --location $loc
 
-# 実デプロイ
-uv run python .\main.py "storageだけの検証環境" --resource-group $rg --location $loc
+# Deploy
+uv run python .\main.py "validation environment (storage only)" --resource-group $rg --location $loc
 
-# 後片付け（必要なら）
+# Cleanup (if needed)
 az group delete -n $rg --yes --no-wait
 ```
 
-※ `az group delete` は削除操作です。サブスクリプション/RG を必ず確認してください。
+Note: `az group delete` is destructive. Double-check the subscription/RG before running.

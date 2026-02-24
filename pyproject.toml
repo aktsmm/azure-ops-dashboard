@@ -26,3 +26,12 @@ voice-agent = [
     "pynput>=1.7.6",
     "pystray>=0.19.5",
 ]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# This repository root is a workspace/meta project to manage shared dependencies.
+# It intentionally does not ship any Python packages from the root directory.
+packages = []

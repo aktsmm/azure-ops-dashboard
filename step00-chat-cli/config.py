@@ -7,8 +7,9 @@ Voice Agent 統合時もこのファイルをベースに拡張する。
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Callable
+
+from app_paths import effective_settings_path
 
 # --- モデル設定 ---
 DEFAULT_MODEL = "gpt-4.1"
@@ -50,7 +51,7 @@ FONT_SIZE = 11
 
 
 # --- ユーザー設定ファイル読み込み ---
-_SETTINGS_PATH = Path(__file__).parent / "settings.json"
+_SETTINGS_PATH = effective_settings_path()
 
 
 def _set_if_valid(
@@ -79,6 +80,7 @@ def _set_if_valid(
         return
 
     globals()[var_name] = value
+
 
 def _load_user_settings() -> None:
     """settings.json があれば読み込み、モジュール変数を上書きする。

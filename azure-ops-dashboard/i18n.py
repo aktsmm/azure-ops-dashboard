@@ -1,4 +1,4 @@
-"""Step10: 国際化（i18n）モジュール
+"""国際化（i18n）モジュール
 
 日本語/英語の UI 文字列を管理する。
 用法:
@@ -74,7 +74,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "btn.open_file":            {"ja": "Open File",                     "en": "Open File"},
     "btn.open_diff":            {"ja": "差分を表示",                      "en": "Show Diff"},
     "btn.copy_log":             {"ja": "Copy Log",                      "en": "Copy Log"},
-    "btn.clear_log":            {"ja": "Clear",                         "en": "Clear"},
+    "btn.clear_log":            {"ja": "ログクリア",                     "en": "Clear Log"},
     "btn.az_login":             {"ja": "🔑 az login",                  "en": "🔑 az login"},
     "btn.sp_login":             {"ja": "🔐 SP login",                  "en": "🔐 SP login"},
     "btn.proceed":              {"ja": "  ✔ Proceed — 生成する  ",    "en": "  ✔ Proceed — Generate  "},
@@ -99,6 +99,7 @@ _STRINGS: dict[str, dict[str, str]] = {
                                  "en": "Reviewing — Press Proceed or Cancel"},
     "status.report_review_prompt": {"ja": "レポート確認 — Proceed で保存 / Cancel で破棄",
                                  "en": "Review report — Proceed to save / Cancel to discard"},
+    "status.choosing_output":   {"ja": "保存先を選択中...",              "en": "Choosing output path..."},
     "status.normalizing":       {"ja": "Normalizing...",                "en": "Normalizing..."},
     "status.generating_xml":    {"ja": "Generating .drawio XML...",     "en": "Generating .drawio XML..."},
     "status.ai_generating_xml": {"ja": "AI で .drawio XML を生成中...",  "en": "Generating .drawio via AI..."},
@@ -119,6 +120,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.loading_subs":         {"ja": "Subscription 候補を取得中...",  "en": "Loading subscriptions..."},
     "log.loading_models":       {"ja": "利用可能モデルを取得中...",     "en": "Loading available models..."},
     "log.model_fallback":       {"ja": "モデル一覧取得タイムアウト（既定モデルを使用）", "en": "Model list timeout (using default model)"},
+    "log.model_list_error":     {"ja": "⚠ モデル一覧取得エラー: {err}",   "en": "⚠ Failed to list models: {err}"},
     "log.svg_export_skip":      {"ja": "SVG変換スキップ（Draw.io CLIが見つかりません）", "en": "SVG export skipped (Draw.io CLI not found)"},
     "log.diff_generated":       {"ja": "差分レポート生成: {path}",       "en": "Diff report generated: {path}"},
     "log.report_target_required": {"ja": "少なくとも1つのレポート種別を選んでください", "en": "Select at least one report type"},
@@ -134,6 +136,17 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.summary_ai_gen":      {"ja": "AI でエグゼクティブサマリを生成中...", "en": "Generating executive summary via AI..."},
     "log.summary_failed":      {"ja": "サマリ生成に失敗しました",   "en": "Summary generation failed"},
     "log.summary_done":        {"ja": "サマリレポート完了!",         "en": "Summary report done!"},
+
+    # --- 統合レポート（複数ビュー選択時） ---
+    "step.integrated":         {"ja": "統合レポート",               "en": "Integrated"},
+    "status.generating_integrated": {"ja": "統合レポートを生成中...", "en": "Generating integrated report..."},
+    "log.integrated_start":    {"ja": "統合レポート生成: 図{diagrams}件 + レポート{reports}件", "en": "Integrated report: {diagrams} diagram(s) + {reports} report(s)"},
+    "log.integrated_read_report": {"ja": "  読み込み: レポート {type} ({path})", "en": "  Read report: {type} ({path})"},
+    "log.integrated_read_diff": {"ja": "  読み込み: 差分 {type} ({path})", "en": "  Read diff: {type} ({path})"},
+    "log.integrated_ai_gen":   {"ja": "AI で統合レポートを生成中...", "en": "Generating integrated report via AI..."},
+    "log.integrated_fallback": {"ja": "AI統合に失敗したため簡易統合レポートにフォールバックします", "en": "AI integrated generation failed; falling back to basic report."},
+    "log.integrated_failed":   {"ja": "統合レポート生成に失敗しました", "en": "Integrated report generation failed"},
+    "log.integrated_done":     {"ja": "統合レポート完了!",           "en": "Integrated report done!"},
     "log.subs_found":           {"ja": "  → {count} 件のサブスクリプションを検出",
                                  "en": "  → Found {count} subscription(s)"},
     "log.auto_selected_sub":    {"ja": "  → サブスクリプションが1件のため自動選択",
@@ -179,6 +192,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.custom_instr_info":    {"ja": "  追加指示: {text}",           "en": "  Instructions: {text}"},
     "log.sec_collecting":       {"ja": "🔒 セキュリティデータを収集中...",
                                  "en": "🔒 Collecting security data..."},
+    "log.sec_collect_failed":   {"ja": "⚠ セキュリティデータ収集に失敗: {err}",
+                                  "en": "⚠ Security data collection failed: {err}"},
     "log.sec_score":            {"ja": "  セキュアスコア: {current} / {max}",
                                  "en": "  Secure Score: {current} / {max}"},
     "log.sec_assess":           {"ja": "  評価: {total}件 (Healthy:{healthy}, Unhealthy:{unhealthy})",
@@ -186,11 +201,15 @@ _STRINGS: dict[str, dict[str, str]] = {
     "log.sec_ai_gen":           {"ja": "🤖 AI セキュリティレポートを生成中...",
                                  "en": "🤖 Generating AI security report..."},
     "log.cost_collecting":      {"ja": "💰 コストデータを収集中...",   "en": "💰 Collecting cost data..."},
+    "log.cost_collect_failed":  {"ja": "⚠ コストデータ収集に失敗: {err}",
+                                  "en": "⚠ Cost data collection failed: {err}"},
     "log.cost_by_svc":          {"ja": "  サービス別コスト: {count}件",
                                  "en": "  Cost by service: {count} entries"},
     "log.cost_by_rg":           {"ja": "  RG別コスト: {count}件",      "en": "  Cost by RG: {count} entries"},
     "log.advisor_collecting":   {"ja": "📝 Advisor 推奨事項を収集中...",
                                  "en": "📝 Collecting Advisor recommendations..."},
+    "log.advisor_collect_failed": {"ja": "⚠ Advisor 推奨事項の収集に失敗: {err}",
+                                    "en": "⚠ Advisor collection failed: {err}"},
     "log.cost_ai_gen":          {"ja": "🤖 AI コストレポートを生成中...",
                                  "en": "🤖 Generating AI cost report..."},
     "log.ai_report_error":      {"ja": "AI レポートエラー: {err}",     "en": "AI report error: {err}"},
@@ -205,6 +224,9 @@ _STRINGS: dict[str, dict[str, str]] = {
                                  "en": "Draw.io not found. Opening with OS default"},
     "log.vscode_not_found":     {"ja": "VS Code が見つかりません。OS既定で開きます",
                                  "en": "VS Code not found. Opening with OS default"},
+
+    "log.open_failed":          {"ja": "ファイルを開けませんでした: {err}",
+                                 "en": "Failed to open file: {err}"},
 
     # --- 保存済み指示 ---
     "instr.saved":              {"ja": "指示を保存しました: {label}",  "en": "Instruction saved: {label}"},
