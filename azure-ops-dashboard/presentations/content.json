@@ -1,0 +1,114 @@
+{
+  "slides": [
+    {
+      "type": "title",
+      "title": "Azure Ops Dashboard",
+      "subtitle": "One-click Azure environment visualization & AI-powered operational reports\nFY26 GitHub Copilot SDK Enterprise Challenge"
+    },
+    {
+      "type": "section",
+      "title": "Business Value Proposition"
+    },
+    {
+      "type": "content",
+      "title": "The Problem",
+      "bullets": [
+        {"text": "Enterprise IT teams manage complex Azure environments across multiple subscriptions", "level": 0},
+        {"text": "Visualizing requires juggling Azure Portal, CLI, Resource Graph, and manual docs", "level": 1},
+        {"text": "Security posture and cost optimization reviews are manual and inconsistent", "level": 0},
+        {"text": "No single tool provides As-Is diagrams + AI-driven operational insights", "level": 1},
+        {"text": "Documentation becomes stale — environment drift goes undetected", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "The Solution: Azure Ops Dashboard",
+      "bullets": [
+        {"text": "One-click data collection via Azure Resource Graph", "level": 0},
+        {"text": "Inventories all resources, networking, security, cost data", "level": 1},
+        {"text": "Draw.io architecture diagrams with Azure-official icons", "level": 0},
+        {"text": "Inventory view + Network topology (VNet/Subnet hierarchy)", "level": 1},
+        {"text": "AI-powered reports via GitHub Copilot SDK", "level": 0},
+        {"text": "Security: Secure Score, Defender, recommendations", "level": 1},
+        {"text": "Cost: spend breakdown, optimization, Advisor integration", "level": 1},
+        {"text": "Diff reports: automatic comparison with previous runs", "level": 0},
+        {"text": "Desktop GUI (tkinter) — no cloud deployment required", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Business Value",
+      "bullets": [
+        {"text": "Time savings: Environment visualization in minutes, not hours", "level": 0},
+        {"text": "Security: Early detection of misconfigurations and risks", "level": 0},
+        {"text": "Cost optimization: AI-driven spend analysis and recommendations", "level": 0},
+        {"text": "Drift tracking: Automated diff reports across time", "level": 0},
+        {"text": "Reusability: Template system for customized reports per customer", "level": 0},
+        {"text": "Amplification: Applicable to any Azure enterprise engagement", "level": 0}
+      ]
+    },
+    {
+      "type": "section",
+      "title": "Architecture & Technical Highlights"
+    },
+    {
+      "type": "content",
+      "title": "Architecture Overview",
+      "bullets": [
+        {"text": "Desktop GUI (tkinter) with threaded background workers", "level": 0},
+        {"text": "Data Collection: Azure CLI / Resource Graph / Security Center / Cost Mgmt / Advisor", "level": 0},
+        {"text": "AI Engine: GitHub Copilot SDK (CopilotClient streaming sessions)", "level": 0},
+        {"text": "Enrichment: Microsoft Learn Search API + MCP server", "level": 1},
+        {"text": "Output: Draw.io XML / Markdown / Word / PDF / diff reports", "level": 0},
+        {"text": "Packaging: PyInstaller single-exe distribution", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "GitHub Copilot SDK Integration",
+      "bullets": [
+        {"text": "CopilotClient with streaming token callbacks", "level": 0},
+        {"text": "Dynamic model selection: claude-sonnet (latest) / gpt-4.1 fallback", "level": 1},
+        {"text": "Read-only tool permissions (no write operations)", "level": 0},
+        {"text": "Microsoft Docs MCP for document-grounded analysis", "level": 0},
+        {"text": "Retry with exponential backoff + future.cancel() on timeout", "level": 0},
+        {"text": "Thread-safe streaming UI: atomic buffer swap at 100ms", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Azure Integration Points",
+      "bullets": [
+        {"text": "Azure Resource Graph — full inventory across subscriptions", "level": 0},
+        {"text": "Microsoft Defender for Cloud — Secure Score, alerts, recommendations", "level": 0},
+        {"text": "Azure Cost Management — spend by service/resource group", "level": 0},
+        {"text": "Azure Advisor — optimization recommendations", "level": 0},
+        {"text": "Microsoft Learn Search API — enrichment for AI reports", "level": 0},
+        {"text": "Service Principal + Interactive login support", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Key Design Decisions",
+      "bullets": [
+        {"text": "Template system: bundled defaults + user override (%APPDATA%)", "level": 0},
+        {"text": "No exe rebuild needed to update report templates", "level": 1},
+        {"text": "i18n: Japanese/English runtime switching (UI + reports)", "level": 0},
+        {"text": "Read-only Azure operations only — Reader role minimum", "level": 0},
+        {"text": "No secrets stored to disk — entered per-session via GUI", "level": 0},
+        {"text": "32 unit tests runnable without Azure/SDK connectivity", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Repository & Links",
+      "items": [
+        "Repository: https://github.com/aktsmm/azure-ops-dashboard",
+        "License: CC-BY-NC-SA-4.0",
+        "Language: Python 3.11+",
+        "Tests: 32 tests (python -m unittest tests)",
+        "Docs: README.md (EN/JA), DESIGN.md, AGENTS.md, RAI notes"
+      ]
+    }
+  ]
+}
