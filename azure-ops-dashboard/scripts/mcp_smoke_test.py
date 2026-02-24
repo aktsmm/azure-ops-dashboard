@@ -20,13 +20,14 @@ import sys
 from pathlib import Path
 
 
-# Ensure project root (azure-ops-dashboard/) is importable when executed from scripts/.
+# Ensure src layout (azure-ops-dashboard/src) is importable when executed from scripts/.
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 
-from ai_reviewer import (
+from azure_ops_dashboard.ai_reviewer import (
     AIReviewer,
     get_last_run_debug,
     list_available_model_ids_sync,

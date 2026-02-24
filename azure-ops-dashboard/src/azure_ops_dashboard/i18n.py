@@ -315,7 +315,7 @@ def on_language_changed(callback: Any) -> None:
 def load_saved_language() -> None:
     """起動時に settings.json から言語設定を復元する。"""
     try:
-        from app_paths import load_setting
+        from .app_paths import load_setting
         lang = load_setting(_PERSIST_KEY, "ja")
         set_language(lang, persist=False)
     except Exception:
@@ -325,7 +325,7 @@ def load_saved_language() -> None:
 def _save_language(lang: str) -> None:
     """settings.json に言語設定を保存する。"""
     try:
-        from app_paths import save_setting
+        from .app_paths import save_setting
         save_setting(_PERSIST_KEY, lang)
     except Exception:
         pass

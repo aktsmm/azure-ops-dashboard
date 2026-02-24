@@ -21,7 +21,8 @@ def _find_copilot_bin_dir() -> Path | None:
 
 
 project_root = Path(__file__).resolve().parent
-templates_dir = project_root / "templates"
+src_root = project_root / "src"
+templates_dir = src_root / "azure_ops_dashboard" / "templates"
 
 datas = [(str(templates_dir), "templates")]
 copilot_bin_dir = _find_copilot_bin_dir()
@@ -31,8 +32,8 @@ if copilot_bin_dir is not None:
 
 
 a = Analysis(
-    [str(project_root / "main.py")],
-    pathex=[str(project_root)],
+    [str(project_root / "src" / "app.py")],
+    pathex=[str(project_root), str(src_root)],
     binaries=[],
     datas=datas,
     hiddenimports=[],

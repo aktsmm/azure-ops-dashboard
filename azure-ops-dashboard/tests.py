@@ -7,14 +7,21 @@ Azure CLI / Copilot SDK への接続は不要（モック化）。
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+
+# Ensure the src layout package is importable when running tests from the repo root.
+_SRC_DIR = Path(__file__).resolve().parent / "src"
+if _SRC_DIR.is_dir():
+    sys.path.insert(0, str(_SRC_DIR))
+
 # ---------- collector tests ----------
 
-from collector import (
+from azure_ops_dashboard.collector import (
     Node, Edge, cell_id_for_azure_id, normalize_azure_id, type_summary,
 )
 
@@ -55,7 +62,7 @@ class TestCollectorDataclasses(unittest.TestCase):
 
 # ---------- drawio_writer tests ----------
 
-from drawio_writer import build_drawio_xml, now_stamp, LAYOUT_ORDER
+from azure_ops_dashboard.drawio_writer import build_drawio_xml, now_stamp, LAYOUT_ORDER
 
 
 class TestDrawioWriter(unittest.TestCase):
@@ -101,7 +108,7 @@ class TestDrawioWriter(unittest.TestCase):
         # PublicIP アイコンが出力されていること
         self.assertIn("Public_IP_Addresses", xml)
         # LAYOUT_ORDER で publicipaddresses が virtualnetworks より前
-        from drawio_writer import LAYOUT_ORDER as LO
+        from azure_ops_dashboard.drawio_writer import LAYOUT_ORDER as LO
         self.assertLess(LO.index("publicipaddresses"), LO.index("virtualnetworks"))
 
     def test_layout_order_subnet_before_vnet(self) -> None:
@@ -120,7 +127,7 @@ class TestDrawioWriter(unittest.TestCase):
         self.assertIn("default", xml)
         self.assertIn("vnet1", xml)
         # LAYOUT_ORDER で virtualnetworks/subnets が virtualnetworks より前
-        from drawio_writer import LAYOUT_ORDER as LO
+        from azure_ops_dashboard.drawio_writer import LAYOUT_ORDER as LO
         self.assertLess(LO.index("virtualnetworks/subnets"), LO.index("virtualnetworks"))
 
     def test_layout_order_constant_exists(self) -> None:
@@ -131,8 +138,8 @@ class TestDrawioWriter(unittest.TestCase):
         self.assertIn("virtualnetworks/subnets", LAYOUT_ORDER)
 
 
-import collector as _collector_module
-from collector import collect_network
+import azure_ops_dashboard.collector as _collector_module
+from azure_ops_dashboard.collector import collect_network
 
 
 class TestSubnetCollection(unittest.TestCase):
@@ -222,7 +229,7 @@ class TestSubnetCollection(unittest.TestCase):
 
 # ---------- exporter tests ----------
 
-from exporter import (
+from azure_ops_dashboard.exporter import (
     find_previous_report, generate_diff_report, _extract_sections,
 )
 
@@ -275,7 +282,7 @@ class TestExporter(unittest.TestCase):
 
 # ---------- gui_helpers tests ----------
 
-from gui_helpers import (
+from azure_ops_dashboard.gui_helpers import (
     WINDOW_TITLE, ACCENT_COLOR, FONT_SIZE,
     cached_drawio_path, cached_vscode_path,
     write_text, write_json,
@@ -305,9 +312,9 @@ class TestGuiHelpers(unittest.TestCase):
 
 # ---------- ai_reviewer tests (unit only, no SDK) ----------
 
-from ai_reviewer import choose_default_model_id, build_template_instruction
-from docs_enricher import enrich_with_docs, security_search_queries, cost_search_queries
-from i18n import get_language, set_language
+from azure_ops_dashboard.ai_reviewer import choose_default_model_id, build_template_instruction
+from azure_ops_dashboard.docs_enricher import enrich_with_docs, security_search_queries, cost_search_queries
+from azure_ops_dashboard.i18n import get_language, set_language
 
 
 class TestAIReviewerHelpers(unittest.TestCase):
@@ -392,7 +399,7 @@ class TestPromptAndDocs(unittest.TestCase):
 
 class TestAISanitizer(unittest.TestCase):
     def test_sanitize_extracts_markdown_from_tool_input_json(self) -> None:
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "Let me create the report.\n\n"
@@ -408,7 +415,7 @@ class TestAISanitizer(unittest.TestCase):
 
     def test_sanitize_extracts_markdown_from_tool_input_invalid_json_newlines(self) -> None:
         """tool_input の JSON が壊れていても content を救出できる（改行未エスケープ等）。"""
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "Preamble\n"
@@ -426,7 +433,7 @@ class TestAISanitizer(unittest.TestCase):
         self.assertNotIn("tool_input", out.lower())
 
     def test_sanitize_extracts_from_tool_input_arguments_content(self) -> None:
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "<tool_call>\n"
@@ -438,7 +445,7 @@ class TestAISanitizer(unittest.TestCase):
         self.assertIn("## A", out)
 
     def test_sanitize_multiple_tool_input_blocks_picks_best_candidate(self) -> None:
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "<tool_call>\n"
@@ -454,7 +461,7 @@ class TestAISanitizer(unittest.TestCase):
 
     def test_sanitize_does_not_replace_report_with_non_markdown_tool_input_content(self) -> None:
         """tool_input の content が非Markdownでも、既存の本文を潰さない。"""
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "# Report\n"
@@ -468,7 +475,7 @@ class TestAISanitizer(unittest.TestCase):
         self.assertIn("Body", out)
 
     def test_sanitize_one_line_tool_calls_does_not_swallow_report(self) -> None:
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "<tool_calls><tool_call>noop</tool_call></tool_calls>\n\n"
@@ -481,7 +488,7 @@ class TestAISanitizer(unittest.TestCase):
         self.assertNotIn("tool_call", out.lower())
 
     def test_sanitize_drops_tool_blocks_keeps_report(self) -> None:
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = """Preamble
 
@@ -500,7 +507,7 @@ Body
 
     def test_sanitize_result_tag_does_not_swallow_report(self) -> None:
         """<result>/<parameters> のような汎用タグが混入しても本文を飲み込まない。"""
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "# Report\n"
@@ -524,7 +531,7 @@ Body
 
     def test_sanitize_quality_gate_rejects_short_extraction(self) -> None:
         """tool_input の content が短い思考テキストの場合、採用せず post-tool テキストを残す。"""
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "Let me examine.\n"
@@ -553,7 +560,7 @@ Body
 
     def test_sanitize_strips_tool_call_result_tags(self) -> None:
         """<tool_call_result> タグが正しく除去される。"""
-        from ai_reviewer import _sanitize_ai_markdown
+        from azure_ops_dashboard.ai_reviewer import _sanitize_ai_markdown
 
         raw = (
             "# Report\n"

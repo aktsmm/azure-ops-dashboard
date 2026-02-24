@@ -24,3 +24,12 @@ Repository = "https://github.com/aktsmm/azure-ops-dashboard"
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+azure_ops_dashboard = ["templates/*.json"]

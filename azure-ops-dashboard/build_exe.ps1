@@ -54,7 +54,7 @@ uv pip install --python $python pyinstaller
 # templates/ を exe に同梱（Windows は ; 区切り）
 # NOTE: When using --specpath, relative paths in generated spec are resolved
 # relative to the spec file location. Use absolute source paths to avoid breakage.
-$templatesDir = Join-Path $PSScriptRoot 'templates'
+$templatesDir = Join-Path $PSScriptRoot 'src\azure_ops_dashboard\templates'
 $addData = "$templatesDir;templates"
 
 # Copilot SDK 同梱 CLI バイナリも同梱
@@ -70,7 +70,7 @@ if (Test-Path $copilotBinDir) {
 
 $pyiParams = @(
   '-m', 'PyInstaller',
-  'main.py',
+  'src\app.py',
   '--name', 'AzureOpsDashboard',
   '--noconsole',
   '--clean',

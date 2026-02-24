@@ -11,7 +11,7 @@ uv.lock
 # PyInstaller
 build/
 dist/
-dist-build-*/
+dist-*/
 *.spec
 
 # Keep the primary spec file trackable (optional, but useful for reproducible builds)

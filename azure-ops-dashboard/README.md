@@ -25,7 +25,7 @@ Supports **Japanese / English runtime switching** — UI text, logs, and AI repo
 See the full architecture diagram: [docs/architecture.drawio](docs/architecture.drawio)
 
 ```
-User → tkinter GUI (main.py)
+User → tkinter GUI (src/azure_ops_dashboard/main.py)
          ├─→ collector.py ──→ Azure CLI (Resource Graph / Security / Cost / Advisor)
          ├─→ ai_reviewer.py ──→ GitHub Copilot SDK (streaming report generation)
          │     └─ docs_enricher.py ──→ Microsoft Learn Search API / MCP
@@ -166,7 +166,7 @@ uv pip install -e .
 uv pip install -e ".[ai]"
 
 # Run
-uv run python main.py
+uv run python src/app.py
 ```
 
 Alternative entry point (exists under `/src` for submission requirements):
@@ -178,7 +178,7 @@ python src/app.py
 > **⚠ Windows PATH note**: If `uv` has installed a global Python in `~/.local/bin/`, that binary may take priority over `.venv\Scripts\python.exe` even after running `Activate.ps1`. In that case, use an **explicit path** to the venv Python:
 >
 > ```powershell
-> .venv\Scripts\python.exe main.py
+> .venv\Scripts\python.exe src\app.py
 > ```
 >
 > You can verify which Python is active with `python -c "import sys; print(sys.executable)"`.
@@ -198,18 +198,19 @@ When the GUI window opens:
 
 | File                 | Description                                                            |
 | -------------------- | ---------------------------------------------------------------------- |
-| `main.py`            | Main GUI app (tkinter)                                                 |
-| `gui_helpers.py`     | Shared GUI constants/utilities (split out from main.py)                |
-| `collector.py`       | Azure data collection (az graph query / Security / Cost / Advisor)     |
-| `drawio_writer.py`   | `.drawio` XML generator (deterministic layout)                         |
-| `drawio_validate.py` | Draw.io XML validator (checks structure, icons, node coverage)         |
-| `ai_reviewer.py`     | AI review/report generation (Copilot SDK + MCP)                        |
-| `docs_enricher.py`   | Microsoft Docs enrichment (Learn Search API + static reference map)    |
-| `exporter.py`        | Markdown → Word (.docx) / PDF export + diff report generation          |
-| `i18n.py`            | i18n module (JA/EN dictionaries + runtime switch)                      |
-| `app_paths.py`       | Resource path abstraction (PyInstaller frozen + user override support) |
-| `tests.py`           | Unit tests (collector / drawio_writer / exporter / gui_helpers)        |
-| `templates/`         | Report templates JSON + saved instructions                             |
+| `src/app.py`         | Entry point under `/src` (submission requirement)                      |
+| `src/azure_ops_dashboard/main.py`            | Main GUI app (tkinter)                                      |
+| `src/azure_ops_dashboard/gui_helpers.py`     | Shared GUI constants/utilities                              |
+| `src/azure_ops_dashboard/collector.py`       | Azure data collection (az graph query / Security / Cost / Advisor) |
+| `src/azure_ops_dashboard/drawio_writer.py`   | `.drawio` XML generator (deterministic layout)              |
+| `src/azure_ops_dashboard/drawio_validate.py` | Draw.io XML validator (checks structure, icons, node coverage) |
+| `src/azure_ops_dashboard/ai_reviewer.py`     | AI review/report generation (Copilot SDK + MCP)             |
+| `src/azure_ops_dashboard/docs_enricher.py`   | Microsoft Docs enrichment (Learn Search API + static reference map) |
+| `src/azure_ops_dashboard/exporter.py`        | Markdown → Word (.docx) / PDF export + diff report generation |
+| `src/azure_ops_dashboard/i18n.py`            | i18n module (JA/EN dictionaries + runtime switch)           |
+| `src/azure_ops_dashboard/app_paths.py`       | Resource path abstraction (PyInstaller frozen + user override support) |
+| `tests.py`           | Unit tests (runs without Azure CLI / SDK connectivity)                 |
+| `src/azure_ops_dashboard/templates/`         | Report templates JSON + saved instructions                  |
 | `scripts/`           | Utility scripts (Azure collection, MCP smoke test, drawio validation)  |
 | `CHANGELOG.md`       | Release changelog                                                      |
 | `build_exe.ps1`      | PyInstaller build script (onedir / onefile)                            |

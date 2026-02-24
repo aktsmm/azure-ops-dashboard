@@ -22,7 +22,7 @@ from datetime import datetime
 
 import xml.etree.ElementTree as ET
 
-from collector import Node, Edge
+from .collector import Node, Edge
 
 
 # ============================================================
