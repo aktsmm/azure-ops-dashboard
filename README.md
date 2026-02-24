@@ -22,11 +22,12 @@ Supports **Japanese / English runtime switching** — UI text, logs, and AI repo
 
 ## Download
 
-| Artifact | Link |
-| -------- | ---- |
+| Artifact                                    | Link                                                                          |
+| ------------------------------------------- | ----------------------------------------------------------------------------- |
 | Windows x64 — pre-built `.exe` (onedir zip) | [**Releases page →**](https://github.com/aktsmm/azure-ops-dashboard/releases) |
 
 > **Quick start (no Python required)**
+>
 > 1. Download `AzureOpsDashboard-vX.X.X-win-x64.zip` from the Releases page.
 > 2. Unzip the archive — keep the folder structure intact.
 > 3. Double-click **`AzureOpsDashboard.exe`** inside the unzipped folder.
@@ -168,17 +169,39 @@ If the same filename exists, **the user-area file takes precedence**.
 
 Note: changing app behavior (code updates) requires rebuilding/updating the .exe.
 
-## Usage
+## Deployment
+
+### Option A — Pre-built .exe (Windows, no Python required)
+
+1. Download `AzureOpsDashboard-vX.X.X-win-x64.zip` from the [Releases page](https://github.com/aktsmm/azure-ops-dashboard/releases).
+2. Unzip the archive — keep the folder structure intact.
+3. Install [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and ensure `az` is in your PATH.
+4. Install the Resource Graph extension: `az extension add --name resource-graph`
+5. Log in: `az login` (interactive) or `az login --service-principal` (see [Service Principal](#service-principal-example)).
+6. Double-click **`AzureOpsDashboard.exe`** inside the unzipped folder.
+
+### Option B — Run from source (any OS)
 
 ```powershell
-# Install dependencies
+# 1. Clone the repo
+git clone https://github.com/aktsmm/azure-ops-dashboard.git
+cd azure-ops-dashboard
+
+# 2. Create a virtual environment and install dependencies
 uv venv
 uv pip install -e .
 
-# To also use AI features (review / report generation)
+# 3. (Optional) Install AI features — review / report generation
 uv pip install -e ".[ai]"
 
-# Run
+# 4. Authenticate with Azure CLI
+az login
+az extension add --name resource-graph
+
+# 5. Authenticate with GitHub Copilot (for AI features)
+copilot auth login
+
+# 6. Run
 uv run python src/app.py
 ```
 
@@ -197,6 +220,21 @@ python src/app.py
 > You can verify which Python is active with `python -c "import sys; print(sys.executable)"`.
 > If it does NOT point to `.venv\Scripts\python.exe`, the Copilot SDK and other venv-installed packages will not be found.
 
+### Option C — Build your own .exe
+
+```powershell
+uv venv
+uv pip install -e ".[ai]"
+pwsh .\build_exe.ps1            # onedir (default)
+# or: pwsh .\build_exe.ps1 -Mode onefile
+```
+
+Output is created under `dist/`. Distribute the entire `dist/AzureOpsDashboard/` folder (for onedir) or the single exe (for onefile).
+
+---
+
+## Usage
+
 When the GUI window opens:
 
 1. Choose **Language** (Japanese / English) — you can switch anytime
@@ -209,24 +247,24 @@ When the GUI window opens:
 
 ## Files
 
-| File                 | Description                                                            |
-| -------------------- | ---------------------------------------------------------------------- |
-| `src/app.py`         | Entry point under `/src` (submission requirement)                      |
-| `src/azure_ops_dashboard/main.py`            | Main GUI app (tkinter)                                      |
-| `src/azure_ops_dashboard/gui_helpers.py`     | Shared GUI constants/utilities                              |
-| `src/azure_ops_dashboard/collector.py`       | Azure data collection (az graph query / Security / Cost / Advisor) |
-| `src/azure_ops_dashboard/drawio_writer.py`   | `.drawio` XML generator (deterministic layout)              |
-| `src/azure_ops_dashboard/drawio_validate.py` | Draw.io XML validator (checks structure, icons, node coverage) |
-| `src/azure_ops_dashboard/ai_reviewer.py`     | AI review/report generation (Copilot SDK + MCP)             |
-| `src/azure_ops_dashboard/docs_enricher.py`   | Microsoft Docs enrichment (Learn Search API + static reference map) |
-| `src/azure_ops_dashboard/exporter.py`        | Markdown → Word (.docx) / PDF export + diff report generation |
-| `src/azure_ops_dashboard/i18n.py`            | i18n module (JA/EN dictionaries + runtime switch)           |
+| File                                         | Description                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| `src/app.py`                                 | Entry point under `/src` (submission requirement)                      |
+| `src/azure_ops_dashboard/main.py`            | Main GUI app (tkinter)                                                 |
+| `src/azure_ops_dashboard/gui_helpers.py`     | Shared GUI constants/utilities                                         |
+| `src/azure_ops_dashboard/collector.py`       | Azure data collection (az graph query / Security / Cost / Advisor)     |
+| `src/azure_ops_dashboard/drawio_writer.py`   | `.drawio` XML generator (deterministic layout)                         |
+| `src/azure_ops_dashboard/drawio_validate.py` | Draw.io XML validator (checks structure, icons, node coverage)         |
+| `src/azure_ops_dashboard/ai_reviewer.py`     | AI review/report generation (Copilot SDK + MCP)                        |
+| `src/azure_ops_dashboard/docs_enricher.py`   | Microsoft Docs enrichment (Learn Search API + static reference map)    |
+| `src/azure_ops_dashboard/exporter.py`        | Markdown → Word (.docx) / PDF export + diff report generation          |
+| `src/azure_ops_dashboard/i18n.py`            | i18n module (JA/EN dictionaries + runtime switch)                      |
 | `src/azure_ops_dashboard/app_paths.py`       | Resource path abstraction (PyInstaller frozen + user override support) |
-| `tests.py`           | Unit tests (runs without Azure CLI / SDK connectivity)                 |
-| `src/azure_ops_dashboard/templates/`         | Report templates JSON + saved instructions                  |
-| `scripts/`           | Utility scripts (Azure collection, MCP smoke test, drawio validation)  |
-| `CHANGELOG.md`       | Release changelog                                                      |
-| `build_exe.ps1`      | PyInstaller build script (onedir / onefile)                            |
+| `tests.py`                                   | Unit tests (runs without Azure CLI / SDK connectivity)                 |
+| `src/azure_ops_dashboard/templates/`         | Report templates JSON + saved instructions                             |
+| `scripts/`                                   | Utility scripts (Azure collection, MCP smoke test, drawio validation)  |
+| `CHANGELOG.md`                               | Release changelog                                                      |
+| `build_exe.ps1`                              | PyInstaller build script (onedir / onefile)                            |
 
 ### Templates
 
