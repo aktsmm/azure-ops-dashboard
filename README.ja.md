@@ -14,6 +14,19 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 
 **デモ動画** (3 min): 別途提出（このリポジトリには格納しません）
 
+## ダウンロード
+
+| 成果物 | リンク |
+| ------ | ------ |
+| Windows x64 — ビルド済み `.exe`（onedir zip） | [**Releases ページ →**](https://github.com/aktsmm/azure-ops-dashboard/releases) |
+
+> **クイックスタート（Python 不要）**
+> 1. Releases ページから `AzureOpsDashboard-vX.X.X-win-x64.zip` をダウンロード。
+> 2. zip を展開 — フォルダ構造はそのまま維持してください。
+> 3. 展開したフォルダの中の **`AzureOpsDashboard.exe`** をダブルクリックで起動。
+>
+> Azure CLI などの外部ツールは同梱されません — [前提（exe 配布）](#前提exe-配布で使う場合) を参照。
+
 ## 機能
 
 ### 図生成（Diagram）
@@ -226,6 +239,9 @@ uv run python -m unittest tests -v
 Azure CLI / Copilot SDK 接続なしでテスト可能（36件）。
 
 ## 実行ファイル化（Windows .exe）
+
+> **ビルド済みバイナリは [Releases ページ](https://github.com/aktsmm/azure-ops-dashboard/releases) から入手できます。**
+> カスタマイズや Python バージョンが異なる場合のみ、以下の手順でソースからビルドしてください。
 
 PyInstaller を使って exe を生成できます（Azure CLI `az` は別途インストールが必要です）。
 
