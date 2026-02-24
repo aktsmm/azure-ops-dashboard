@@ -1,122 +1,143 @@
-# FY26 GitHub Copilot SDK Enterprise Challenge — 要件メモ
+# FY26 GitHub Copilot SDK Enterprise Challenge — 公式ガイドライン
 
-> Source: https://microsoft.sharepoint.com/teams/GithubSales/SitePages/FY26SDKChallenge.aspx
-> 記録日: 2026-02-24
-
----
-
-## 基本情報
-
-| 項目 | 内容 |
-|---|---|
-| コンテスト名 | **FY26 GitHub Copilot SDK Enterprise Challenge** |
-| 対象 | **All MCAPS FTEs** (Microsoft 社内) |
-| チーム | 最大3名 or ソロ |
-| 提出期限 | **2026-03-07 22:00 PST** |
-| 提出方法 | SharePoint 上のフォーム |
-
-## スケジュール
-
-| 日付 | イベント |
-|---|---|
-| 2/9 | Kickoff |
-| **3/7 10PM PST** | **提出期限** |
-| 3/9 〜 3/20 | スクリーニング |
-| 3/23 〜 3/27 | ファイナルプレゼン (Top 3) |
-| 4月 | コミュニティコールで順位発表 |
-
-## Office Hours (PST)
-
-- 2/19 — 9 AM, 5 PM
-- 2/26 — 9 AM, 5 PM
-- 3/5 — 9 AM, 5 PM
-
-## 賞品
-
-| 順位 | 内容 |
-|---|---|
-| 1st | GitHub Swag $250 + Credly Badge + Coaching |
-| 2nd | GitHub Swag $150 + Credly Badge + Coaching |
-| 3rd | GitHub Swag $100 + Credly Badge + Coaching |
-| 全 | Internal & External Amplification |
+> Source: https://microsoft.sharepoint.com/:w:/t/GithubSales/IQBW1xY6GVI3QYGYDY92wLD4AXgFxKHJiUFUilbF5Z9qQ88?e=xpHfkx
+> Portal: https://microsoft.sharepoint.com/teams/GithubSales/SitePages/FY26SDKChallenge.aspx
+> 記録日: 2026-02-24（原文コピー）
 
 ---
 
-## 提出物要件
+## 概要
 
-### 必須
+🚀 Starting Today: GitHub Copilot SDK Enterprise Challenge (Q3 FY26)
 
-1. **プロジェクト概要** (150 words max)
-2. **デモ動画** (3分以内)
-3. **GitHub リポジトリ** (README + アーキテクチャ図 + セットアップ手順)
-4. **プレゼンデック** (1-2 slides、ビジネス価値 + アーキテクチャ図、リポリンク含む)
+Open to: All FTEs
+Goal: showcase customer-oriented, enterprise grade use cases built with the GitHub Copilot SDK.
 
-### GitHub リポジトリ必須構成
+The GitHub Copilot SDK represents a major shift in how organizations can apply AI to software delivery. While Copilot started as an "in-the-IDE" assistant that helps individual developers write code faster, the SDK lets customers (and partners) embed the same agentic core that powers Copilot CLI into their own apps. That means the agent capabilities we use to help teams across the SDLC can now be used by customers to build their own agents and workflows, tailored to their tools and processes.
 
-```
-/src or /app           ← 動くコード
-/docs                  ← README (問題→解決策, prereqs, setup, deployment, アーキテクチャ図, RAI notes)
-AGENTS.md              ← カスタム指示
-mcp.json               ← MCP サーバー設定
-/presentations/        ← YourSolutionName.pptx or 公開ポストリンク
-```
-
-### ボーナス (任意)
-
-- **Product Feedback**: SDK チーム channel にフィードバック投稿 + スクリーンショット提出
-- **Customer Validation**: 顧客テスティモニアルリリースフォーム提出（署名済み or 検証ドキュメント）
-- **Work IQ / Fabric IQ / Foundry IQ の使用**
+We're kicking off a three-week challenge to build and showcase the most compelling, production-ready solutions for the enterprise — from agents and workflows to full applications and integrations. Submit your solutions by Mar 7th, and winners will be announced in Apr.
 
 ---
 
-## 審査基準
+## 🔧 What you'll build
 
-### メインスコア (105 点満点)
+Your submission must include:
 
-| 基準 | 配点 |
-|---|---|
-| Enterprise applicability, reusability & business value | **35 pts** |
-| Integration with other Azure or Microsoft solutions | **25 pts** |
+- A short summary of your project (150 words max)
+- A video of the solution in action (3 mins max)
+- Working solution with code in a GitHub repo, with README, architecture diagram, and setup instructions
+- Presentation deck with 1-2 slides, including business value proposition and architecture diagram. Please include the link to your repo in the deck.
+
+The GitHub Repo must include:
+
+- `/src` or `/app` (working code)
+- `/docs` (README with problem→solution, prereqs, setup, deployment, architecture diagram, RAI notes)
+- `AGENTS.md` (custom instructions) and `mcp.json` for any MCP servers
+- Demo deck (`/presentations/YourSolutionName.pptx`) or link to public ready post
+- Optional: `/customer` folder with signed testimonial release.
+
+To win bonus points, you may also include:
+
+- **Product Feedback**: Share product feedback on GHCP SDK in the SDK team channel, e.g. documentation, bugs, new feature requests
+- **Validation with customer**: Submit a customer testimonial release form. If you can't get a signed testimonial form, please upload a document indicating you have validated this with the customers.
+
+---
+
+## 🏆 How to win
+
+Solutions will be judged on:
+
+| 基準                                                        | 配点       |
+| ----------------------------------------------------------- | ---------- |
+| Enterprise applicability, reusability & business value      | **30 pts** |
+| Integration with other Azure or Microsoft solutions         | **25 pts** |
 | Operational readiness (deployability, observability, CI/CD) | **15 pts** |
-| Security, governance & Responsible AI excellence | **15 pts** |
-| Storytelling, clarity & "amplification ready" quality | **15 pts** |
+| Security, governance & Responsible AI excellence            | **15 pts** |
+| Storytelling, clarity & "amplification ready" quality       | **15 pts** |
 
-### ボーナス (最大 35 pts)
+Bonus points:
 
-| 基準 | 配点 |
-|---|---|
+| 基準                                    | 配点       |
+| --------------------------------------- | ---------- |
 | Use of Work IQ / Fabric IQ / Foundry IQ | **15 pts** |
-| Validated with a customer | **10 pts** |
-| Copilot SDK product feedback | **10 pts** |
+| Validated with a customer               | **10 pts** |
+| Copilot SDK product feedback            | **10 pts** |
 
-**合計最大: 140 pts**
+Share your feedback in Copilot SDK | GitHub Copilot at Microsoft | Microsoft Teams and upload a screenshot for points.
+
+Submit your entry here by Mar 7th 10 PM PST. The form will be closed past the deadline.
+You can team up to 3 people. A team can submit multiple entries, and you can join more than one team.
+
+### Prize
+
+- GitHub Swag for the finalists: 1st place- $250, 2nd place- $150, 3rd place- $100
+- Credly Badge
+- Internal and External Amplification
+- Live Coaching sessions with Engineering & Business leaders
 
 ---
 
-## ジャッジ (ファイナリスト審査)
+## 📅 Key Dates
 
-- **Dan Massey** — CVP, Engineering
-- **Jamie Jones** — VP, Field Services
-- **Luke Hoban** — VP, Software Engineering
-- **Ashley Willis** — Sr. Dir. Developer Advocacy
+| 日付             | イベント                         |
+| ---------------- | -------------------------------- |
+| 2/9              | Kickoff (pre-day at TechConnect) |
+| Weekly           | Office Hour: To be scheduled     |
+| **3/7 10PM PST** | **Submission deadline**          |
+| 3/9 – 3/20       | Submission screening             |
+| 3/23 – 3/27      | Final presentation (Top 3)       |
+| April            | Ranking announced                |
+
+The top three teams will be selected to present to the leadership team as final round.
+Ranking of the top three teams will be announced in April.
 
 ---
 
-## リソース
+## 💡 Getting Started Kit
 
-- [Copilot CLI quick guide](TBD)
-- [Copilot SDK FAQs](TBD)
+- Copilot CLI quick guide
+- Copilot SDK FAQs
 - [Copilot SDK Repo](https://github.com/github/copilot-sdk)
-- [GitHub Copilot Viva Engage Channel](TBD)
-- [Building Context-Aware CI with GitHub Copilot SDK and Microsoft WorkIQ](TBD)
+- How to install Work IQ
+- GitHub Copilot Viva Engage Channel
+- [Building Context-Aware CI with GitHub Copilot SDK and Microsoft WorkIQ - DEV Community](https://dev.to/)
+- Grounding & Tools Guide
+- CLI Demos & How-To Videos
 - [Build an agent into any app with the GitHub Copilot SDK](https://github.blog/news-insights/company-news/build-an-agent-into-any-app-with-the-github-copilot-sdk/)
-- [Customer Evidence Creation Agreement](TBD)
+- Foundry IQ deep dive
+- Book of News (Work/Fabric/Foundry IQ)
+- Fabric technical slide library
+- Customer Evidence Creation Agreement
+- Case Studies Self Service
 
 ---
 
-## FAQ 要点
+## FAQ
 
-- 複数エントリー提出可。複数チーム参加もOK（ただし受賞は1バッジ・1コーチングセッションのみ）
-- 英語推奨だが英語力は審査対象外
-- 剽窃は失格
-- 既存コードの利用は透明に文書化すること（何を元に何を追加したか）
+### How big can the teams be?
+
+You can team up to 3 people. We encourage teams with people from across Solution Areas and Solution Plays to encourage a more diverse solution!
+
+### Can I submit more than once?
+
+A team can submit multiple entries, and you can join more than one team. In the event that you do win multiple times, you will only receive one winner badge and one coaching session. Please include all team members' contacts in your submission.
+
+### When does riffing become plagiarism?
+
+Be transparent about your work and ensure license compatibility. Document what code you started with and what you added, so judges can easily see your contributions. Submissions should offer substantial new features or elements, not just minor changes or edits.
+
+### What happens if my submission is considered plagiarized or invalid?
+
+Anything deemed to be plagiarism will not be eligible for prizes.
+
+### Do submissions have to be in English?
+
+We encourage you to submit in English but we will not be judging on mastery of the English language, so please don't let this deter you from submitting.
+
+### Can there be ties?
+
+During the screening stage, each submission will be scored and ranked based on total points. If there is a tie among the top three teams, the screeners will take a closer look and rescore the tied submissions to break the tie. The final three teams will then advance to the final round, where they will be ranked by the judges.
+
+### How will I know if I won?
+
+Top three teams will be contacted at the end of the screening period and will get a chance to present and answer Q&A in a final judging panel with Microsoft and GitHub Engineering and Business leads. The final ranking will be announced in Viva Engage and other channel (Teams/Email).

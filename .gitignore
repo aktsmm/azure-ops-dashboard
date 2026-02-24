@@ -23,3 +23,6 @@ output_sessions/
 .github/temp/
 azure-ops-dashboard/.temp/
 .playwright-mcp/
+
+# Local drafts (avoid pushing internal outreach email content)
+docs/wa-assessment-outreach-email.md

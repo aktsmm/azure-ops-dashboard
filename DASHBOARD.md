@@ -13,7 +13,7 @@
 | Step 2: Dictation                | 🟡 最小完成 | 80%  | STT+pyautogui動作、ホットキー未                                               |
 | Step 3: Voice Agent 統合（本命） | ⬜ 未着手   | 0%   | src/ は空                                                                     |
 | Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト36件 |
-| 提出物準備（docs/video/deck）    | ⬜ 未着手   | 0%   | 3/6以降着手予定                                                               |
+| 提出物準備（docs/video/deck）    | ✅ 提出済   | 100% | 2/24 提出完了（PPTX 2スライド + 動画 + SDK Feedback）                         |
 
 **🎯 総合: 約 40%** ／ **本命 (Voice Agent) 単体: 25%**
 
@@ -32,6 +32,7 @@
 - [ ] Step3: `src/sdk/` Step0 移植
 - [ ] Step3: `src/speech/` Step2 移植（STT/TTS 疎通確認）
 - [ ] 提出物: README / デモシナリオ骨格
+- [ ] **WA Assessment チームへアウトリーチメール送信**（[docs/wa-assessment-outreach-email.md](docs/wa-assessment-outreach-email.md)）
 
 ---
 
@@ -102,29 +103,29 @@
 
 ---
 
-### 提出物準備 ⬜
+### 提出物準備 ✅（提出済 2026-02-24）
 
-- [ ] プロジェクト概要（150 words max）
-- [ ] デモ動画（3分以内）
-- [ ] README（問題→解決策、アーキテクチャ図、セットアップ）
-- [ ] プレゼンデック（.pptx）
-- [ ] `AGENTS.md` 最終確認
-- [ ] `mcp.json` 作成
-- [ ] `/src` or `/app` 配置確認（審査要件）
-- [ ] ボーナス: SDK プロダクトフィードバック投稿
+- [x] プロジェクト概要（150 words max）
+- [x] デモ動画（en/ja、OneDrive Stream）
+- [x] README（問題→解決策、アーキテクチャ図、セットアップ）
+- [x] プレゼンデック（AzureOpsDashboard_TatsumiYamamoto.pptx、2スライド）
+- [x] `AGENTS.md` 最終確認
+- [x] `mcp.json` 作成
+- [x] `/src` or `/app` 配置確認（flat layout、README で説明）
+- [x] ボーナス: SDK プロダクトフィードバック投稿（Teams + スクショ済）
 
 ---
 
 ## 🗓 マイルストーン
 
-| 日付    | タスク                                    | 状態 |
-| ------- | ----------------------------------------- | ---- |
-| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | �    |
-| 2/26    | Office Hours #2                           | ⬜   |
-| 3/1     | **Step3 Voice Agent MVP**                 | ⬜   |
-| 3/5     | Office Hours #3                           | ⬜   |
-| 3/6     | デモ動画撮影 + デック作成                 | ⬜   |
-| **3/7** | **🏁 提出期限 22:00 PST (3/8 15:00 JST)** | ⬜   |
+| 日付    | タスク                                    | 状態      |
+| ------- | ----------------------------------------- | --------- |
+| 2/23    | **Step1 SDK統合（Bicep生成）完成目標**    | �         |
+| 2/26    | Office Hours #2                           | ⬜        |
+| 3/1     | **Step3 Voice Agent MVP**                 | ⬜        |
+| 3/5     | Office Hours #3                           | ⬜        |
+| 3/6     | デモ動画撮影 + デック作成                 | ⬜        |
+| **3/7** | **🏁 提出期限 22:00 PST (3/8 15:00 JST)** | ✅ 提出済 |
 
 ---
 

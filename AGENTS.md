@@ -1,4 +1,5 @@
 <!-- skill-ninja-START -->
+
 ## Agent Skills (Compressed Index)
 
 > **IMPORTANT**: Prefer skill-led reasoning over pre-training-led reasoning.
@@ -6,11 +7,11 @@
 
 ### Skills Index
 
-| Skill | Path | Description |
-|-------|------|-------------|
+| Skill                                                                    | Path                     | Description                                                                                          |
+| ------------------------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------- |
 | [agentic-workflow-guide](.github/skills/agentic-workflow-guide/SKILL.md) | `agentic-workflow-guide` | Create, review, and update Prompt and agents and workflows. Covers 5 workflow patterns, runSubage... |
-| [drawio-diagram-forge](.github/skills/drawio-diagram-forge/SKILL.md) | `drawio-diagram-forge` | Generate draw.io editable diagrams (.drawio, .drawio.svg) from text, images, or Excel. Orchestrat... |
-| [powerpoint-automation](.github/skills/powerpoint-automation/SKILL.md) | `powerpoint-automation` | Create professional PowerPoint presentations from various sources including web articles, blog po... |
+| [drawio-diagram-forge](.github/skills/drawio-diagram-forge/SKILL.md)     | `drawio-diagram-forge`   | Generate draw.io editable diagrams (.drawio, .drawio.svg) from text, images, or Excel. Orchestrat... |
+| [powerpoint-automation](.github/skills/powerpoint-automation/SKILL.md)   | `powerpoint-automation`  | Create professional PowerPoint presentations from various sources including web articles, blog po... |
 
 <!-- skill-ninja-END -->
 
@@ -76,3 +77,8 @@
 
 - **Evidence**: python-pptx は公式に MP4 埋め込み非対応。しかし PPTX は ZIP なので `lxml` + `zipfile` で slide XML に `p:pic` + `a:videoFile` + `p14:media` を注入し、rels と Content_Types を追加すれば埋め込み可能
 - **Action**: ポスター画像（サムネイル）は必須。PowerPoint が軽微な修復を求める場合があるが動作する。Git 管理には LFS 推奨。
+
+### L12: 提出物のスペック（枚数・サイズ上限・ファイル命名規則）は実装前に確認する
+
+- **Evidence**: 21 スライド・19MB の PPTX を作成した後、フォームが「1-2 slides / 10MB / submitter name in filename」を要求していると判明し全面再作成が発生した
+- **Action**: 提出先フォームの制約（スライド数・ファイルサイズ上限・命名規則・許可ファイル形式）を最初に確認してから成果物を作成する。名前・メール等の確定情報も事前に収集する。

@@ -1309,7 +1309,10 @@ class App:
     def _on_open_output_dir(self) -> None:
         d = self._output_dir_var.get()
         if d and Path(d).exists():
-            open_native(d)
+            try:
+                open_native(d)
+            except Exception as exc:
+                self._log(t("log.open_failed", err=str(exc)[:200]), "warning")
 
     # ------------------------------------------------------------------ #
     # ログ / ステータス（スレッドセーフ）
@@ -1705,13 +1708,13 @@ class App:
 
         self._log("=" * 50, "accent")
         targets = [v for v in diagram_views] + [v for v in report_views]
-        self._log(f"  Targets: {', '.join(targets)}", "accent")
+        self._log(t("log.targets", targets=", ".join(targets)), "accent")
         if sub:
-            self._log(f"  Subscription: {sub}")
+            self._log(t("log.subscription", subscription=sub))
         if rg:
-            self._log(f"  Resource Group: {rg}")
+            self._log(t("log.resource_group", rg=rg))
         if diagram_views:
-            self._log(f"  Limit: {limit}")
+            self._log(t("log.limit", limit=limit))
 
         # --- GUI 変数のスナップショット (review #1/#2) ---
         # tkinter は単一スレッドモデル。ワーカースレッドから StringVar.get() を
@@ -2039,9 +2042,11 @@ class App:
 
         # SVG エクスポート
         if opts.get("export_svg"):
-            svg_result = export_drawio_svg(out_path)
+            svg_result, svg_err = export_drawio_svg(out_path)
             if svg_result:
                 self._log(f"  → {svg_result}", "success")
+            elif svg_err:
+                self._log(t("log.svg_export_failed", err=svg_err[:200]), "warning")
             else:
                 self._log(t("log.svg_export_skip"), "warning")
 
@@ -2476,9 +2481,12 @@ class App:
     def _on_copy_log(self) -> None:
         content = self._log_area.get("1.0", tk.END).strip()
         if content:
-            self._root.clipboard_clear()
-            self._root.clipboard_append(content)
-            self._set_status(t("status.log_copied"))
+            try:
+                self._root.clipboard_clear()
+                self._root.clipboard_append(content)
+                self._set_status(t("status.log_copied"))
+            except Exception as exc:
+                self._log(t("log.clipboard_failed", err=str(exc)[:200]), "warning")
 
     # ------------------------------------------------------------------ #
     # Open File / Show Diff

@@ -169,6 +169,12 @@ uv pip install -e ".[ai]"
 uv run python main.py
 ```
 
+Alternative entry point (exists under `/src` for submission requirements):
+
+```powershell
+python src/app.py
+```
+
 > **⚠ Windows PATH note**: If `uv` has installed a global Python in `~/.local/bin/`, that binary may take priority over `.venv\Scripts\python.exe` even after running `Activate.ps1`. In that case, use an **explicit path** to the venv Python:
 >
 > ```powershell

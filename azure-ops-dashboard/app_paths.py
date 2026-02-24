@@ -114,7 +114,7 @@ def load_setting(key: str, default: str = "") -> str:
                 data = json.loads(p.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     return str(data.get(key, default))
-        except Exception:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
         return default
 
@@ -126,7 +126,7 @@ def save_setting(key: str, value: str) -> None:
             settings = _load_all_settings_unlocked()
             settings[key] = value
             _save_all_settings_unlocked(settings)
-        except Exception:
+        except OSError:
             pass
 
 
@@ -138,7 +138,7 @@ def _load_all_settings_unlocked() -> dict[str, Any]:
             data = json.loads(p.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 return data
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         pass
     return {}
 
@@ -150,7 +150,7 @@ def _save_all_settings_unlocked(data: dict[str, Any]) -> None:
         p = settings_path()
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    except Exception:
+    except OSError:
         pass
 
 

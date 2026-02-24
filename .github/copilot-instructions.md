@@ -6,10 +6,10 @@
 
 アプリ単位で独立した公開リポジトリを運用する。
 
-| App | Public Repo | Description |
-|-----|-------------|-------------|
-| azure-ops-dashboard | https://github.com/aktsmm/azure-ops-dashboard | Azure 環境可視化 + AI レポート (tkinter desktop) |
-| (monorepo) | https://github.com/aktsmm/Ag-sdk-enterprise-challenge | SDK Challenge 全体（設計ドキュメント・セッションログ含む） |
+| App                 | Public Repo                                           | Description                                                |
+| ------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| azure-ops-dashboard | https://github.com/aktsmm/azure-ops-dashboard         | Azure 環境可視化 + AI レポート (tkinter desktop)           |
+| (monorepo)          | https://github.com/aktsmm/Ag-sdk-enterprise-challenge | SDK Challenge 全体（設計ドキュメント・セッションログ含む） |
 
 ## Python
 
@@ -35,3 +35,11 @@
 - リソース参照は `app_paths.py` 等のヘルパーに集約し、`Path(__file__).parent` 直参照を避ける（L2）
 - 設定/テンプレートは「bundled + user override」二段構え（L3）
 - frozen dataclass のフィールド名と呼び出し側キーワード引数の一致を確認する（L1）
+
+## Workflows (Prompts)
+
+| Prompt             | 用途                                  | トリガー                                 |
+| ------------------ | ------------------------------------- | ---------------------------------------- |
+| `session-close`    | コミット・公開リポ同期・DASHBOARD更新 | セッション終了時・「閉じる」「まとめて」 |
+| `submission-prep`  | 提出物作成（スペック確認→作成→検証）  | コンテスト/フォーム提出時                |
+| `update-dashboard` | DASHBOARD.md 更新                     | `@dashboard-updater`                     |

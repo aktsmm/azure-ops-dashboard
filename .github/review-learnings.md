@@ -163,6 +163,20 @@
 - **Evidence**: AI が `<tool_input>` に「Let me examine...」程度の思考テキストだけを content に入れ、ツールブロック除去後に採用される結果、統合レポートが 3 行になった。スコアリング上、ツール痕跡ペナルティ(-50)が大きく短い抽出が勝ってしまう。
 - **Action**: 抽出コンテンツの採用に品質ゲートを追加（300 文字以上 AND 見出し 2 以上）。ゲート不通過でも line-by-line 結果が短ければ「抽出の方が長い場合のみ」reconsider する二段構え。
 
+### U24: `uv run` はサブディレクトリの `pyproject.toml` に引きずられる → ビルドスクリプトは Python を絶対パスで指定
+
+- **Tags**: `<ビルド>` `<Python>` `<回復性>`
+- **Added**: 2026-02-24
+- **Evidence**: `azure-ops-dashboard/pyproject.toml` が存在するディレクトリで `uv run pyinstaller` を実行すると、親の `.venv` が無視されローカル仮想環境が優先されてビルドが不安定化した。
+- **Action**: ビルド/配布系スクリプトは `uv run` に頼らず、使用する Python を絶対パスで明示指定する（例: `d:\...\venv\Scripts\python.exe -m PyInstaller ...`）。サブディレクトリに `pyproject.toml` がある monorepo 構成では特に注意。
+
+### U25: LLM 生成物の品質保証は「プロンプト禁止」+「保存前機械チェック」の二段構えにする
+
+- **Tags**: `<AI>` `<品質>` `<設計>`
+- **Added**: 2026-02-24
+- **Evidence**: AI レポートで脚注 URL 重複・テーブル内脚注・ツール呼出 XML 混入が発生。プロンプトで禁止しても揺れるため、保存前に `validate_markdown()` を追加し検知率が大幅に向上した。
+- **Action**: LLM 出力の品質保証は (1) system prompt でルール禁止、(2) 保存前に機械チェック（正規表現/構造検証）の二段構えを標準にする。チェック結果は GUI ログに warning として表示し、ユーザーが判断できるようにする。
+
 ## Project-specific（プロジェクト固有）
 
 ### P1: PyInstaller / exe 配布のリソース参照は `app_paths.py` に集約する
@@ -186,9 +200,11 @@
 
 ### Done
 
-- i18n: `ai_reviewer.py` (12箇所) + `docs_enricher.py` (5箇所) のハードコード日本語ログを `get_language()` EN/JA 分岐に変更
-  - 「検索中」「件取得」「キャッシュ済みクライアントを再利用」「MCP を接続中」「AI 思考中」「処理実行中」等
-- 前回: サニタイザー強化 + system prompt 強化 + 進捗バー完了表示（同日）
+- 回復性/UI: 出力フォルダを開く・ログをコピーする操作を例外保護し、失敗してもクラッシュしないように修正
+- 診断性: Draw.io SVG エクスポート失敗時に理由を表示できるように改善（(path, err) 返却 + warning 表示）
+- i18n: 収集開始ログ（Targets/Subscription/RG/Limit）を `t()` 経由に統一
+- 回復性: settings.json 読み書きの例外握りつぶしを絞り込み（OSError/JSONDecodeError）
+- 提出/コンテンツ: `azure-ops-dashboard/presentations/images/` を追加（ローカル画像参照ガイドラインに合わせる）
 
 ### Not Done
 
@@ -198,12 +214,14 @@
 
 <!-- 毎回上書き。前回推奨の残骸を残さない。 -->
 
-### 確認（今回の修正が効いているか）
+### 確認（今回やったことが効いているか）
 
-- [ ] English モードで Collect → ログに日本語が混在しないこと `~3d`
-- [ ] 統合レポートを再実行し、レポート本文が Markdown として完成しているか確認 `~3d`
+- [ ] `python src/app.py` で GUI が起動できること（import error が出ない） `~3d`
+- [ ] GUI 操作: Output Dir Open / Copy Log / SVG export が失敗しても落ちず warning が出る `~3d`
+- [ ] `azure-ops-dashboard/presentations/images/` にスクショを配置し、content.json のローカル画像参照（images/...）で扱える `~7d`
 
-### 新観点（今回カバーできなかった品質改善）
+### 新観点（今回は手を付けなかった品質改善）
 
-- [ ] `collector.py` にも同様のハードコード日本語ログがないか確認する `~7d`
-- [ ] i18n キーを使わず直接文字列で EN/JA 分岐している箇所を `i18n.py` のキーに統一する `~30d`
+- [ ] テスト: `export_drawio_svg` の失敗系（returncode!=0/timeout/例外）をユニットテストで固定 `~7d`
+- [ ] i18n: ログ/メニュー/ボタンのハードコード文字列を棚卸しして `t()` に統一 `~30d`
+- [ ] 静的解析: ruff/pyright 等のチェックを CI に追加検討 `~30d`

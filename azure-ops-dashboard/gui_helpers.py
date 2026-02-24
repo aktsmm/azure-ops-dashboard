@@ -150,7 +150,10 @@ def _subprocess_no_window() -> dict:
     return {}
 
 
-def export_drawio_svg(drawio_path: Path, drawio_exe: str | None = None) -> Path | None:
+def export_drawio_svg(
+    drawio_path: Path,
+    drawio_exe: str | None = None,
+) -> tuple[Path | None, str | None]:
     """Draw.io CLI で .drawio → .drawio.svg に変換する。
 
     NOTE:
@@ -158,17 +161,35 @@ def export_drawio_svg(drawio_path: Path, drawio_exe: str | None = None) -> Path 
     """
     exe = drawio_exe or cached_drawio_path()
     if not exe:
-        return None
+        return None, None
     svg_path = drawio_path.with_suffix(".drawio.svg")
     try:
         result = subprocess.run(
-            [exe, "--export", "--format", "svg", "--embed-diagram",
-             "--output", str(svg_path), str(drawio_path)],
-            capture_output=True, text=True, timeout=60,
+            [
+                exe,
+                "--export",
+                "--format",
+                "svg",
+                "--embed-diagram",
+                "--output",
+                str(svg_path),
+                str(drawio_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
             **_subprocess_no_window(),
         )
         if result.returncode == 0 and svg_path.exists():
-            return svg_path
-    except Exception:
-        pass
-    return None
+            return svg_path, None
+
+        stderr = (result.stderr or "").strip()
+        stdout = (result.stdout or "").strip()
+        detail = stderr or stdout
+        if detail:
+            return None, f"Draw.io export failed (code={result.returncode}): {detail}"
+        return None, f"Draw.io export failed (code={result.returncode})"
+    except subprocess.TimeoutExpired:
+        return None, "Draw.io export timed out"
+    except Exception as exc:
+        return None, f"Draw.io export error: {type(exc).__name__}: {exc}"

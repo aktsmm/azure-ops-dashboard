@@ -48,13 +48,13 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 ### 必須ディレクトリ構成 — ギャップ分析
 
-| 要件                                      | 現状                            | 対応                                         |
-| ----------------------------------------- | ------------------------------- | -------------------------------------------- |
-| `/src` or `/app` (working code)           | ルート直下に `.py` ファイル配置 | ✅ README で説明済み（flat layout）           |
-| `/docs` (README, arch diagram, RAI notes) | ✅ README.md + DESIGN.md + architecture.drawio + RAI notes | ✅ 完了 |
-| `AGENTS.md`                               | ✅ 作成済み (90行)              | ✅ 完了                                      |
-| `mcp.json`                                | ✅ 作成済み (Microsoft Learn MCP) | ✅ 完了                                    |
-| `/presentations/AzureOpsDashboard.pptx`   | ✅ AzureOpsDashboard_v7.pptx    | ✅ 完了                                      |
+| 要件                                      | 現状                                                   | 対応      |
+| ----------------------------------------- | ------------------------------------------------------ | --------- |
+| `/src` or `/app` (working code)           | ✅ `src/app.py` を追加（ルート `main.py` を呼ぶ shim） | ✅ 完了   |
+| `/docs` (README, arch diagram, RAI notes) | ✅ docs/README.md + architecture.drawio + RAI notes    | ✅ 完了   |
+| `AGENTS.md`                               | ✅ 作成済み (90行)                                     | ✅ 完了   |
+| `mcp.json`                                | ✅ 作成済み (Microsoft Learn MCP)                      | ✅ 完了   |
+| `/presentations/AzureOpsDashboard.pptx`   | ✅ AzureOpsDashboard_TatsumiYamamoto.pptx (2 slides)   | ✅ 提出済 |
 
 ---
 
@@ -123,18 +123,34 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 ### 必須 (提出に必要)
 
 - [x] GitHub に `aktsmm/azure-ops-dashboard` リポジトリを作成 & push
-- [ ] **デモ動画** (3分以内) を YouTube / Stream にアップし URL 取得
-- [x] **プレゼンデック** (1-2 slides) `/presentations/AzureOpsDashboard_v7.pptx` 作成
+- [x] **デモ動画** (3分以内) を OneDrive Stream にアップし URL 取得
+- [x] **プレゼンデック** (1-2 slides) `presentations/AzureOpsDashboard_TatsumiYamamoto.pptx` 作成
 - [x] **AGENTS.md** を azure-ops-dashboard に作成
 - [x] **mcp.json** を作成（Microsoft Learn MCP 設定）
 - [x] **アーキテクチャ図** (`docs/architecture.drawio`) を追加
 - [x] **RAI notes** を README.md 末尾に追加
-- [ ] SharePoint フォームで提出
+- [x] SharePoint フォームで提出 (2026-02-24)
+
+### 提出フォーム 記入内容（最終記録）
+
+| #   | フィールド              | 入力値                                                                                                                                                                                                                                                                                                                              |
+| --- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Names of Team Members   | Tatsumi Yamamoto, Takuya Masuda, Naoki Matsumoto                                                                                                                                                                                                                                                                                    |
+| 2   | Team Members' Emails    | `tatsumiy@microsoft.com;nmatsumoto@microsoft.com;takuyamasuda@microsoft.com`                                                                                                                                                                                                                                                        |
+| 3   | Project Summary (150w)  | ↑ セクション 1 の本文をそのまま貼り付け                                                                                                                                                                                                                                                                                             |
+| 4   | Video URL               | `https://microsoftapc-my.sharepoint.com/:v:/g/personal/tatsumiy_microsoft_com/IQBTh_iIEsqrRZe8DNmSKq1fAavZJvBKytH4REh3vC3jPVQ?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=7PdnpV` |
+| 5   | GitHub Repository URL   | `https://github.com/aktsmm/azure-ops-dashboard`                                                                                                                                                                                                                                                                                     |
+| 6   | Presentation Deck       | `AzureOpsDashboard_TatsumiYamamoto.pptx` (2 slides, 0.16 MB)                                                                                                                                                                                                                                                                        |
+| 7   | Customer Testimonial    | スキップ                                                                                                                                                                                                                                                                                                                            |
+| 8   | SDK Feedback Screenshot | `sdk-feedback-teams-post.png` (86 KB)                                                                                                                                                                                                                                                                                               |
+
+> **提出日時**: 2026-02-24 18:00 JST
+> **フォーム**: Copilot SDK Enterprise Patterns Challenge Submission Form
 
 ### ボーナス
 
 - [x] SDK product feedback を SDK チーム channel に投稿 (2026-02-24)
-- [ ] SDK feedback スクリーンショットを `/docs/media/` に保存
+- [x] SDK feedback スクリーンショットを `/docs/media/sdk-feedback-teams-post.png` に保存
 - [ ] 社内利用検証ドキュメント作成
 - [ ] Work IQ 統合検討
 
