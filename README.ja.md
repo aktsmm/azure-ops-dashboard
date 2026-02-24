@@ -6,6 +6,14 @@ Azure環境（既存リソース）を読み取って、Draw.io 構成図（`.dr
 
 **日本語 / English 切り替え対応** — UI・ログ・AIレポート出力言語をワンクリックで切替。
 
+## デモ
+
+| GUI                                              | Cost Report                                           |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| ![GUI Screenshot](docs/media/screenshot-gui.png) | ![Cost Report](docs/media/screenshot-cost-report.png) |
+
+**デモ動画** (3 min): [docs/media/demo-full.mp4](docs/media/demo-full.mp4)
+
 ## 機能
 
 ### 図生成（Diagram）

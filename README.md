@@ -14,8 +14,8 @@ Supports **Japanese / English runtime switching** — UI text, logs, and AI repo
 
 ## Demo
 
-| GUI | Cost Report |
-|-----|-------------|
+| GUI                                              | Cost Report                                           |
+| ------------------------------------------------ | ----------------------------------------------------- |
 | ![GUI Screenshot](docs/media/screenshot-gui.png) | ![Cost Report](docs/media/screenshot-cost-report.png) |
 
 **Demo video** (3 min): [docs/media/demo-full.mp4](docs/media/demo-full.mp4)

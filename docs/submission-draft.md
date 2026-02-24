@@ -21,9 +21,12 @@ Key capabilities: template customization (section ON/OFF, custom instructions), 
 
 ## 2. Demo Video (3 min max)
 
-<!-- TODO: 撮影後にリンクを貼る -->
+<!-- 提出フォームには OneDrive Stream URL を記載する（git には載せない） -->
+<!-- EN: Azure-Ops-DashBoard_demo_en.mp4 (OneDrive: 01_業務関連/V-team系/csu-contest/) -->
+<!-- JA: Azure-Ops-DashBoard_demo_ja.mp4 (OneDrive: Microsoft Teams チャット ファイル/) -->
 
-- [ ] YouTube or Stream link: (TBD)
+- [x] 動画撮影完了 (en: 19.5 MB / ja: 14.5 MB)
+- [x] OneDrive / Stream にアップロード済み
 
 ### デモシナリオ案 (3分)
 
