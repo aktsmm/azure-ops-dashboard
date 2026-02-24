@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 *.egg-info/
 skills/
+# step03 src/skills/ は Python パッケージとして追跡する
+!step03-voice-agent/src/skills/
+!step03-voice-agent/src/skills/**
 
 # PyInstaller
 build/

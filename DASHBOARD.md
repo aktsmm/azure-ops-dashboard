@@ -1,6 +1,6 @@
-# 🚀 Challenge Dashboard
+﻿# 🚀 Challenge Dashboard
 
-> Last Updated: **2026-02-24** | Deadline: **2026-03-07 22:00 PST** (FY26 SDK Enterprise Challenge) | 残り **11 日**
+> Last Updated: **2026-02-24 (Session 09)** | Deadline: **2026-03-07 22:00 PST** (FY26 SDK Enterprise Challenge) | 残り **11 日**
 
 ---
 
@@ -15,7 +15,7 @@
 | Azure Ops Dashboard              | ✅ 完成     | 100% | レビュー修正済（スレッド安全/タイムアウト/API整理）・統合レポート・テスト39件 |
 | 提出物準備（docs/video/deck）    | ✅ 提出済   | 100% | 2/24 提出完了（PPTX 2スライド + 動画 + SDK Feedback）                         |
 
-**🎯 総合: 約 55%** ／ **本命 (Voice Agent) 単体: 45%**
+**🎯 総合: 約 70%** ／ **本命 (Voice Agent) 単体: 70%**
 
 ---
 
@@ -58,7 +58,7 @@
 - [x] what-if / 実デプロイ実行（Storage 実デプロイ成功ログあり）
 - [x] 自然言語→Bicep 生成（Copilot SDK 呼び出し） ← ★最優先
 - [x] 失敗修復ループ（SDK でエラー解析→Bicep 修正→再デプロイ） ← ★最優先
-- [ ] モジュール分割（orchestrator / bicep_generator / artifact_store）
+- [x] モジュール分割（az_runner / artifact_store / bicep_generator — main.py 174行に圧縮）
 
 ---
 
@@ -66,7 +66,7 @@
 
 - [x] Azure Speech STT + pyautogui でアクティブウィンドウへ入力
 - [x] Ctrl+C で停止
-- [ ] ホットキーで ON/OFF 切替（Step3 統合に向けて）
+- [x] Ctrl+Shift+D ホットキーで ON/OFF 切替（pynput + HotkeyToggle クラス）
 
 ---
 
@@ -75,10 +75,11 @@
 - [x] `src/app.py` ― トレイ常駐 + モード切替（dictation / agent）
 - [x] `src/sdk/` ― Step0 Copilot SDK ラッパー移植
 - [x] `src/speech/` ― Step2 Azure Speech STT/TTS 移植
-- [ ] `src/skills/` ― Agent-Skills 自動同期（git pull + skill_directories 注入）
-- [ ] `src/tools/` ― onPreToolUse（許可/拒否/確認）
-- [ ] Work IQ MCP 連携
-- [ ] デモシナリオ通し動作確認
+- [x] `src/skills/` ― SkillManager 実装（git pull + skill_directories 注入、3スキル検出確認）
+- [x] `src/tools/` ― ToolApproval 実装（SAFE / INTERACTIVE / ALLOW_ALL モード、onPreToolUse フック）
+- [x] Work IQ MCP 連携（MCPConfig クラス、GitHub MCP + Work IQ MCP設定注入）
+- [x] `src/app.py` 完全統合（skills/tools/mcp → session_config に自動注入）
+- [ ] デモシナリオ通し動作確認（Azure Speech キー設定後）
 
 ---
 

@@ -1,4 +1,4 @@
-<!-- skill-ninja-START -->
+﻿<!-- skill-ninja-START -->
 
 ## Agent Skills (Compressed Index)
 
@@ -92,3 +92,18 @@
 
 - **Evidence**: `git subtree push --prefix=azure-ops-dashboard dashboard master` → non-fast-forward で拒否。`git subtree split --prefix=...` で subtree 先端 SHA を取得し `git push dashboard <sha>:refs/heads/master --force` で解決した。
 - **Action**: subtree push が拒否されたら `subtree split` → `push <sha>:refs/heads/master --force` の 2 ステップで対処する。公開リポに直接コミットしている場合は先に `subtree pull` で取り込む方が安全。
+
+### L15: onPreToolUse フックで SAFE モードを先に定義 — approve_all は開発専用
+
+- **Evidence**: Step0 では PermissionHandler.approve_all を使っていたが、Step3 本命では危険ツール（bash/shell）に即 deny が必要。approve_all を引き継ぐと本番リスクになる
+- **Action**: 新しい Session を作る際は ToolApproval(mode=ApprovalMode.SAFE) を先に定義し inject_into_config() で注入する。approve_all はフォールバックのみ（SDK 未インストール時）に限定する。
+
+### L16: SkillManager は workspace_root を __file__ の 3 階層上から自動推定できる
+
+- **Evidence**: step03-voice-agent/src/skills/skill_manager.py から __file__.parent.parent.parent.parent で正しく .github/skills/ を参照できた
+- **Action**: モノレポ内に src/<pkg>/ 構造を持つ場合、SkillManager の workspace_root は引数省略で自動推定可能。CI で list_skills() が 0 件を返す場合はパス階層を print_summary() で確認する。
+
+### L17: Set-Content heredoc で emoji/日本語を含む大きなコードを書き込むと PowerShell が出力途中で見切る — Python スクリプトで書くか分割する
+
+- **Evidence**: @'...'@ の PowerShell heredoc で app.py (384行) を一度に書き込もうとしたが途中で切れた。Set-Content が成功した後も末尾が旧コードの重複になった
+- **Action**: PowerShell での大規模コード書き込みは create_file ツールを使う。どうしても PS が必要なら 100行以下に分割か [System.IO.File]::WriteAllText + $content = Get-Content ... -Raw のパターンを使う。
