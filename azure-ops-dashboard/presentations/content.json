@@ -16,8 +16,15 @@
         {"text": "Enterprise IT teams manage complex Azure environments across multiple subscriptions", "level": 0},
         {"text": "Visualizing requires juggling Azure Portal, CLI, Resource Graph, and manual docs", "level": 1},
         {"text": "Security posture and cost optimization reviews are manual and inconsistent", "level": 0},
-        {"text": "No single tool provides As-Is diagrams + AI-driven operational insights", "level": 1},
-        {"text": "Documentation becomes stale — environment drift goes undetected", "level": 0}
+        {"text": "No single tool provides As-Is diagrams + AI-driven operational insights", "level": 1}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "The Problem (cont.)",
+      "bullets": [
+        {"text": "Documentation becomes stale — environment drift goes undetected", "level": 0},
+        {"text": "Teams need quick, repeatable environment snapshots for audits, reviews, handoffs", "level": 0}
       ]
     },
     {
@@ -27,7 +34,13 @@
         {"text": "One-click data collection via Azure Resource Graph", "level": 0},
         {"text": "Inventories all resources, networking, security, cost data", "level": 1},
         {"text": "Draw.io architecture diagrams with Azure-official icons", "level": 0},
-        {"text": "Inventory view + Network topology (VNet/Subnet hierarchy)", "level": 1},
+        {"text": "Inventory view + Network topology (VNet/Subnet hierarchy)", "level": 1}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "The Solution (cont.)",
+      "bullets": [
         {"text": "AI-powered reports via GitHub Copilot SDK", "level": 0},
         {"text": "Security: Secure Score, Defender, recommendations", "level": 1},
         {"text": "Cost: spend breakdown, optimization, Advisor integration", "level": 1},
@@ -41,11 +54,31 @@
       "bullets": [
         {"text": "Time savings: Environment visualization in minutes, not hours", "level": 0},
         {"text": "Security: Early detection of misconfigurations and risks", "level": 0},
-        {"text": "Cost optimization: AI-driven spend analysis and recommendations", "level": 0},
+        {"text": "Cost optimization: AI-driven spend analysis and recommendations", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Business Value (cont.)",
+      "bullets": [
         {"text": "Drift tracking: Automated diff reports across time", "level": 0},
         {"text": "Reusability: Template system for customized reports per customer", "level": 0},
         {"text": "Amplification: Applicable to any Azure enterprise engagement", "level": 0}
       ]
+    },
+    {
+      "type": "section",
+      "title": "Demo & Screenshots"
+    },
+    {
+      "type": "title_only",
+      "title": "GUI — Collect & Diagram Generation",
+      "note": "Insert screenshot: GUI main screen with diagram output"
+    },
+    {
+      "type": "title_only",
+      "title": "AI Report — Streaming Output",
+      "note": "Insert screenshot: AI report generation with streaming text"
     },
     {
       "type": "section",
@@ -58,9 +91,16 @@
         {"text": "Desktop GUI (tkinter) with threaded background workers", "level": 0},
         {"text": "Data Collection: Azure CLI / Resource Graph / Security Center / Cost Mgmt / Advisor", "level": 0},
         {"text": "AI Engine: GitHub Copilot SDK (CopilotClient streaming sessions)", "level": 0},
-        {"text": "Enrichment: Microsoft Learn Search API + MCP server", "level": 1},
+        {"text": "Enrichment: Microsoft Learn Search API + MCP server", "level": 1}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Architecture Overview (cont.)",
+      "bullets": [
         {"text": "Output: Draw.io XML / Markdown / Word / PDF / diff reports", "level": 0},
-        {"text": "Packaging: PyInstaller single-exe distribution", "level": 0}
+        {"text": "Packaging: PyInstaller single-exe distribution", "level": 0},
+        {"text": "Cross-platform: Windows (full + exe), macOS, Linux", "level": 0}
       ]
     },
     {
@@ -70,9 +110,16 @@
         {"text": "CopilotClient with streaming token callbacks", "level": 0},
         {"text": "Dynamic model selection: claude-sonnet (latest) / gpt-4.1 fallback", "level": 1},
         {"text": "Read-only tool permissions (no write operations)", "level": 0},
-        {"text": "Microsoft Docs MCP for document-grounded analysis", "level": 0},
+        {"text": "Microsoft Docs MCP for document-grounded analysis", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "SDK Integration (cont.)",
+      "bullets": [
         {"text": "Retry with exponential backoff + future.cancel() on timeout", "level": 0},
-        {"text": "Thread-safe streaming UI: atomic buffer swap at 100ms", "level": 0}
+        {"text": "Thread-safe streaming UI: atomic buffer swap at 100ms", "level": 0},
+        {"text": "Session hooks for tool permission control and observability", "level": 0}
       ]
     },
     {
@@ -81,7 +128,13 @@
       "bullets": [
         {"text": "Azure Resource Graph — full inventory across subscriptions", "level": 0},
         {"text": "Microsoft Defender for Cloud — Secure Score, alerts, recommendations", "level": 0},
-        {"text": "Azure Cost Management — spend by service/resource group", "level": 0},
+        {"text": "Azure Cost Management — spend by service/resource group", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Azure Integration (cont.)",
+      "bullets": [
         {"text": "Azure Advisor — optimization recommendations", "level": 0},
         {"text": "Microsoft Learn Search API — enrichment for AI reports", "level": 0},
         {"text": "Service Principal + Interactive login support", "level": 0}
@@ -94,9 +147,16 @@
         {"text": "Template system: bundled defaults + user override (%APPDATA%)", "level": 0},
         {"text": "No exe rebuild needed to update report templates", "level": 1},
         {"text": "i18n: Japanese/English runtime switching (UI + reports)", "level": 0},
-        {"text": "Read-only Azure operations only — Reader role minimum", "level": 0},
+        {"text": "Read-only Azure operations only — Reader role minimum", "level": 0}
+      ]
+    },
+    {
+      "type": "content",
+      "title": "Design Decisions (cont.)",
+      "bullets": [
         {"text": "No secrets stored to disk — entered per-session via GUI", "level": 0},
-        {"text": "32 unit tests runnable without Azure/SDK connectivity", "level": 0}
+        {"text": "32 unit tests runnable without Azure/SDK connectivity", "level": 0},
+        {"text": "Responsible AI: RAI notes, human oversight gates, least privilege", "level": 0}
       ]
     },
     {
