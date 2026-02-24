@@ -36,9 +36,5 @@ Thumbs.db
 # Backup files
 *.bak
 
-# Presentations (large binary)
+# Presentations (large binary — do not sync to public repo)
 presentations/*.pptx
-
-# Keep the submission deck(s) trackable
-!presentations/AzureOpsDashboard.pptx
-!presentations/AzureOpsDashboard_TatsumiYamamoto.pptx
