@@ -1,36 +1,40 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from __future__ import annotations
+
+import sys
 from pathlib import Path
 
 
-def _resolve_copilot_bin_dir(project_dir: Path) -> Path | None:
-    # Prefer a local venv (public repo layout), then fallback to monorepo layout.
+def _find_copilot_bin_dir() -> Path | None:
+    # Locate `copilot/bin` under the current Python environment.
+    # This avoids hard-coding machine-specific absolute paths in the tracked spec.
+    venv_root = Path(sys.executable).resolve().parents[1]
     candidates = [
-        project_dir / ".venv" / "Lib" / "site-packages" / "copilot" / "bin",
-        project_dir / ".." / ".venv" / "Lib" / "site-packages" / "copilot" / "bin",
+        venv_root / "Lib" / "site-packages" / "copilot" / "bin",  # Windows venv
+        venv_root / "lib" / "python" / "site-packages" / "copilot" / "bin",  # POSIX fallback
     ]
-    for path in candidates:
-        resolved = path.resolve()
-        if resolved.exists():
-            return resolved
+    for cand in candidates:
+        if cand.exists():
+            return cand
     return None
 
 
-_project_dir = Path(__file__).resolve().parent
+project_root = Path(__file__).resolve().parent
+templates_dir = project_root / "templates"
 
-_datas = [(str((_project_dir / "templates").resolve()), "templates")]
-
-_copilot_bin = _resolve_copilot_bin_dir(_project_dir)
-if _copilot_bin:
-    # NOTE: avoid top-level "copilot/" to prevent Python import collisions.
-    _datas.append((str(_copilot_bin), "copilot_cli\\bin"))
+datas = [(str(templates_dir), "templates")]
+copilot_bin_dir = _find_copilot_bin_dir()
+if copilot_bin_dir is not None:
+    # NOTE: use a non-conflicting top-level name inside the exe bundle.
+    datas.append((str(copilot_bin_dir), "copilot_cli\\bin"))
 
 
 a = Analysis(
-    ["main.py"],
-    pathex=[],
+    [str(project_root / "main.py")],
+    pathex=[str(project_root)],
     binaries=[],
-    datas=_datas,
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -39,6 +43,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -46,7 +51,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='AzureOpsDashboard',
+    name="AzureOpsDashboard",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -58,6 +63,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
 coll = COLLECT(
     exe,
     a.binaries,
@@ -65,5 +71,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='AzureOpsDashboard',
+    name="AzureOpsDashboard",
 )

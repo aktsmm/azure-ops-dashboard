@@ -18,7 +18,7 @@ Supports **Japanese / English runtime switching** — UI text, logs, and AI repo
 | ------------------------------------------------ | ----------------------------------------------------- |
 | ![GUI Screenshot](docs/media/screenshot-gui.png) | ![Cost Report](docs/media/screenshot-cost-report.png) |
 
-**Demo video** (3 min): [docs/media/demo-full.mp4](docs/media/demo-full.mp4)
+**Demo video** (3 min): provided separately (not stored in this repository)
 
 ### Architecture
 
@@ -83,7 +83,7 @@ User → tkinter GUI (main.py)
 
 ### AI features (review / report generation)
 
-- GitHub Copilot SDK (`pip install github-copilot-sdk` or `uv pip install -e ".[ai]"`)
+- GitHub Copilot SDK (`uv pip install github-copilot-sdk` or `uv pip install -e ".[ai]"`)
 - Copilot CLI installed and `copilot auth login` completed (SDK uses Copilot CLI server mode)
 - Or a token set via env vars (e.g., `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
 - Network access (proxy/firewall environments may require extra setup)
@@ -92,7 +92,7 @@ User → tkinter GUI (main.py)
 
 - **Word (.docx)**: included via `python-docx` (installed automatically)
 - **PDF**: Microsoft Word (Windows, via COM/comtypes) or LibreOffice (`soffice` command, any OS)
-  - Windows PDF also needs `pip install comtypes` if not already installed
+  - Windows PDF also needs `uv pip install comtypes` if not already installed
 - **SVG (.drawio.svg)**: Draw.io desktop app installed (used as CLI for SVG export)
 
 ### Permissions

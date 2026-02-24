@@ -72,6 +72,9 @@ $pyiParams = @(
   '--noconsole',
   '--clean',
   '--noconfirm',
+  # Avoid overwriting the tracked AzureOpsDashboard.spec in the repo root.
+  # (PyInstaller auto-generates a spec file containing absolute paths.)
+  '--specpath', (Join-Path $PSScriptRoot 'build\\spec'),
   '--distpath', $distRoot,
   '--add-data', $addData
 )
