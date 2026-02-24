@@ -1912,14 +1912,55 @@ def run_integrated_report(
 
     sanitized = _sanitize_ai_markdown(raw)
 
-    # If sanitization removed headings but the content is otherwise present, salvage by
-    # prepending a top-level heading to avoid unnecessary fallback.
-    if sanitized and not any(l.lstrip().startswith("#") for l in sanitized.splitlines() if l.strip()):
+    # ------------------------------------------------------------
+    # Integrated report quality gate
+    # - If the model returns a placeholder (e.g. "I'll generate...") or too-short output,
+    #   treat as invalid and let the GUI fall back to a deterministic integrated report.
+    # - Salvage by prepending a top-level heading ONLY when the body already looks substantial.
+    # ------------------------------------------------------------
+    stripped = sanitized.strip() if isinstance(sanitized, str) else ""
+    lines = [l for l in stripped.splitlines()]
+    has_h1 = any(l.lstrip().startswith("# ") for l in lines if l.strip())
+    has_h2 = any(l.lstrip().startswith("## ") for l in lines if l.strip())
+    bullet_lines = 0
+    for l in lines:
+        s = l.lstrip()
+        if s.startswith(("- ", "* ")):
+            bullet_lines += 1
+            continue
+        if re.match(r"^\d+\.\s+", s):
+            bullet_lines += 1
+
+    head = stripped[:200].lower()
+    placeholder_phrases = (
+        "i'll generate",
+        "i will generate",
+        "let me generate",
+        "i'll create",
+        "i will create",
+        "i'll produce",
+        "i will produce",
+        "i'll provide",
+        "i will provide",
+        # JA-ish
+        "生成します",
+        "作成します",
+        "作って",
+        "これから",
+        "以下を生成",
+    )
+    looks_placeholder = any(p in head for p in placeholder_phrases)
+
+    # Salvage heading only when body looks non-trivial.
+    if stripped and (not has_h1) and (has_h2 or bullet_lines >= 4) and len(stripped) >= 200:
         title = "# Integrated Report" if get_language() == "en" else "# 統合レポート"
-        sanitized = title + "\n\n" + sanitized.lstrip()
+        stripped = title + "\n\n" + stripped.lstrip()
+        lines = [l for l in stripped.splitlines()]
+        has_h1 = True
+        has_h2 = any(l.lstrip().startswith("## ") for l in lines if l.strip())
 
     # まだツール痕跡が残る/見出しが無い場合は「統合として不正」として扱う
-    lowered = sanitized.lower()
+    lowered = stripped.lower()
     reasons: list[str] = []
     if (
         "<tool_" in lowered
@@ -1930,8 +1971,15 @@ def run_integrated_report(
         or "<filewriteresult" in lowered
     ):
         reasons.append("tool_trace")
-    if not any(l.lstrip().startswith("#") for l in sanitized.splitlines() if l.strip()):
+    if not has_h1:
         reasons.append("no_heading")
+    if len(stripped) < 200:
+        reasons.append("too_short")
+    if looks_placeholder:
+        reasons.append("placeholder")
+    # Require at least some structure (sections or bullets). This prevents saving a one-liner.
+    if not (has_h2 or bullet_lines >= 4):
+        reasons.append("no_structure")
 
     if reasons:
         log = on_status or (lambda _s: None)
@@ -1942,7 +1990,7 @@ def run_integrated_report(
         # Best-effort debug hint (keep short to avoid log bloat)
         try:
             raw_preview = raw.replace("\r", "").replace("\n", "\\n")[:240]
-            san_preview = sanitized.replace("\r", "").replace("\n", "\\n")[:240]
+            san_preview = stripped.replace("\r", "").replace("\n", "\\n")[:240]
             if en:
                 log(f"  raw(head): {raw_preview}")
                 log(f"  sanitized(head): {san_preview}")
@@ -1953,7 +2001,7 @@ def run_integrated_report(
             pass
         return None
 
-    return sanitized
+    return stripped
 
 
 def run_drawio_generation(
