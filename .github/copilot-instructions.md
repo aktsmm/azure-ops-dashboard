@@ -23,6 +23,7 @@
 - コミットメッセージは Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`）
 - 明示的な指示がない限り `git push` は禁止
 - ファイルパスは相対パスで記述（絶対パスを埋め込まない）
+- monorepo → 公開リポの subtree push が non-fast-forward で失敗した場合: `git subtree split --prefix=<dir> HEAD` で SHA を取得し `git push <remote> <sha>:refs/heads/master --force` で解決（L14）
 
 ## Azure
 

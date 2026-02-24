@@ -82,3 +82,13 @@
 
 - **Evidence**: 21 スライド・19MB の PPTX を作成した後、フォームが「1-2 slides / 10MB / submitter name in filename」を要求していると判明し全面再作成が発生した
 - **Action**: 提出先フォームの制約（スライド数・ファイルサイズ上限・命名規則・許可ファイル形式）を最初に確認してから成果物を作成する。名前・メール等の確定情報も事前に収集する。
+
+### L13: AI 出力は「見出しあり」だけで成功判定しない — 長さ・構造・プレースホルダで最低品質ゲートを入れる
+
+- **Evidence**: `run_integrated_report()` が `# Integrated Report\nI'll generate...`（1行）を valid 扱いで保存し続けた。見出しチェックのみだったため通過していた。
+- **Action**: 見出し有無に加え「最低文字数（≥200）」「セクションまたは箇条書きあり」「プレースホルダ文言なし」の 3 条件でゲートし、失敗時は deterministic フォールバックへ切り替える。
+
+### L14: monorepo の subtree を独立リポに push する際、remote が先行すると `subtree split + force push` が必要
+
+- **Evidence**: `git subtree push --prefix=azure-ops-dashboard dashboard master` → non-fast-forward で拒否。`git subtree split --prefix=...` で subtree 先端 SHA を取得し `git push dashboard <sha>:refs/heads/master --force` で解決した。
+- **Action**: subtree push が拒否されたら `subtree split` → `push <sha>:refs/heads/master --force` の 2 ステップで対処する。公開リポに直接コミットしている場合は先に `subtree pull` で取り込む方が安全。
