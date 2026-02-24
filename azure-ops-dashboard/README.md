@@ -20,6 +20,19 @@ Supports **Japanese / English runtime switching** — UI text, logs, and AI repo
 
 **Demo video** (3 min): provided separately (not stored in this repository)
 
+## Download
+
+| Artifact | Link |
+| -------- | ---- |
+| Windows x64 — pre-built `.exe` (onedir zip) | [**Releases page →**](https://github.com/aktsmm/azure-ops-dashboard/releases) |
+
+> **Quick start (no Python required)**
+> 1. Download `AzureOpsDashboard-vX.X.X-win-x64.zip` from the Releases page.
+> 2. Unzip the archive — keep the folder structure intact.
+> 3. Double-click **`AzureOpsDashboard.exe`** inside the unzipped folder.
+>
+> External tools (Azure CLI, etc.) are NOT bundled — see [Prerequisites (exe)](#prerequisites-when-using-a-packaged-exe).
+
 ### Architecture
 
 See the full architecture diagram: [docs/architecture.drawio](docs/architecture.drawio)
@@ -253,6 +266,9 @@ uv run python -m unittest tests -v
 Tests can run without Azure CLI / Copilot SDK connectivity (39 tests).
 
 ## Packaging (Windows .exe)
+
+> **Pre-built binaries are available on the [Releases page](https://github.com/aktsmm/azure-ops-dashboard/releases).**
+> Build from source only if you need to customize or are on a different Python version.
 
 You can generate an exe with PyInstaller (Azure CLI `az` must be installed separately).
 
