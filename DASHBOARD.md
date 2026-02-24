@@ -23,6 +23,7 @@
 
 ### NOW ― 今日やること
 
+- ✅ [fix-error] Azure Ops Dashboard: Integrated Report の短文出力を回避
 - [ ] Step1: 自然言語→Bicep 生成（Copilot SDK 呼び出し）実装
 - [ ] Step3: `src/app.py` 骨格（トレイ常駐 + モード切替）
 
